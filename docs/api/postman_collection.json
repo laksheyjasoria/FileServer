@@ -1,0 +1,555 @@
+{
+    "info": {
+        "name": "FileServer API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "version": "1.0.0"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8080"
+        },
+        {
+            "key": "authToken",
+            "value": ""
+        }
+    ],
+    "item": [
+        {
+            "name": "Auth - Register",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"secret123\",\n  \"name\": \"User\"\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/auth/register",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "auth",
+                        "register"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Auth - Login",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"secret123\"\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/auth/login",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "auth",
+                        "login"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Auth - Me",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/auth/me",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "auth",
+                        "me"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Billing - Create Plan",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"name\": \"Pro\",\n  \"storageLimitBytes\": 1073741824,\n  \"maxUploadSizeBytes\": 104857600,\n  \"dailyUploadLimit\": 100,\n  \"apiRequestLimit\": 1000,\n  \"price\": 9.99\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/billing/plan",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "billing",
+                        "plan"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Billing - Assign Plan",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"userId\": \"user-id\",\n  \"planId\": \"plan-id\",\n  \"validityDays\": 30\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/billing/assign",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "billing",
+                        "assign"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Drive - List",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/drive",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "drive"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Download - Get",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/download/:id",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "download",
+                        ":id"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Upload - Single",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "formdata",
+                    "formdata": [
+                        {
+                            "key": "file",
+                            "type": "file"
+                        }
+                    ]
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/upload",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "upload"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Chunk Upload - Create",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"fileName\": \"large.bin\",\n  \"totalSize\": 10737418240,\n  \"totalChunks\": 100\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/chunk-upload/create",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "chunk-upload",
+                        "create"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Chunk Upload - Upload Chunk",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "formdata",
+                    "formdata": [
+                        {
+                            "key": "file",
+                            "type": "file"
+                        }
+                    ]
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/chunk-upload/:uploadId/:chunkIndex",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "chunk-upload",
+                        ":uploadId",
+                        ":chunkIndex"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Chunk Upload - Resume",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/chunk-upload/:uploadId/resume",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "chunk-upload",
+                        ":uploadId",
+                        "resume"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Chunk Upload - Status",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/chunk-upload/:uploadId/status",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "chunk-upload",
+                        ":uploadId",
+                        "status"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Chunk Upload - Cancel",
+            "request": {
+                "method": "DELETE",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/chunk-upload/:uploadId",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "chunk-upload",
+                        ":uploadId"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Webhook - Create",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"url\": \"https://example.com/hook\",\n  \"secret\": \"s3cr3t\"\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/webhooks",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "webhooks"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Email - Send",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"to\": [\"recipient@example.com\"],\n  \"subject\": \"Hello\",\n  \"body\": \"Hello from API\"\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/email/send",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "email",
+                        "send"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Logger - Create",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/logger/create?name=mylogger",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "logger",
+                        "create"
+                    ],
+                    "query": [
+                        {
+                            "key": "name",
+                            "value": "mylogger"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Logger - Log",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/logger/log?loggerId=logger-id&level=INFO&message=hello",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "logger",
+                        "log"
+                    ],
+                    "query": [
+                        {
+                            "key": "loggerId",
+                            "value": "logger-id"
+                        },
+                        {
+                            "key": "level",
+                            "value": "INFO"
+                        },
+                        {
+                            "key": "message",
+                            "value": "hello"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Share - Create",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"fileId\": \"file-id\",\n  \"publicAccess\": true\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/share",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "share"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Share - Access",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{baseUrl}}/share/:token",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "share",
+                        ":token"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Resources - Action",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{authToken}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"action\": \"DELETE\",\n  \"ids\": [\"id1\", \"id2\"]\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/resources/action",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "resources",
+                        "action"
+                    ]
+                }
+            }
+        }
+    ]
+}

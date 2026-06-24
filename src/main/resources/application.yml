@@ -1,0 +1,108 @@
+spring:
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/fileserver
+    username: fileserver
+    password: fileserver123
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    properties:
+      hibernate:
+        format_sql: false
+
+    open-in-view: false
+
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: yourmail@gmail.com
+    password: app-password
+
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: your-google-client-id
+            client-secret: your-google-client-secret
+            scope:
+              - email
+              - profile
+
+app:
+
+  name: File Server
+
+  environment: dev
+
+  frontend-url: http://localhost:3000
+
+  redis-enabled: false
+
+  swagger-enabled: true
+
+  upload:
+    max-file-size: 2147483648
+    chunk-size-mb: 50
+    resumable: true
+
+  storage:
+    provider: telegram
+
+  email:
+    enabled: true
+    from: yourmail@gmail.com
+
+  oauth:
+    google:
+      client-id: your-google-client-id
+
+  scheduler:
+    enabled: true
+
+  master-key:
+    value: MASTER_SECRET_KEY
+
+  security:
+    jwt:
+      secret: VERY_LONG_SECRET_KEY_123456789012345678901234567890
+      access-token-validity: 3600000
+      reset-token-validity: 900000
+      redis-enabled: true
+
+  telegram:
+
+    storage:
+      bot-token: BOT_TOKEN
+      chat-id: CHAT_ID
+
+    logger:
+      enabled: true
+      bot-token: LOGGER_BOT_TOKEN
+      chat-id: LOGGER_CHAT_ID
+
+  logger:
+    levels:
+      info: true
+      warn: true
+      error: true

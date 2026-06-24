@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Server - Compatible Frontend (static2)</title>
+    <link rel="stylesheet" href="/static2/css/styles.css">
+</head>
+
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">
+            <span class="logo-icon">📁</span>
+            <span class="logo-text">File Server</span>
+        </div>
+        <div class="search-bar">
+            <input type="text" placeholder="Search files..." id="searchInput">
+        </div>
+        <div class="user-menu">
+            <span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
+            <div class="user-avatar" id="userAvatar">U</div>
+        </div>
+    </div>
+
+    <!-- Main Container (same structure as original) -->
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-item active" data-view="my-drive">
+                <span class="icon">📁</span>
+                <span>My Drive</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="toolbar">
+                <div class="breadcrumb" id="breadcrumb">
+                    <span class="breadcrumb-item" onclick="navigateToParent()">My Drive</span>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" id="newFolderBtn">📁 New Folder</button>
+                    <button class="btn btn-primary" id="uploadBtn">📤 Upload File</button>
+                    <input type="file" id="fileInput" multiple style="display: none;">
+                </div>
+            </div>
+
+            <div id="fileContainer">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts (point to static2 copies) -->
+    <script src="/static2/js/config.js"></script>
+    <script src="/static2/js/utils.js"></script>
+    <script src="/static2/js/api.js"></script>
+    <script src="/static2/js/fileManager.js"></script>
+    <script src="/static2/js/folderManager.js"></script>
+    <script src="/static2/js/uploadManager.js"></script>
+    <script src="/static2/js/shareManager.js"></script>
+    <script src="/static2/js/contextMenu.js"></script>
+    <script src="/static2/js/app.js"></script>
+</body>
+
+</html>

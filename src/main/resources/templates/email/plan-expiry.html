@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        .container { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; }
+        .header { background: #dc3545; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; }
+        .button { background: #1a73e8; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; }
+        .warning { background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Your Plan is Expiring Soon</h1>
+        </div>
+        <div class="content">
+            <p>Hi there,</p>
+            <p>Your <strong>{{planName}}</strong> plan will expire on <strong>{{expiryDate}}</strong>.</p>
+            <p>To avoid service interruption, please renew your subscription:</p>
+            <p style="text-align: center;">
+                <a href="{{renewalLink}}" class="button">Renew Now</a>
+            </p>
+            <div class="warning">
+                After your plan expires, you will no longer be able to upload new files. Your existing files will remain accessible.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

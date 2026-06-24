@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/fileserver
+    username: fileserver
+    password: fileserver123
+  
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: redis123
+
+telegram:
+  storage:
+    bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN}
+    chat-id: ${TELEGRAM_STORAGE_CHAT_ID}
+  logger:
+    bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN}
+    chat-id: ${TELEGRAM_LOGGER_CHAT_ID}
+
+logging:
+  level:
+    com.app: INFO

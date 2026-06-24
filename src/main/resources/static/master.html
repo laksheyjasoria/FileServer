@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Drive Management - File Server</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 28px;
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 500;
+            color: #5f6368;
+        }
+
+        .badge-master {
+            background: #e8f0fe;
+            color: #1a73e8;
+            padding: 4px 8px;
+            border-radius: 16px;
+            font-size: 12px;
+            margin-left: 12px;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #1a73e8;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Sidebar */
+        .app-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+
+        .sidebar {
+            width: 256px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            padding: 8px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-item {
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            color: #5f6368;
+            border-radius: 0 24px 24px 0;
+            margin-right: 8px;
+        }
+
+        .sidebar-item:hover {
+            background: #f1f3f4;
+        }
+
+        .sidebar-item.active {
+            background: #e8f0fe;
+            color: #1a73e8;
+            font-weight: 500;
+        }
+
+        .sidebar-item .icon {
+            font-size: 20px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+            color: #5f6368;
+            transition: color 0.2s;
+        }
+
+        .breadcrumb-item:hover {
+            color: #1a73e8;
+        }
+
+        .breadcrumb-separator {
+            color: #9aa0a6;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #1a73e8;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1557b0;
+        }
+
+        .btn-secondary {
+            background: #f1f3f4;
+            color: #5f6368;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        /* File Grid */
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .file-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            position: relative;
+        }
+
+        .file-item:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-color: #1a73e8;
+        }
+
+        .file-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: #202124;
+            word-break: break-word;
+            margin-bottom: 8px;
+        }
+
+        .file-info {
+            font-size: 12px;
+            color: #5f6368;
+        }
+
+        /* Master Key Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            width: 400px;
+            max-width: 90%;
+            padding: 24px;
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+            margin-bottom: 24px;
+        }
+
+        .modal-body input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #5f6368;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #5f6368;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .master-key-input {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            width: 350px;
+            text-align: center;
+        }
+
+        .master-key-input.hidden {
+            display: none;
+        }
+
+        .master-key-input input {
+            width: 100%;
+            padding: 12px;
+            margin: 16px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+
+        .error-message {
+            background: #fce8e6;
+            color: #c5221f;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Master Key Input Modal -->
+    <div class="master-key-input" id="masterKeyModal">
+        <div style="font-size: 48px; margin-bottom: 16px;">🔑</div>
+        <h3>Master Key Required</h3>
+        <p style="margin: 10px 0; font-size: 14px; color: #5f6368;">Enter master key to access admin panel</p>
+        <input type="password" id="masterKeyInput" placeholder="Enter Master Key">
+        <button class="btn btn-primary" onclick="verifyMasterKey()">Verify</button>
+        <button class="btn btn-secondary" onclick="goToUserDrive()">Back to User Drive</button>
+        <div id="masterKeyError" class="error-message">Invalid master key</div>
+    </div>
+
+    <!-- Main App (Hidden until master key verified) -->
+    <div id="mainApp" style="display: none;">
+        <div class="header">
+            <div class="logo">
+                <span class="logo-icon">🏢</span>
+                <span class="logo-text">Master Drive Management</span>
+                <span class="badge-master">MASTER</span>
+            </div>
+            <div class="user-menu">
+                <span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
+                <div class="user-avatar" id="userAvatar">M</div>
+            </div>
+        </div>
+
+        <div class="app-container">
+            <div class="sidebar">
+                <div class="sidebar-item active" data-view="master-drives">
+                    <span class="icon">🏢</span>
+                    <span>Master Drives</span>
+                </div>
+                <div class="sidebar-item" data-view="user-drives" onclick="goToUserDrive()">
+                    <span class="icon">👤</span>
+                    <span>My Drive</span>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="toolbar">
+                    <div class="breadcrumb" id="breadcrumb">
+                        <span class="breadcrumb-item" onclick="navigateToParent()">Master Drives</span>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" onclick="showCreateFolderModal()">
+                            📁 New Folder
+                        </button>
+                    </div>
+                </div>
+
+                <div id="fileContainer">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Folder Modal -->
+    <div class="modal" id="folderModal">
+        <div class="modal-content">
+            <div class="modal-header">New Folder</div>
+            <div class="modal-body">
+                <input type="text" id="folderName" placeholder="Folder name">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createFolder()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Master Drive Modal -->
+    <div class="modal" id="createMasterDriveModal">
+        <div class="modal-content">
+            <div class="modal-header">Create Master Drive</div>
+            <div class="modal-body">
+                <input type="text" id="masterDriveName" placeholder="Drive name">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('createMasterDriveModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createMasterDrive()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div class="modal" id="renameModal">
+        <div class="modal-content">
+            <div class="modal-header">Rename</div>
+            <div class="modal-body">
+                <input type="text" id="newName" placeholder="New name">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="executeRename()">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '';
+        let masterKey = null;
+        let jwtToken = localStorage.getItem('jwtToken');
+        let currentFolderId = null;
+        let allDrives = [];
+        let contextMenuItem = null;
+
+        // Check if already has master key
+        const savedMasterKey = sessionStorage.getItem('masterKey');
+        if (savedMasterKey) {
+            masterKey = savedMasterKey;
+            document.getElementById('masterKeyModal').classList.add('hidden');
+            document.getElementById('mainApp').style.display = 'block';
+            init();
+        }
+
+        async function verifyMasterKey() {
+            const key = document.getElementById('masterKeyInput').value;
+            if (!key) {
+                showMasterKeyError('Please enter master key');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/master/drives`, {
+                    headers: { 'X-Master-Key': key }
+                });
+
+                if (response.ok) {
+                    masterKey = key;
+                    sessionStorage.setItem('masterKey', key);
+                    document.getElementById('masterKeyModal').classList.add('hidden');
+                    document.getElementById('mainApp').style.display = 'block';
+                    init();
+                } else {
+                    showMasterKeyError('Invalid master key');
+                }
+            } catch (error) {
+                showMasterKeyError('Failed to verify master key');
+            }
+        }
+
+        function showMasterKeyError(message) {
+            const errorDiv = document.getElementById('masterKeyError');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function goToUserDrive() {
+            window.location.href = '/index.html';
+        }
+
+        async function init() {
+            await loadUserInfo();
+            await loadMasterDrives();
+        }
+
+        async function loadUserInfo() {
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${jwtToken}` }
+                });
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('userEmail').textContent = user.email;
+                    document.getElementById('userAvatar').textContent = user.email.charAt(0).toUpperCase();
+                }
+            } catch (error) {
+                console.error('Error loading user:', error);
+            }
+        }
+
+        async function loadMasterDrives() {
+            const container = document.getElementById('fileContainer');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                let url = '';
+                if (currentFolderId) {
+                    url = `/api/master/drives/${currentFolderId}/contents`;
+                } else {
+                    url = `/api/master/drives`;
+                }
+
+                const response = await fetch(`${API_URL}${url}`, {
+                    headers: { 'X-Master-Key': masterKey }
+                });
+
+                if (!response.ok) throw new Error('Failed to load master drives');
+
+                const drives = await response.json();
+                allDrives = drives;
+                renderDrives(drives);
+                updateBreadcrumb();
+            } catch (error) {
+                console.error('Error loading master drives:', error);
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">❌</div><div>Error loading master drives</div></div>';
+            }
+        }
+
+        function renderDrives(drives) {
+            const container = document.getElementById('fileContainer');
+
+            if (!drives || drives.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🏢</div>
+                        <div>No master drives found</div>
+                        <div style="font-size: 12px; margin-top: 8px;">Click "New Folder" to create a master drive</div>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="file-grid">';
+            for (const drive of drives) {
+                const icon = drive.driveType === 'FOLDER' ? '📁' : '🏢';
+                const info = drive.driveType === 'FOLDER' ? (drive.hasChildren ? 'Contains items' : 'Empty') : 'Master Drive';
+
+                html += `
+                    <div class="file-item" ondblclick="${drive.driveType === 'FOLDER' ? `navigateToFolder(${drive.id})` : `viewDrive(${drive.id})`}">
+                        <div class="file-icon">${icon}</div>
+                        <div class="file-name">${escapeHtml(drive.name)}</div>
+                        <div class="file-info">${info}</div>
+                        <div class="file-menu" style="position: absolute; top: 8px; right: 8px; cursor: pointer; display: none;" 
+                             onmouseenter="this.style.display='flex'" onmouseleave="this.style.display='none'"
+                             onclick="showContextMenu(event, ${drive.id}, '${escapeHtml(drive.name)}', '${drive.driveType}')">⋮</div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            container.innerHTML = html;
+
+            // Add hover effect for menu
+            document.querySelectorAll('.file-item').forEach(item => {
+                item.addEventListener('mouseenter', () => {
+                    const menu = item.querySelector('.file-menu');
+                    if (menu) menu.style.display = 'flex';
+                });
+                item.addEventListener('mouseleave', () => {
+                    const menu = item.querySelector('.file-menu');
+                    if (menu) menu.style.display = 'none';
+                });
+            });
+        }
+
+        function navigateToFolder(folderId) {
+            currentFolderId = folderId;
+            loadMasterDrives();
+        }
+
+        function navigateToParent() {
+            currentFolderId = null;
+            loadMasterDrives();
+        }
+
+        async function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (!currentFolderId) {
+                breadcrumb.innerHTML = '<span class="breadcrumb-item" onclick="navigateToParent()">Master Drives</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/master/drives/${currentFolderId}`, {
+                    headers: { 'X-Master-Key': masterKey }
+                });
+                const drive = await response.json();
+                breadcrumb.innerHTML = `
+                    <span class="breadcrumb-item" onclick="navigateToParent()">Master Drives</span>
+                    <span class="breadcrumb-separator">/</span>
+                    <span class="breadcrumb-item">${escapeHtml(drive.name)}</span>
+                `;
+            } catch (error) {
+                console.error('Error updating breadcrumb:', error);
+            }
+        }
+
+        function showCreateFolderModal() {
+            if (currentFolderId) {
+                document.getElementById('folderModal').classList.add('active');
+            } else {
+                document.getElementById('createMasterDriveModal').classList.add('active');
+            }
+        }
+
+        async function createFolder() {
+            const name = document.getElementById('folderName').value.trim();
+            if (!name) {
+                alert('Please enter a folder name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/master/drives/${currentFolderId}/folders`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Master-Key': masterKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, accessType: 'PUBLIC' })
+                });
+
+                if (response.ok) {
+                    closeModal('folderModal');
+                    document.getElementById('folderName').value = '';
+                    loadMasterDrives();
+                } else {
+                    alert('Failed to create folder');
+                }
+            } catch (error) {
+                console.error('Error creating folder:', error);
+                alert('Failed to create folder');
+            }
+        }
+
+        async function createMasterDrive() {
+            const name = document.getElementById('masterDriveName').value.trim();
+            if (!name) {
+                alert('Please enter drive name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/master/drives`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Master-Key': masterKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, accessType: 'PRIVATE' })
+                });
+
+                if (response.ok) {
+                    closeModal('createMasterDriveModal');
+                    document.getElementById('masterDriveName').value = '';
+                    loadMasterDrives();
+                } else {
+                    alert('Failed to create master drive');
+                }
+            } catch (error) {
+                console.error('Error creating master drive:', error);
+                alert('Failed to create master drive');
+            }
+        }
+
+        function showRenameModal(id, currentName) {
+            contextMenuItem = { id, name: currentName };
+            document.getElementById('newName').value = currentName;
+            showModal('renameModal');
+        }
+
+        async function executeRename() {
+            const newName = document.getElementById('newName').value.trim();
+            if (!newName) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/master/drives/${contextMenuItem.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'X-Master-Key': masterKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: newName, accessType: 'PRIVATE' })
+                });
+
+                if (response.ok) {
+                    closeModal('renameModal');
+                    loadMasterDrives();
+                } else {
+                    alert('Failed to rename');
+                }
+            } catch (error) {
+                console.error('Error renaming:', error);
+                alert('Failed to rename');
+            }
+        }
+
+        async function deleteDrive(id, name) {
+            if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/master/drives/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'X-Master-Key': masterKey }
+                });
+
+                if (response.ok) {
+                    loadMasterDrives();
+                } else {
+                    alert('Failed to delete');
+                }
+            } catch (error) {
+                console.error('Error deleting:', error);
+                alert('Failed to delete');
+            }
+        }
+
+        function viewDrive(driveId) {
+            window.location.href = `/master-drive-view.html?id=${driveId}&token=${jwtToken}`;
+        }
+
+        function showContextMenu(event, id, name, type) {
+            event.stopPropagation();
+
+            const existingMenu = document.querySelector('.dropdown-menu');
+            if (existingMenu) existingMenu.remove();
+
+            const menu = document.createElement('div');
+            menu.className = 'dropdown-menu';
+            menu.style.position = 'absolute';
+            menu.style.top = `${event.clientY}px`;
+            menu.style.left = `${event.clientX}px`;
+            menu.style.background = 'white';
+            menu.style.border = '1px solid #e0e0e0';
+            menu.style.borderRadius = '8px';
+            menu.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+            menu.style.zIndex = '1000';
+            menu.style.minWidth = '150px';
+
+            const items = [
+                { icon: '✏️', label: 'Rename', action: () => showRenameModal(id, name) },
+                { icon: '🗑️', label: 'Delete', action: () => deleteDrive(id, name) }
+            ];
+
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.style.padding = '10px 16px';
+                div.style.cursor = 'pointer';
+                div.style.display = 'flex';
+                div.style.alignItems = 'center';
+                div.style.gap = '12px';
+                div.innerHTML = `${item.icon} ${item.label}`;
+                div.onmouseenter = () => div.style.background = '#f1f3f4';
+                div.onmouseleave = () => div.style.background = 'white';
+                div.onclick = () => {
+                    item.action();
+                    menu.remove();
+                };
+                menu.appendChild(div);
+            });
+
+            document.body.appendChild(menu);
+
+            setTimeout(() => {
+                document.addEventListener('click', () => menu.remove(), { once: true });
+            }, 0);
+        }
+
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+
+</html>

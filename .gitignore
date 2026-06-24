@@ -1,0 +1,108 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Docker ###
+*.pid
+docker-compose.override.yml
+.dockerignore
+
+### Environment & Secrets ###
+.env
+.env.local
+.env.*.local
+*.env
+*.secret
+*.key
+
+### Logs ###
+logs/
+*.log
+*.log.gz
+
+### Database ###
+*.db
+*.h2.db
+*.mv.db
+*.trace.db
+*.sqlite
+*.sqlite3
+data/
+
+### Application Data (Uploads/Storage) ###
+uploads/
+downloads/
+temp/
+tmp/
+storage/
+./data/
+./storage/
+./temp/
+
+### OS generated files ###
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+### Application specific configs ###
+application-local.yml
+application-dev.yml
+application-staging.yml
+bootstrap-local.yml
+bootstrap-dev.yml
+
+### Test outputs ###
+/test-output/
+/target/surefire-reports/
+/target/failsafe-reports/
+
+### Code coverage ###
+.coverageresults
+coverage/
+*.jacoco
+*.exec
+
+### Security (Certificates, Keystores) ###
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+
+### PID files ###
+*.pid

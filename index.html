@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Server - Google Drive Clone</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 28px;
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 500;
+            color: #5f6368;
+        }
+
+        .search-bar {
+            flex: 1;
+            max-width: 720px;
+            margin: 0 20px;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 24px;
+            font-size: 14px;
+            background: #f1f3f4;
+            transition: all 0.2s;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            background: white;
+            border-color: #1a73e8;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #1a73e8;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Sidebar */
+        .app-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+
+        .sidebar {
+            width: 256px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            padding: 8px 0;
+        }
+
+        .sidebar-item {
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            color: #5f6368;
+            border-radius: 0 24px 24px 0;
+            margin-right: 8px;
+        }
+
+        .sidebar-item:hover {
+            background: #f1f3f4;
+        }
+
+        .sidebar-item.active {
+            background: #e8f0fe;
+            color: #1a73e8;
+            font-weight: 500;
+        }
+
+        .sidebar-item .icon {
+            font-size: 20px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+            color: #5f6368;
+            transition: color 0.2s;
+        }
+
+        .breadcrumb-item:hover {
+            color: #1a73e8;
+        }
+
+        .breadcrumb-separator {
+            color: #9aa0a6;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #1a73e8;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1557b0;
+        }
+
+        .btn-secondary {
+            background: #f1f3f4;
+            color: #5f6368;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        /* File Grid */
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .file-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .file-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-color: #1a73e8;
+        }
+
+        .file-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: #202124;
+            word-break: break-word;
+            margin-bottom: 8px;
+        }
+
+        .file-info {
+            font-size: 12px;
+            color: #5f6368;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            width: 500px;
+            max-width: 90%;
+            padding: 24px;
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+            margin-bottom: 24px;
+        }
+
+        .modal-body input, .modal-body select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* Upload Progress */
+        .upload-progress {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            width: 300px;
+            z-index: 1000;
+        }
+
+        .upload-item {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .upload-item:last-child {
+            border-bottom: none;
+        }
+
+        .upload-filename {
+            font-size: 12px;
+            color: #5f6368;
+            margin-bottom: 4px;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #1a73e8;
+            transition: width 0.3s;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #5f6368;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #5f6368;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">
+            <span class="logo-icon">📁</span>
+            <span class="logo-text">File Server</span>
+        </div>
+        <div class="search-bar">
+            <input type="text" placeholder="Search files..." id="searchInput">
+        </div>
+        <div class="user-menu">
+            <span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
+            <div class="user-avatar" id="userAvatar">U</div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-item active" data-view="my-drive">
+                <span class="icon">📁</span>
+                <span>My Drive</span>
+            </div>
+            <div class="sidebar-item" data-view="shared">
+                <span class="icon">👥</span>
+                <span>Shared with me</span>
+            </div>
+            <div class="sidebar-item" data-view="recent">
+                <span class="icon">🕐</span>
+                <span>Recent</span>
+            </div>
+            <div class="sidebar-item" data-view="starred">
+                <span class="icon">⭐</span>
+                <span>Starred</span>
+            </div>
+            <div class="sidebar-item" data-view="trash">
+                <span class="icon">🗑️</span>
+                <span>Trash</span>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="toolbar">
+                <div class="breadcrumb" id="breadcrumb">
+                    <span class="breadcrumb-item" data-id="root">My Drive</span>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" onclick="showCreateFolderModal()">
+                        📁 New Folder
+                    </button>
+                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                        📤 Upload File
+                    </button>
+                    <input type="file" id="fileInput" multiple style="display: none;" onchange="uploadFiles(this.files)">
+                </div>
+            </div>
+
+            <div id="fileContainer">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Folder Modal -->
+    <div class="modal" id="folderModal">
+        <div class="modal-content">
+            <div class="modal-header">New Folder</div>
+            <div class="modal-body">
+                <input type="text" id="folderName" placeholder="Folder name">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createFolder()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Progress -->
+    <div class="upload-progress" id="uploadProgress" style="display: none;">
+        <div class="upload-item">
+            <div class="upload-filename" id="uploadFilename">Uploading...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="uploadProgressFill" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_URL = 'http://localhost:8080';
+        let jwtToken = localStorage.getItem('jwtToken');
+        let currentFolderId = null;
+        let currentView = 'my-drive';
+        let allFiles = [];
+
+        // Helper Functions
+        async function apiCall(endpoint, options = {}) {
+            const defaultOptions = {
+                headers: {
+                    'Authorization': `Bearer ${jwtToken}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+            
+            const response = await fetch(`${API_URL}${endpoint}`, {
+                ...defaultOptions,
+                ...options,
+                headers: { ...defaultOptions.headers, ...options.headers }
+            });
+            
+            if (response.status === 401) {
+                // Token expired, redirect to login
+                localStorage.removeItem('jwtToken');
+                localStorage.removeItem('userEmail');
+                window.location.href = '/login.html';
+                throw new Error('Unauthorized');
+            }
+            
+            return response;
+        }
+
+        // Load files
+        async function loadFiles() {
+            const container = document.getElementById('fileContainer');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+            
+            try {
+                let url = '';
+                if (currentView === 'my-drive') {
+                    if (currentFolderId) {
+                        url = `/api/user/drives/${currentFolderId}/contents`;
+                    } else {
+                        url = `/api/user/drives`;
+                    }
+                } else if (currentView === 'shared') {
+                    url = `/api/user/drives/public`;
+                } else {
+                    url = `/api/user/drives`;
+                }
+                
+                const response = await apiCall(url);
+                const files = await response.json();
+                allFiles = files;
+                renderFiles(files);
+                updateBreadcrumb();
+            } catch (error) {
+                console.error('Error loading files:', error);
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">❌</div><div>Error loading files</div></div>';
+            }
+        }
+
+        // Render files
+        function renderFiles(files) {
+            const container = document.getElementById('fileContainer');
+            
+            if (!files || files.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📁</div>
+                        <div>This folder is empty</div>
+                        <div style="font-size: 12px; margin-top: 8px;">Click "Upload File" or "New Folder" to add items</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Separate folders and files
+            const folders = files.filter(f => f.driveType === 'ROOT' || f.driveType === 'FOLDER');
+            const fileItems = files.filter(f => f.driveType === 'FILE');
+            
+            let html = '<div class="file-grid">';
+            
+            // Render folders
+            folders.forEach(folder => {
+                html += `
+                    <div class="file-item" ondblclick="navigateToFolder(${folder.id})">
+                        <div class="file-icon">📁</div>
+                        <div class="file-name">${escapeHtml(folder.name)}</div>
+                        <div class="file-info">${folder.hasChildren ? 'Contains items' : 'Empty'}</div>
+                    </div>
+                `;
+            });
+            
+            // Render files
+            fileItems.forEach(file => {
+                const icon = getFileIcon(file.name);
+                const size = formatFileSize(file.fileSize);
+                html += `
+                    <div class="file-item" ondblclick="downloadFile(${file.id}, '${file.name}')">
+                        <div class="file-icon">${icon}</div>
+                        <div class="file-name">${escapeHtml(file.name)}</div>
+                        <div class="file-info">${size}</div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // Get file icon based on extension
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'pdf': '📄',
+                'doc': '📝', 'docx': '📝',
+                'xls': '📊', 'xlsx': '📊',
+                'ppt': '📽️', 'pptx': '📽️',
+                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️',
+                'mp4': '🎥', 'avi': '🎥', 'mov': '🎥',
+                'mp3': '🎵', 'wav': '🎵',
+                'zip': '📦', 'rar': '📦',
+                'txt': '📃'
+            };
+            return icons[ext] || '📎';
+        }
+
+        // Format file size
+        function formatFileSize(bytes) {
+            if (!bytes) return '0 B';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+        }
+
+        // Navigate to folder
+        function navigateToFolder(folderId) {
+            currentFolderId = folderId;
+            loadFiles();
+        }
+
+        // Navigate to parent
+        function navigateToParent() {
+            currentFolderId = null;
+            loadFiles();
+        }
+
+        // Update breadcrumb
+        async function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (!currentFolderId) {
+                breadcrumb.innerHTML = '<span class="breadcrumb-item" data-id="root">My Drive</span>';
+                return;
+            }
+            
+            try {
+                const response = await apiCall(`/api/user/drives/path/${currentFolderId}`);
+                const path = await response.text();
+                const parts = path.split('/').filter(p => p);
+                let html = '<span class="breadcrumb-item" data-id="root" onclick="navigateToParent()">My Drive</span>';
+                let currentPath = '';
+                for (let i = 0; i < parts.length; i++) {
+                    html += '<span class="breadcrumb-separator">/</span>';
+                    html += `<span class="breadcrumb-item">${escapeHtml(parts[i])}</span>`;
+                }
+                breadcrumb.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading path:', error);
+            }
+        }
+
+        // Create folder
+        async function createFolder() {
+            const name = document.getElementById('folderName').value;
+            if (!name) {
+                alert('Please enter a folder name');
+                return;
+            }
+            
+            try {
+                const url = currentFolderId 
+                    ? `/api/user/drives/${currentFolderId}/folders`
+                    : `/api/user/drives/root`;
+                
+                const response = await apiCall(url, {
+                    method: 'POST',
+                    body: JSON.stringify({ name, isPublic: true })
+                });
+                
+                if (response.ok) {
+                    closeModal('folderModal');
+                    document.getElementById('folderName').value = '';
+                    loadFiles();
+                }
+            } catch (error) {
+                console.error('Error creating folder:', error);
+                alert('Failed to create folder');
+            }
+        }
+
+        // Upload files with chunking
+        async function uploadFiles(files) {
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressFill = document.getElementById('uploadProgressFill');
+            const uploadFilename = document.getElementById('uploadFilename');
+            
+            for (const file of files) {
+                progressDiv.style.display = 'block';
+                uploadFilename.textContent = `Uploading: ${file.name}`;
+                
+                const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                
+                try {
+                    // 1. Initiate upload
+                    const initiateResponse = await apiCall('/api/upload/initiate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            filename: file.name,
+                            fileSize: file.size,
+                            parentId: currentFolderId || ''
+                        })
+                    });
+                    
+                    const { uploadId } = await initiateResponse.json();
+                    
+                    // 2. Upload chunks
+                    for (let i = 0; i < totalChunks; i++) {
+                        const start = i * CHUNK_SIZE;
+                        const end = Math.min(start + CHUNK_SIZE, file.size);
+                        const chunk = file.slice(start, end);
+                        
+                        const formData = new FormData();
+                        formData.append('uploadId', uploadId);
+                        formData.append('chunkIndex', i);
+                        formData.append('file', chunk);
+                        
+                        const chunkResponse = await fetch(`${API_URL}/api/upload/chunk`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${jwtToken}` },
+                            body: formData
+                        });
+                        
+                        if (!chunkResponse.ok) {
+                            throw new Error(`Failed to upload chunk ${i}`);
+                        }
+                        
+                        const progress = ((i + 1) / totalChunks) * 100;
+                        progressFill.style.width = `${progress}%`;
+                    }
+                    
+                    // 3. Complete upload
+                    const completeResponse = await apiCall('/api/upload/complete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            uploadId: uploadId,
+                            filename: file.name
+                        })
+                    });
+                    
+                    if (completeResponse.ok) {
+                        console.log('Upload completed:', file.name);
+                    }
+                    
+                } catch (error) {
+                    console.error('Upload failed:', error);
+                    alert(`Failed to upload ${file.name}: ${error.message}`);
+                }
+            }
+            
+            progressDiv.style.display = 'none';
+            progressFill.style.width = '0%';
+            loadFiles();
+        }
+
+        // Download file
+        async function downloadFile(fileId, filename) {
+            try {
+                const response = await apiCall(`/api/user/drives/${fileId}`);
+                const file = await response.json();
+                
+                // Redirect to file download endpoint
+                window.open(`${API_URL}/api/user/drives/download/${fileId}?token=${jwtToken}`, '_blank');
+            } catch (error) {
+                console.error('Error downloading file:', error);
+                alert('Failed to download file');
+            }
+        }
+
+        // Show create folder modal
+        function showCreateFolderModal() {
+            document.getElementById('folderModal').classList.add('active');
+        }
+
+        // Close modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize app
+        async function init() {
+            // Check if logged in
+            if (!jwtToken) {
+                window.location.href = '/login.html';
+                return;
+            }
+            
+            // Load user info
+            try {
+                const response = await apiCall('/api/auth/me');
+                const user = await response.json();
+                document.getElementById('userEmail').textContent = user.email;
+                document.getElementById('userAvatar').textContent = user.email.charAt(0).toUpperCase();
+            } catch (error) {
+                console.error('Error loading user:', error);
+            }
+            
+            // Load files
+            loadFiles();
+            
+            // Setup sidebar navigation
+            document.querySelectorAll('.sidebar-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    currentView = item.dataset.view;
+                    currentFolderId = null;
+                    loadFiles();
+                });
+            });
+            
+            // Setup search
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const filtered = allFiles.filter(f => f.name.toLowerCase().includes(searchTerm));
+                renderFiles(filtered);
+            });
+        }
+        
+        // Start app
+        init();
+    </script>
+</body>
+</html>

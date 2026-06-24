@@ -1,0 +1,346 @@
+{
+	"info": {
+		"name": "File Server API",
+		"_postman_id": "b8f0a3e6-c7f5-4f72-a5df-001",
+		"description": "File Server APIs",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080"
+		},
+		{
+			"key": "token",
+			"value": ""
+		},
+		{
+			"key": "uploadId",
+			"value": ""
+		},
+		{
+			"key": "fileId",
+			"value": ""
+		},
+		{
+			"key": "shareToken",
+			"value": ""
+		},
+		{
+			"key": "loggerId",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  "email": "[user@test.com
+							](mailto:user@test.com)",\n  "password": "Password@123",\n  "name": "Test User"\n}"
+						},
+						"url": "{{baseUrl}}/auth/register"
+					}
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  "email": "[user@test.com
+							](mailto:user@test.com)",\n  "password": "Password@123"\n}"
+						},
+						"url": "{{baseUrl}}/auth/login"
+					}
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"url": "{{baseUrl}}/auth/forgot-password?email=[user@test.com](mailto:user@test.com)"
+					}
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"url": "{{baseUrl}}/auth/reset-password?token={{token}}&password=NewPassword123"
+					}
+				}
+			]
+		},
+		{
+			"name": "Upload",
+			"item": [
+				{
+					"name": "Upload File",
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}"
+								}
+							]
+						},
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": ""
+								}
+							]
+						},
+						"url": "{{baseUrl}}/upload"
+					}
+				}
+			]
+		},
+		{
+			"name": "Chunk Upload",
+			"item": [
+				{
+					"name": "Create Upload Job",
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}"
+								}
+							]
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  "fileName": "movie.mkv",\n  "totalSize": 524288000,\n  "totalChunks": 10\n}"
+						},
+						"url": "{{baseUrl}}/chunk-upload/create"
+					}
+				},
+				{
+					"name": "Upload Chunk",
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": ""
+								}
+							]
+						},
+						"url": "{{baseUrl}}/chunk-upload/{{uploadId}}/0"
+					}
+				},
+				{
+					"name": "Resume Upload",
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/chunk-upload/{{uploadId}}/resume"
+					}
+				},
+				{
+					"name": "Upload Status",
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/chunk-upload/{{uploadId}}/status"
+					}
+				},
+				{
+					"name": "Cancel Upload",
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/chunk-upload/{{uploadId}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Drive",
+			"item": [
+				{
+					"name": "List Files",
+					"request": {
+						"method": "GET",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}"
+								}
+							]
+						},
+						"url": "{{baseUrl}}/drive"
+					}
+				}
+			]
+		},
+		{
+			"name": "Download",
+			"item": [
+				{
+					"name": "Get File",
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/download/{{fileId}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Share",
+			"item": [
+				{
+					"name": "Create Share",
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}"
+								}
+							]
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  "fileId": "FILE_ID",\n  "publicAccess": true,\n  "password": null,\n  "expiry": "2026-12-31T23: 59: 59"\n}"
+						},
+						"url": "{{baseUrl}}/share"
+					}
+				},
+				{
+					"name": "Access Share",
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/share/{{shareToken}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Resources",
+			"item": [
+				{
+					"name": "Resource Action",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  "action": "MOVE",\n  "ids": ["file1", "file2"],\n  "destination": "folder123"\n}"
+						},
+						"url": "{{baseUrl}}/resources/action"
+					}
+				}
+			]
+		},
+		{
+			"name": "Email",
+			"item": [
+				{
+					"name": "Send Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  "to": ["[user@test.com](mailto:user@test.com)"],\n  "subject": "Test Email",\n  "body": "Hello World",\n  "html": false\n}"
+						},
+						"url": "{{baseUrl}}/email/send"
+					}
+				}
+			]
+		},
+		{
+			"name": "Logger",
+			"item": [
+				{
+					"name": "Create Logger",
+					"request": {
+						"method": "POST",
+						"url": "{{baseUrl}}/logger/create?name=PaymentService"
+					}
+				},
+				{
+					"name": "Update Logger",
+					"request": {
+						"method": "PUT",
+						"url": "{{baseUrl}}/logger/{{loggerId}}?info=true&warn=true"
+					}
+				},
+				{
+					"name": "Delete Logger",
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/logger/{{loggerId}}"
+					}
+				},
+				{
+					"name": "Log Message",
+					"request": {
+						"method": "POST",
+						"url": "{{baseUrl}}/logger/log?loggerId={{loggerId}}&level=INFO&message=User created"
+					}
+				},
+				{
+					"name": "Error Message",
+					"request": {
+						"method": "POST",
+						"url": "{{baseUrl}}/logger/error?loggerId={{loggerId}}&message=Database failed"
+					}
+				}
+			]
+		}
+	]
+}
