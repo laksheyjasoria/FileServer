@@ -47,42 +47,63 @@ async function loadAllFiles() {
 // Get files for current folder view
 async function getFilesForFolder(folderId) {
     try {
-        const allFiles = await loadAllFiles();
+        const endpoint = folderId ? `/drive/${folderId}/contents` : '/drive/root';
+        console.log('🔍 Fetching:', endpoint);  // 👈 log the URL
 
-        // Filter: if folderId provided, show only direct children; otherwise show root items
-        if (folderId) {
-            return allFiles.filter(f => f.parentId === folderId);
-        } else {
-            return allFiles.filter(f => !f.parentId || f.parentId === null);
+        const response = await apiCall(endpoint);
+        console.log('📦 Response status:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
         }
+
+        const items = await response.json();
+        console.log('📄 Raw API response:', items);  // 👈 see exactly what the backend returns
+        console.log('📊 Number of items:', items.length);
+
+        // Map to frontend format
+        const mapped = items.map(item => ({
+            ...item,
+            fileSize: item.size || item.fileSize || 0,
+            fileType: item.contentType || item.fileType || '',
+            driveType: item.driveType || (item.fileId ? 'FILE' : 'FOLDER'),
+            accessType: item.accessType || 'PUBLIC',
+            parentId: item.parentId || null,
+			childrenCount: item.childrenCount || 0,
+			hasChildren: item.childrenCount > 0
+        }));
+        console.log('✅ Mapped with 	', mapped);
+        return mapped;
+
     } catch (error) {
-        console.error('Error filtering files:', error);
+        console.error('❌ Error in getFilesForFolder:', error);
         throw error;
     }
 }
 
 // Get breadcrumb path from file IDs to root
 async function getBreadcrumbPath(folderId) {
-    try {
-        const allFiles = await loadAllFiles();
-        const path = [];
-        let currentId = folderId;
-        const visited = new Set(); // Prevent infinite loops
+    if (!folderId) return [];
 
-        while (currentId && !visited.has(currentId)) {
-            visited.add(currentId);
-            const item = allFiles.find(f => f.id === currentId);
-            if (!item) break;
+    const path = [];
+    let currentId = folderId;
+    const visited = new Set();
+
+    while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
+        try {
+            const response = await apiCall(`/drive/${currentId}`);
+            if (!response.ok) break;
+            const item = await response.json();
 
             path.unshift({ id: item.id, name: item.name });
-            currentId = item.parentId;
+            currentId = item.parentId || null;
+        } catch (error) {
+            console.error('Error fetching parent:', error);
+            break;
         }
-
-        return path;
-    } catch (error) {
-        console.error('Error getting breadcrumb:', error);
-        return [];
     }
+    return path;
 }
 
 async function checkDuplicateName(name, parentId) {
@@ -98,7 +119,7 @@ async function checkDuplicateName(name, parentId) {
             throw error;
         }
         console.error('Error checking duplicate:', error);
-        return true;
+        return true; // fallback: allow if we can't verify
     }
 }
 

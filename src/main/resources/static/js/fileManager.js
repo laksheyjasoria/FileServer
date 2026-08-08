@@ -1,45 +1,30 @@
 // File Operations
-async function loadFiles() {
-    const container = document.getElementById('fileContainer');
-    showLoading(container, true);
-
+async function loadAllFiles() {
     try {
-        let url = '';
-        if (currentView === 'my-drive') {
-            if (currentFolderId) {
-                url = `/drive/${currentFolderId}/contents`;
-            } else {
-                url = `/drive`;
-            }
-        } else {
-            url = `/drive`;
-        }
-
-        const response = await apiCall(url);
-        let files = await response.json();
-        // Normalize backend MasterFile fields to the UI model
-        files = (files || []).map(f => ({
-            id: f.id,
-            name: f.name,
-            fileSize: f.size || f.fileSize || 0,
-            fileType: f.contentType || f.fileType || '',
-            fileId: f.fileId || null,
-            driveType: f.driveType || (f.fileId || f.contentType || f.size ? 'FILE' : 'FOLDER'),
-            accessType: f.accessType || 'PUBLIC',
-            parentId: f.parentId || null,
-            hasChildren: f.hasChildren || false
+        // This is now only used for search; we'll keep it as is,
+        // but you may want to implement a dedicated search endpoint.
+        const response = await apiCall('/drive');
+        if (!response.ok) throw new Error('Failed to load files');
+        const files = await response.json();
+        return files.map(file => ({
+            ...file,
+            fileSize: file.size || 0,
+            fileType: file.contentType || '',
+            driveType: file.driveType || (file.fileId ? 'FILE' : 'FOLDER'),
+            accessType: file.accessType || 'PUBLIC'
         }));
-        allFiles = files;
-        renderFiles(files);
-        updateBreadcrumb();
     } catch (error) {
-        // console.error('Error loading files:', error);
-        showError(container);
+        console.error('Error loading all files:', error);
+        return [];
     }
 }
 
 function renderFiles(files) {
+	console.log('🖼️ renderFiles called with', files.length, 'items:', files);
     const container = document.getElementById('fileContainer');
+	
+	console.log('📦 Container element:', container);
+	console.log('📐 Container display style:', getComputedStyle(container).display);
 
     if (!files || files.length === 0) {
         showEmptyState(container);
@@ -52,6 +37,7 @@ function renderFiles(files) {
     let html = '<div class="file-grid">';
 
     [...folders, ...fileItems].forEach(item => {
+		console.log('driveType values:', files.map(f => f.driveType));
         const isSelected = selectedItems.has(item.id);
         const icon = item.driveType === 'FILE' ? getFileIcon(item.name) : '📁';
         const info = item.driveType === 'FILE' ? formatFileSize(item.fileSize) : (item.hasChildren ? 'Contains items' : 'Empty');

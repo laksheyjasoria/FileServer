@@ -23,113 +23,75 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		this.jwt = jwt;
 	}
 
-//	@Override
-//	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-//			throws ServletException, IOException {
-//
-//		try {
-//
-//			// 🔓 Skip public endpoints
-//			if (isPublic(request)) {
-//				chain.doFilter(request, response);
-//				return;
-//			}
-//
-//			String header = request.getHeader("Authorization");
-//
-//			if (header != null && header.startsWith("Bearer ")) {
-//
-//				String token = header.substring(7);
-//
-//				if (jwt.isAccessTokenValid(token)) {
-//
-//					String email = jwt.extractEmail(token);
-//					String role = jwt.extractRole(token);
-//
-//					UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(email, null,
-//							List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-//
-//					SecurityContextHolder.getContext().setAuthentication(auth);
-//				}
-//			}
-//
-//		} catch (Exception ignored) {
-//			// ❌ Never break request flow
-//		}
-//
-//		chain.doFilter(request, response);
-//	}
-
 	@Override
-	protected void doFilterInternal(HttpServletRequest request,
-	                                HttpServletResponse response,
-	                                FilterChain chain)
-	        throws ServletException, IOException {
+	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+			throws ServletException, IOException {
 
-	    try {
+		try {
 
-	        System.out.println("=================================");
-	        System.out.println("PATH = " + request.getRequestURI());
+			String path = request.getRequestURI();
 
-	        // Skip public endpoints
-	        if (isPublic(request)) {
-	            System.out.println("PUBLIC ENDPOINT");
-	            chain.doFilter(request, response);
-	            return;
-	        }
+			// Skip public endpoints and static resources
+			if (isPublic(request)) {
+				chain.doFilter(request, response);
+				return;
+			}
 
-	        String header = request.getHeader("Authorization");
+			String header = request.getHeader("Authorization");
 
-	        System.out.println("HEADER = " + header);
+			if (header != null && header.startsWith("Bearer ")) {
 
-	        if (header != null && header.startsWith("Bearer ")) {
+				String token = header.substring(7);
 
-	            String token = header.substring(7);
+				boolean valid = jwt.isAccessTokenValid(token);
 
-	            System.out.println("TOKEN = " + token);
+				if (valid) {
 
-	            boolean valid = jwt.isAccessTokenValid(token);
+					String email = jwt.extractEmail(token);
+					String role = jwt.extractRole(token);
 
-	            System.out.println("TOKEN VALID = " + valid);
+					UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(email, null,
+							List.of(new SimpleGrantedAuthority("ROLE_" + role)));
 
-	            if (valid) {
+					SecurityContextHolder.getContext().setAuthentication(auth);
 
-	                String email = jwt.extractEmail(token);
-	                String role = jwt.extractRole(token);
+				}
 
-	                System.out.println("EMAIL = " + email);
-	                System.out.println("ROLE = " + role);
+			}
 
-	                UsernamePasswordAuthenticationToken auth =
-	                        new UsernamePasswordAuthenticationToken(
-	                                email,
-	                                null,
-	                                List.of(new SimpleGrantedAuthority("ROLE_" + role))
-	                        );
+		} catch (Exception e) {
+			logger.error("JWT Authentication Filter error: ", e);
+			e.printStackTrace();
+		}
 
-	                SecurityContextHolder.getContext().setAuthentication(auth);
-
-	                System.out.println("AUTHENTICATION SET SUCCESSFULLY");
-	            } else {
-	                System.out.println("TOKEN VALIDATION FAILED");
-	            }
-	        } else {
-	            System.out.println("NO AUTH HEADER FOUND");
-	        }
-
-	    } catch (Exception e) {
-
-	        System.out.println("JWT FILTER ERROR");
-	        e.printStackTrace();
-
-	    }
-
-	    chain.doFilter(request, response);
+		chain.doFilter(request, response);
 	}
+
 	private boolean isPublic(HttpServletRequest request) {
 
 		String path = request.getRequestURI();
 
-		return path.startsWith("/auth") || path.startsWith("/logger/log") || path.startsWith("/logger/error");
+		// Authentication/public APIs
+		if (path.startsWith("/auth")) {
+			return true;
+		}
+
+		// Logger APIs
+		if (path.startsWith("/logger/log") || path.startsWith("/logger/error")) {
+			return true;
+		}
+
+		// Static frontend resources
+		if (path.startsWith("/js/") || path.startsWith("/js2/") || path.startsWith("/css/")
+				|| path.startsWith("/images/") || path.startsWith("/assets/") || path.equals("/favicon.ico")
+				|| path.equals("/") || path.equals("/index.html")) {
+			return true;
+		}
+
+		// Common static file extensions
+		return path.endsWith(".html") || path.endsWith(".css") || path.endsWith(".js") || path.endsWith(".json")
+				|| path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif")
+				|| path.endsWith(".svg") || path.endsWith(".ico") || path.endsWith(".woff") || path.endsWith(".woff2")
+				|| path.endsWith(".ttf");
 	}
 }

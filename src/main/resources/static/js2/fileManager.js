@@ -1,13 +1,22 @@
-// File Operations (static2 - adjusted endpoints)
+// Helper to safely escape single quotes inside HTML onclick attributes
+function escapeJSString(str) {
+    return (str || '').replace(/'/g, "\\'");
+}
+
+// File Operations
 async function loadFiles() {
     const container = document.getElementById('fileContainer');
     showLoading(container, true);
 
     try {
-        // Load files for current folder view
         const files = await getFilesForFolder(currentFolderId);
         allFiles = files;
-        renderFiles(files);
+
+        if (files && files.length > 0) {
+            renderFiles(files);
+        } else {
+            showEmptyState(container, 'This folder is empty');
+        }
         updateBreadcrumb();
     } catch (error) {
         console.error('Error loading files:', error);
@@ -31,19 +40,27 @@ function renderFiles(files) {
     [...folders, ...fileItems].forEach(item => {
         const isSelected = selectedItems.has(item.id);
         const icon = item.driveType === 'FILE' ? getFileIcon(item.name) : '📁';
-        const info = item.driveType === 'FILE' ? formatFileSize(item.fileSize) : (item.hasChildren ? 'Contains items' : 'Empty');
+        
+        let info = '';
+        if (item.driveType === 'FILE') {
+            info = formatFileSize(item.fileSize);
+        } else {
+            info = item.childrenCount > 0 ? `${item.childrenCount} item${item.childrenCount > 1 ? 's' : ''}` : 'Empty';
+        }
+        
         const isFolder = item.driveType === 'ROOT' || item.driveType === 'FOLDER';
         const isProtected = item.accessType === 'PROTECTED';
-        const safeId = encodeURIComponent(item.id);
-        const safeName = encodeURIComponent(item.name).replace(/'/g, '%27');
-        const safeType = encodeURIComponent(item.driveType);
-        const safeFileType = encodeURIComponent(item.fileType || '');
-        const safeParentId = item.parentId ? encodeURIComponent(item.parentId) : '';
+        
+        const eId = escapeJSString(item.id);
+        const eName = escapeJSString(item.name);
+        const eParentId = escapeJSString(item.parentId);
+        const eFileType = escapeJSString(item.fileType || '');
+        
         const lockIcon = isProtected ? '🔒 ' : '';
 
         let doubleClickAction = '';
         if (isFolder) {
-            doubleClickAction = `openFolder(decodeURIComponent('${safeId}'), decodeURIComponent('${safeName}'), ${isProtected})`;
+            doubleClickAction = `openFolder('${eId}', '${eName}', ${isProtected})`;
         } else {
             const isViewable = item.fileType && (
                 item.fileType.startsWith('image/') ||
@@ -51,9 +68,9 @@ function renderFiles(files) {
                 item.fileType.startsWith('video/')
             );
             if (isViewable) {
-                doubleClickAction = `viewFile(decodeURIComponent('${safeId}'), decodeURIComponent('${safeName}'))`;
+                doubleClickAction = `viewFile('${eId}', '${eName}')`;
             } else {
-                doubleClickAction = `downloadFile(decodeURIComponent('${safeId}'), decodeURIComponent('${safeName}'))`;
+                doubleClickAction = `downloadFile('${eId}', '${eName}')`;
             }
         }
 
@@ -64,12 +81,12 @@ function renderFiles(files) {
                  data-type="${item.driveType}" 
                  data-name="${escapeHtml(item.name)}"
                  ondblclick="${doubleClickAction}"
-                 onclick="handleItemClick(event, decodeURIComponent('${safeId}'), ${isFolder})">
-                <input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectItem(event, decodeURIComponent('${safeId}'), this.checked)">
+                 onclick="handleItemClick(event, '${eId}', ${isFolder})">
+                <input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectItem(event, '${eId}', this.checked)">
                 <div class="file-icon">${icon}</div>
                 <div class="file-name">${lockIcon}${escapeHtml(item.name)}</div>
                 <div class="file-info">${info}</div>
-                <div class="file-menu" onclick="showContextMenu(event, decodeURIComponent('${safeId}'), decodeURIComponent('${safeName}'), decodeURIComponent('${safeType}'), decodeURIComponent('${safeFileType}'), ${isProtected}, '${safeParentId}' ? decodeURIComponent('${safeParentId}') : null)">
+                <div class="file-menu" onclick="showContextMenu(event, '${eId}', '${eName}', '${item.driveType}', '${eFileType}', ${isProtected}, '${eParentId}')">
                     ⋮
                 </div>
             </div>
@@ -185,8 +202,10 @@ async function updateBreadcrumb() {
         let html = '<span class="breadcrumb-item" onclick="navigateToParent()">My Drive</span>';
 
         for (const item of path) {
+            const eId = escapeJSString(item.id);
+            const eName = escapeJSString(item.name);
             html += '<span class="breadcrumb-separator">/</span>';
-            html += `<span class="breadcrumb-item" onclick="navigateToFolder(decodeURIComponent('${encodeURIComponent(item.id)}'))">${escapeHtml(item.name)}</span>`;
+            html += `<span class="breadcrumb-item" onclick="navigateToFolder('${eId}')">${escapeHtml(eName)}</span>`;
         }
 
         breadcrumb.innerHTML = html;
@@ -197,13 +216,11 @@ async function updateBreadcrumb() {
 }
 
 function viewFile(fileId, filename) {
-    // Open the dedicated viewer page
     window.open(`${API_URL}/viewer.html?id=${fileId}&token=${jwtToken}`, '_blank');
 }
 
 async function downloadFile(fileId, filename) {
     try {
-        // Use /download/{id} endpoint with Authorization header
         const response = await apiCall(`/download/${fileId}`);
         if (!response.ok) throw new Error('Download failed');
         const blob = await response.blob();
@@ -224,7 +241,6 @@ async function downloadFile(fileId, filename) {
 async function deleteItem(id) {
     try {
         const item = allFiles.find(f => f.id === id);
-
         if (!item) {
             alert('Item not found');
             return;
@@ -232,23 +248,16 @@ async function deleteItem(id) {
 
         if (!confirm(`Are you sure you want to delete "${item.name}"?`)) return;
 
-        // Use POST /resources/action endpoint
         const response = await apiCall('/resources/action', {
             method: 'POST',
-            body: JSON.stringify({
-                ids: [id],
-                action: 'DELETE'
-            })
+            body: JSON.stringify({ ids: [id], action: 'DELETE' })
         });
 
-        if (!response.ok) {
-            throw new Error(`Delete failed with status ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Delete failed with status ${response.status}`);
 
         selectedItems.delete(id);
         await loadFiles();
         alert(`"${item.name}" deleted successfully`);
-
     } catch (error) {
         console.error('Error deleting item:', error);
         alert('Failed to delete item: ' + error.message);
@@ -271,23 +280,16 @@ async function deleteSelected() {
     if (!confirm(confirmMsg)) return;
 
     try {
-        // Use POST /resources/action endpoint for bulk delete
         const response = await apiCall('/resources/action', {
             method: 'POST',
-            body: JSON.stringify({
-                ids: Array.from(selectedItems),
-                action: 'DELETE'
-            })
+            body: JSON.stringify({ ids: Array.from(selectedItems), action: 'DELETE' })
         });
 
-        if (!response.ok) {
-            throw new Error(`Delete failed with status ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Delete failed with status ${response.status}`);
 
         selectedItems.clear();
         await loadFiles();
         alert(`Deleted ${itemsToDelete.length} item(s) successfully`);
-
     } catch (error) {
         console.error('Error deleting items:', error);
         alert('Failed to delete items: ' + error.message);
@@ -306,3 +308,6 @@ async function downloadSelected() {
         await downloadFile(file.id, file.name);
     }
 }
+
+// 🛡️ ULTIMATE SAFEGUARD: Explicitly expose the function to the global window object
+window.loadFiles = loadFiles;
