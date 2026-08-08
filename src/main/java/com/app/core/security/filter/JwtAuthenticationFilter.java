@@ -19,96 +19,144 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
-    private final JwtService jwt;
-    private final String masterKey;
+	private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+	private final JwtService jwt;
+	private final String masterKey;
 
-    public JwtAuthenticationFilter(JwtService jwt, String masterKey) {
-        this.jwt = jwt;
-        this.masterKey = masterKey;
-    }
+	public JwtAuthenticationFilter(JwtService jwt, String masterKey) {
+		this.jwt = jwt;
+		this.masterKey = masterKey;
+	}
 
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
+	@Override
+	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+			throws ServletException, IOException {
 
-        try {
-            String path = request.getRequestURI();
+		String path = request.getRequestURI();
 
-            // 1. Skip public endpoints (auth, static, and logger logging endpoints)
-            if (isPublic(request)) {
-                chain.doFilter(request, response);
-                return;
-            }
+		// 1. Public endpoints – skip authentication
+		if (isPublic(path)) {
+			chain.doFilter(request, response);
+			return;
+		}
 
-            // 2. Check Master Key for /logger/** endpoints (excluding /log and /error)
-            if (path.startsWith("/logger/")) {
-                String masterKeyHeader = request.getHeader("X-Master-Key");
-                System.out.println(masterKeyHeader);
-                System.out.println(masterKey);
-                
-                if (masterKeyHeader != null && masterKeyHeader.equals(masterKey)) {
-                    // Master key is valid → allow request (optionally set a dummy authentication)
-                    // We can set a special role if needed, but it's not required for authorization.
-                    UsernamePasswordAuthenticationToken auth = 
-                        new UsernamePasswordAuthenticationToken("master", null, 
-                            List.of(new SimpleGrantedAuthority("ROLE_MASTER")));
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-                    chain.doFilter(request, response);
-                    return;
-                } else {
-                    // Invalid or missing master key
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or missing Master Key");
-                    return;
-                }
-            }
+		// 2. Handle Master Key / Admin special endpoints
+		if (path.startsWith("/logger/") || path.startsWith("/admin/")) {
+			if (handleMasterKeyOrAdmin(request, response, chain)) {
+				return; // request was handled
+			}
+			// If not handled, send 401 (handled inside method)
+			return;
+		}
 
-            // 3. Otherwise, check JWT token for normal API endpoints
-            String header = request.getHeader("Authorization");
-            if (header != null && header.startsWith("Bearer ")) {
-                String token = header.substring(7);
-                boolean valid = jwt.isAccessTokenValid(token);
-                if (valid) {
-                    String email = jwt.extractEmail(token);
-                    String role = jwt.extractRole(token);
-                    UsernamePasswordAuthenticationToken auth = 
-                        new UsernamePasswordAuthenticationToken(email, null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-                }
-            }
+		// 3. Regular JWT authentication for other APIs
+		handleRegularJwt(request);
+		chain.doFilter(request, response);
+	}
 
-        } catch (Exception e) {
-            logger.error("JWT Authentication Filter error: ", e);
-        }
+	// ---------------------- Helper Methods ----------------------
 
-        chain.doFilter(request, response);
-    }
+	private boolean isPublic(String path) {
+		// Auth endpoints
+		if (path.startsWith("/auth")) {
+			return true;
+		}
+		// Public logger log/error endpoints (exact match)
+		if (path.equals("/logger/log") || path.equals("/logger/error")) {
+			return true;
+		}
+		// Static resources
+		if (path.startsWith("/js/") || path.startsWith("/js2/") || path.startsWith("/css/")
+				|| path.startsWith("/images/") || path.startsWith("/assets/") || path.equals("/favicon.ico")
+				|| path.equals("/") || path.equals("/index.html")) {
+			return true;
+		}
+		// Common static file extensions
+		return path.endsWith(".html") || path.endsWith(".css") || path.endsWith(".js") || path.endsWith(".json")
+				|| path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif")
+				|| path.endsWith(".svg") || path.endsWith(".ico") || path.endsWith(".woff") || path.endsWith(".woff2")
+				|| path.endsWith(".ttf");
+	}
 
-    private boolean isPublic(HttpServletRequest request) {
-        String path = request.getRequestURI();
+	/**
+	 * Attempts to authenticate with Master Key or Admin JWT for /logger/ and
+	 * /admin/ endpoints. Returns true if authentication succeeded, false otherwise.
+	 * If authentication fails, sends 401 response.
+	 */
+	private boolean handleMasterKeyOrAdmin(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+			throws IOException, ServletException {
 
-        // Authentication endpoints
-        if (path.startsWith("/auth")) {
-            return true;
-        }
+		String path = request.getRequestURI();
+		String method = request.getMethod();
 
-        // Public logger endpoints (log and error)
-        if (path.equals("/logger/log") || path.equals("/logger/error")) {
-            return true;
-        }
+		// ---------- Master Key (only if not DELETE on /admin/) ----------
+		boolean isAdminDelete = path.startsWith("/admin/") && "DELETE".equalsIgnoreCase(method);
+		if (!isAdminDelete) {
+			String masterKeyHeader = request.getHeader("X-Master-Key");
+			if (masterKeyHeader != null && masterKeyHeader.equals(masterKey)) {
+				// Master key is valid – set as ADMIN (since ROLE_MASTER does not exist)
+				UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken("master", null,
+						List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+				SecurityContextHolder.getContext().setAuthentication(auth);
+				chain.doFilter(request, response);
+				return true;
+			}
+		}
 
-        // Static resources
-        if (path.startsWith("/js/") || path.startsWith("/js2/") || path.startsWith("/css/")
-                || path.startsWith("/images/") || path.startsWith("/assets/") || path.equals("/favicon.ico")
-                || path.equals("/") || path.equals("/index.html")) {
-            return true;
-        }
+		// ---------- Admin JWT (for all /admin/ endpoints, including DELETE) ----------
+		if (path.startsWith("/admin/")) {
+			return handleAdminJwt(request, response, chain);
+		}
 
-        // Common static file extensions
-        return path.endsWith(".html") || path.endsWith(".css") || path.endsWith(".js") || path.endsWith(".json")
-                || path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif")
-                || path.endsWith(".svg") || path.endsWith(".ico") || path.endsWith(".woff") || path.endsWith(".woff2")
-                || path.endsWith(".ttf");
-    }
+		// For /logger/ endpoints (only Master Key works, so if it fails, we return
+		// false)
+		// But we already tried Master Key; if it wasn't valid, send 401.
+		response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or missing Master Key");
+		return false;
+	}
+
+	/**
+	 * Validates that the request contains a valid Admin JWT. Returns true and sets
+	 * authentication if successful, otherwise sends 401 and returns false.
+	 */
+	private boolean handleAdminJwt(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+			throws IOException, ServletException {
+
+		String header = request.getHeader("Authorization");
+		if (header != null && header.startsWith("Bearer ")) {
+			String token = header.substring(7);
+			if (jwt.isAccessTokenValid(token)) {
+				String role = jwt.extractRole(token);
+				if ("ADMIN".equalsIgnoreCase(role)) {
+					String email = jwt.extractEmail(token);
+					UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(email, null,
+							List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+					SecurityContextHolder.getContext().setAuthentication(auth);
+					chain.doFilter(request, response);
+					return true;
+				}
+			}
+		}
+
+		response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or missing Admin token");
+		return false;
+	}
+
+	/**
+	 * Attempts to authenticate a regular JWT (any role) for normal API endpoints.
+	 * Sets authentication if valid, otherwise leaves context unauthenticated.
+	 */
+	private void handleRegularJwt(HttpServletRequest request) {
+		String header = request.getHeader("Authorization");
+		if (header != null && header.startsWith("Bearer ")) {
+			String token = header.substring(7);
+			if (jwt.isAccessTokenValid(token)) {
+				String email = jwt.extractEmail(token);
+				String role = jwt.extractRole(token);
+				UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(email, null,
+						List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+				SecurityContextHolder.getContext().setAuthentication(auth);
+			}
+		}
+	}
 }

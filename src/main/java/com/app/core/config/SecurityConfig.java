@@ -27,90 +27,48 @@ public class SecurityConfig {
 		this.jwtService = jwtService;
 	}
 
-	// ================= JWT FILTER =================
+	// ================= JWT FILTER BEAN =================
 	@Bean
-	public JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService,
+	JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService,
 			@Value("${app.security.master.key}") String masterKey) {
 		return new JwtAuthenticationFilter(jwtService, masterKey);
 	}
 
 	// ================= CORS =================
 	@Bean
-	public CorsConfigurationSource corsConfigurationSource() {
-
+	CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration config = new CorsConfiguration();
-
 		config.setAllowedOriginPatterns(List.of("http://localhost:*", "https://your-domain.com"));
-
 		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-
 		config.setAllowedHeaders(List.of("*"));
-
 		config.setAllowCredentials(true);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-
 		source.registerCorsConfiguration("/**", config);
-
 		return source;
 	}
 
 	// ================= SECURITY CHAIN =================
 	@Bean
-	public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
-
-		return http
-
-				// Disable CSRF for JWT based authentication
-				.csrf(csrf -> csrf.disable())
-
-				// Stateless session
+	SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
+		return http.csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-				// CORS
 				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-				// Authorization
 				.authorizeHttpRequests(auth -> auth
-
-						// Public frontend pages
 						.requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/profile.html",
-								"/viewer.html", "/share.html", "/share2.html", "/favicon.ico",
-
-								// Static resources
-								"/css/**", "/js/**", "/js2/**",
-
-								// Authentication APIs
-								"/auth/**", "/share/**",
-								
-								// PUBLIC LOGGER ENDPOINTS (NO AUTH REQUIRED)
-								"/logger/log", "/logger/error")
-						.permitAll()
-
-						// Protected APIs
-						.requestMatchers("/api/**").authenticated()
-
-						// Everything else
-						.anyRequest().authenticated())
-
-				// JWT Filter
+								"/viewer.html", "/share.html", "/share2.html", "/favicon.ico", "/css/**", "/js/**",
+								"/js2/**", "/auth/**", "/share/**", "/logger/log", "/logger/error")
+						.permitAll().anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
-
-				// Unauthorized response
 				.exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
-
 					response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-
 					response.setContentType("application/json");
-
 					response.getWriter().write("""
 							{
 							    "success": false,
 							    "message": "Unauthorized or token expired"
 							}
 							""");
-				}))
-
-				.build();
+				})).build();
 	}
 }
