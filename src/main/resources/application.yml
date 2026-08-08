@@ -109,3 +109,9 @@ logging:
   level:
     com.app: INFO
     org.springframework.web: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

@@ -30,7 +30,6 @@ public class JwtService {
 
 	public JwtService(SecurityProperties props, StringRedisTemplate redis) {
 		this.key = Keys.hmacShaKeyFor(props.getSecret().getBytes());
-		System.out.println("JWT SECRET LENGTH = " + props.getSecret().length());
 		this.accessValidity = props.getAccessTokenValidity();
 		this.resetValidity = props.getResetTokenValidity();
 		this.redisEnabled = props.isRedisEnabled();
@@ -98,55 +97,24 @@ public class JwtService {
 		}
 	}
 
-//	private boolean validate(String token, String expectedType) {
-//
-//		try {
-//			Claims claims = extractAllClaims(token);
-//
-//			return expectedType.equals(claims.get("type")) && !isTokenExpired(claims);
-//
-//		} catch (Exception e) {
-//			return false;
-//		}
-//	}
-	
 	private boolean validate(String token, String expectedType) {
 
-	    try {
+		try {
 
-	        System.out.println("=================================");
-	        System.out.println("VALIDATING TOKEN");
+			Claims claims = extractAllClaims(token);
 
-	        Claims claims = extractAllClaims(token);
+			boolean expired = isTokenExpired(claims);
 
-	        System.out.println("EXPECTED TYPE = " + expectedType);
-	        System.out.println("TOKEN TYPE = " + claims.get("type"));
-	        System.out.println("SUBJECT = " + claims.getSubject());
-	        System.out.println("EXPIRATION = " + claims.getExpiration());
-	        System.out.println("CURRENT TIME = " + new Date());
+			boolean result = expectedType.equals(claims.get("type")) && !expired;
 
-	        boolean expired = isTokenExpired(claims);
+			return result;
 
-	        System.out.println("IS EXPIRED = " + expired);
+		} catch (Exception e) {
 
-	        boolean result =
-	                expectedType.equals(claims.get("type"))
-	                && !expired;
+			e.printStackTrace();
 
-	        System.out.println("VALIDATION RESULT = " + result);
-	        System.out.println("=================================");
-
-	        return result;
-
-	    } catch (Exception e) {
-
-	        System.out.println("=================================");
-	        System.out.println("JWT VALIDATION ERROR");
-	        e.printStackTrace();
-	        System.out.println("=================================");
-
-	        return false;
-	    }
+			return false;
+		}
 	}
 
 	// ================= EXTRACT =================
