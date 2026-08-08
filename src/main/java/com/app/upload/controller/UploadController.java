@@ -21,8 +21,9 @@ public class UploadController {
 
     @PostMapping
     public String upload(@RequestParam MultipartFile file,
+                         @RequestParam(required = false) String parentId,
                          Authentication auth) {
 
-        return service.upload(file, auth.getName());
+        return service.upload(file, auth.getName(), parentId);
     }
 }

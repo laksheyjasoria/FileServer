@@ -1,5 +1,5 @@
 // API Configuration (static2 - backend-compatible adjustments)
-const API_URL = 'http://localhost:8080';
+const API_URL = window.location.origin;
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 
 // Global state

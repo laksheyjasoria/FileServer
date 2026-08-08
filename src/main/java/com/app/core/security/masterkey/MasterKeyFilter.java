@@ -56,6 +56,11 @@ public class MasterKeyFilter implements Filter {
 			return true;
 		}
 
+		// 🔐 Admin API - list/manage master drives
+		if (path.startsWith("/admin")) {
+			return true;
+		}
+
 		return false;
 	}
 }

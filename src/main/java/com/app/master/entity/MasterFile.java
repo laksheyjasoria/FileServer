@@ -22,6 +22,15 @@ public class MasterFile {
 
     private String contentType;
 
+    // Parent folder id (null for root)
+    private String parentId;
+
+    // Type: FILE or FOLDER
+    private String driveType;
+
+    // Access type: PUBLIC or PROTECTED
+    private String accessType;
+
     private LocalDateTime createdAt;
 
     @PrePersist
@@ -57,6 +66,18 @@ public class MasterFile {
         return createdAt;
     }
 
+    public String getParentId() {
+        return parentId;
+    }
+
+    public String getDriveType() {
+        return driveType;
+    }
+
+    public String getAccessType() {
+        return accessType;
+    }
+
     public void setUserId(String userId) {
         this.userId = userId;
     }
@@ -75,5 +96,17 @@ public class MasterFile {
 
     public void setContentType(String contentType) {
         this.contentType = contentType;
+    }
+
+    public void setParentId(String parentId) {
+        this.parentId = parentId;
+    }
+
+    public void setDriveType(String driveType) {
+        this.driveType = driveType;
+    }
+
+    public void setAccessType(String accessType) {
+        this.accessType = accessType;
     }
 }

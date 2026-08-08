@@ -1,5 +1,7 @@
 package com.app.core.config;
 
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -13,85 +15,126 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.app.core.security.filter.JwtAuthenticationFilter;
 import com.app.core.security.jwt.JwtService;
 
-import java.util.List;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 public class SecurityConfig {
 
-    private final JwtService jwtService;
+        private final JwtService jwtService;
 
-    public SecurityConfig(JwtService jwtService) {
-        this.jwtService = jwtService;
-    }
+        public SecurityConfig(JwtService jwtService) {
+                this.jwtService = jwtService;
+        }
 
-    // ================= JWT FILTER =================
-    @Bean
-    public JwtAuthenticationFilter jwtFilter() {
-        return new JwtAuthenticationFilter(jwtService);
-    }
+        // ================= JWT FILTER =================
+        @Bean
+        public JwtAuthenticationFilter jwtFilter() {
+                return new JwtAuthenticationFilter(jwtService);
+        }
 
-    // ================= CORS =================
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+        // ================= CORS =================
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
 
-        CorsConfiguration config = new CorsConfiguration();
+                CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOriginPatterns(List.of("*"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
+                config.setAllowedOriginPatterns(List.of(
+                                "http://localhost:*",
+                                "https://your-domain.com"));
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
+                config.setAllowedMethods(List.of(
+                                "GET",
+                                "POST",
+                                "PUT",
+                                "DELETE",
+                                "OPTIONS"));
 
-        return source;
-    }
+                config.setAllowedHeaders(List.of("*"));
 
-    // ================= SECURITY CHAIN =================
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http,
-                                            JwtAuthenticationFilter jwtFilter) throws Exception {
+                config.setAllowCredentials(true);
 
-        return http
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
-                // disable csrf
-                .csrf(csrf -> csrf.disable())
+                source.registerCorsConfiguration("/**", config);
 
-                // JWT stateless
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                return source;
+        }
 
-                // CORS
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        // ================= SECURITY CHAIN =================
+        @Bean
+        public SecurityFilterChain filterChain(
+                        HttpSecurity http,
+                        JwtAuthenticationFilter jwtFilter) throws Exception {
 
-                // AUTH RULES
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/auth/**",
-                                "/login.html",
-                                "/index.html",
-                                "/css/**",
-                                "/js/**"
-                        ).permitAll()
+                return http
 
-                        .anyRequest().authenticated()
-                )
+                                // Disable CSRF for JWT based authentication
+                                .csrf(csrf -> csrf.disable())
 
-                // JWT FILTER
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                                // Stateless session
+                                .sessionManagement(session -> session.sessionCreationPolicy(
+                                                SessionCreationPolicy.STATELESS))
 
-                // ❌ NO oauth2Login (REMOVED)
+                                // CORS
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // ================= UNAUTHORIZED HANDLING =================
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) -> {
+                                // Authorization
+                                .authorizeHttpRequests(auth -> auth
 
-                            // Redirect to login page (NOT Google)
-                            response.sendRedirect("/login.html");
-                        })
-                )
+                                                // Public frontend pages
+                                                .requestMatchers(
+                                                                "/",
+                                                                "/index.html",
+                                                                "/login.html",
+                                                                "/signup.html",
+                                                                "/profile.html",
+                                                                "/viewer.html",
+                                                                "/share.html",
+                                                                "/share2.html",
+                                                                "/favicon.ico",
 
-                .build();
-    }
+                                                                // Static resources
+                                                                "/css/**",
+                                                                "/js/**",
+                                                                "/js2/**",
+
+                                                                // Authentication APIs
+                                                                "/auth/**",
+                                                                "/share/**")
+                                                .permitAll()
+
+                                                // Protected APIs
+                                                .requestMatchers(
+                                                                "/api/**")
+                                                .authenticated()
+
+                                                // Everything else
+                                                .anyRequest()
+                                                .authenticated())
+
+                                // JWT Filter
+                                .addFilterBefore(
+                                                jwtFilter,
+                                                UsernamePasswordAuthenticationFilter.class)
+
+                                // Unauthorized response
+                                .exceptionHandling(ex -> ex.authenticationEntryPoint(
+                                                (request, response, authException) -> {
+
+                                                        response.setStatus(
+                                                                        HttpServletResponse.SC_UNAUTHORIZED);
+
+                                                        response.setContentType(
+                                                                        "application/json");
+
+                                                        response.getWriter().write("""
+                                                                        {
+                                                                            "success": false,
+                                                                            "message": "Unauthorized or token expired"
+                                                                        }
+                                                                        """);
+                                                }))
+
+                                .build();
+        }
 }

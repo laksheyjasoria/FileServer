@@ -33,9 +33,14 @@ public class UploadService {
 
     public String upload(MultipartFile file,
                          String userId) {
+        return upload(file, userId, null);
+    }
 
-        Subscription sub =
-                billingService.getActiveSubscription(userId);
+    public String upload(MultipartFile file,
+                         String userId,
+                         String parentId) {
+
+        Subscription sub = billingService.getOrCreateActiveSubscription(userId);
 
         if (file.getSize() >
                 sub.getPlan().getMaxUploadSizeBytes()) {
@@ -62,6 +67,9 @@ public class UploadService {
         masterFile.setSize(file.getSize());
         masterFile.setContentType(file.getContentType());
         masterFile.setUserId(userId);
+        masterFile.setParentId(parentId);
+        masterFile.setDriveType("FILE");
+        masterFile.setAccessType("PUBLIC");
 
         repo.save(masterFile);
 

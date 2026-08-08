@@ -1,13 +1,53 @@
 spring:
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
-  
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     show-sql: false
     hibernate:
       ddl-auto: validate
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+  mail:
+    host: ${SPRING_MAIL_HOST}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME}
+    password: ${SPRING_MAIL_PASSWORD}
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+
+app:
+  admin:
+    email: ${APP_ADMIN_EMAIL}
+    password: ${APP_ADMIN_PASSWORD}
+    name: ${APP_ADMIN_NAME:Admin}
+  security:
+    jwt:
+      secret: ${APP_SECURITY_JWT_SECRET}
+      redis-enabled: true
+  master-key:
+    value: ${APP_SECURITY_MASTER_KEY}
+  telegram:
+    storage:
+      bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN}
+      chat-id: ${TELEGRAM_STORAGE_CHAT_ID}
+    logger:
+      bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN}
+      chat-id: ${TELEGRAM_LOGGER_CHAT_ID}
+  oauth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID}
+  email:
+    from: ${SPRING_MAIL_USERNAME}
 
 logging:
   level:

@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: File Server
 
   datasource:
     url: jdbc:postgresql://localhost:5432/fileserver
@@ -8,11 +10,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-
     properties:
       hibernate:
         format_sql: false
-
     open-in-view: false
 
   servlet:
@@ -23,9 +23,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: yourmail@gmail.com
-    password: app-password
-
+    username: ${SPRING_MAIL_USERNAME:yourmail@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:app-password}
     properties:
       mail:
         smtp:
@@ -43,23 +42,45 @@ spring:
       client:
         registration:
           google:
-            client-id: your-google-client-id
-            client-secret: your-google-client-secret
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
             scope:
               - email
               - profile
 
+
 app:
-
   name: File Server
-
   environment: dev
-
   frontend-url: http://localhost:3000
-
   redis-enabled: false
-
   swagger-enabled: true
+
+  logger:
+    level:
+      info: true
+      warn: true
+      error: true
+
+  security:
+    master:
+      key: ${APP_SECURITY_MASTER_KEY:dsklgjldfsgjbdjlzdrghaergk}
+
+    jwt:
+      secret: ${APP_SECURITY_JWT_SECRET:VERY_LONG_SECRET_KEY_123456789012345678901234567890}
+      access-token-validity: 3600000
+      reset-token-validity: 900000
+      redis-enabled: true
+
+  telegram:
+    storage:
+      bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN:8700206876:AAFuMcdfMzQufISHQouEuDObjBQWnF9HqMM}
+      chat-id: ${TELEGRAM_STORAGE_CHAT_ID:1379405363}
+
+  admin:
+    email: ${APP_ADMIN_EMAIL:admin@example.com}
+    password: ${APP_ADMIN_PASSWORD:change-me}
+    name: ${APP_ADMIN_NAME:Admin}
 
   upload:
     max-file-size: 2147483648
@@ -69,40 +90,22 @@ app:
   storage:
     provider: telegram
 
-  email:
-    enabled: true
-    from: yourmail@gmail.com
-
   oauth:
     google:
-      client-id: your-google-client-id
+      client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
 
   scheduler:
     enabled: true
 
-  master-key:
-    value: MASTER_SECRET_KEY
 
-  security:
-    jwt:
-      secret: VERY_LONG_SECRET_KEY_123456789012345678901234567890
-      access-token-validity: 3600000
-      reset-token-validity: 900000
-      redis-enabled: true
-
-  telegram:
-
-    storage:
-      bot-token: BOT_TOKEN
-      chat-id: CHAT_ID
-
-    logger:
-      enabled: true
-      bot-token: LOGGER_BOT_TOKEN
-      chat-id: LOGGER_CHAT_ID
-
+telegram:
   logger:
-    levels:
-      info: true
-      warn: true
-      error: true
+    enabled: true
+    bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN:8199363389:AAHwJxIGiq4eY2TW2Rw1_h4g0oTomETjPCE}
+    chat-id: ${TELEGRAM_LOGGER_CHAT_ID:1379405363}
+
+
+logging:
+  level:
+    com.app: INFO
+    org.springframework.web: INFO

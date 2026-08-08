@@ -16,7 +16,9 @@ public class ResourceController {
     }
 
     @PostMapping("/action")
-    public void action(@RequestBody ResourceActionRequest request) {
-        service.handle(request);
+    public void action(@RequestBody ResourceActionRequest request,
+            org.springframework.security.core.Authentication auth) {
+        String userId = auth != null ? auth.getName() : null;
+        service.handle(request, userId);
     }
 }

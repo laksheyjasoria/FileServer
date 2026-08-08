@@ -54,9 +54,29 @@ async function createFolder() {
     createBtn.disabled = true;
 
     try {
-        // Backend doesn't support folder creation through visible API
-        // This feature would need to be implemented in the backend
-        alert('Folder creation is not yet available. Please use the upload feature to create directories.');
+        // Call backend resources action to create a folder
+        const payload = {
+            action: 'CREATE_FOLDER',
+            ids: [],
+            destination: currentFolderId || null,
+            name: name
+        };
+
+        const response = await apiCall('/resources/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Failed to create folder');
+        }
+
+        alert(`Folder "${name}" created successfully.`);
+        closeModal('folderModal');
+        resetFolderModal();
+        await loadFiles();
 
     } catch (error) {
         console.error('Error creating folder:', error);
@@ -88,10 +108,11 @@ async function executeRename() {
         // Use /resources/action endpoint for rename
         const response = await apiCall('/resources/action', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                resourceIds: [contextMenuItem.id],
+                ids: [contextMenuItem.id],
                 action: 'RENAME',
-                newName: newName
+                name: newName
             })
         });
 
@@ -149,7 +170,7 @@ async function selectDestination() {
 
 async function executeMove() {
     const destId = document.getElementById('destinationFolder').value;
-    const destinationId = destId ? parseInt(destId) : null;
+    const destinationId = destId || null;
 
     let successCount = 0;
     let failCount = 0;
@@ -159,10 +180,11 @@ async function executeMove() {
             // Use /resources/action endpoint for move/copy operations
             const response = await apiCall('/resources/action', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    resourceIds: [item.id],
+                    ids: [item.id],
                     action: pendingAction === 'copy' ? 'COPY' : 'MOVE',
-                    targetParentId: destinationId
+                    destination: destinationId
                 })
             });
 
@@ -177,6 +199,7 @@ async function executeMove() {
         }
     }
 
+    const completedAction = pendingAction;
     closeModal('moveModal');
     if (pendingAction === 'move') selectedItems.clear();
     await loadFiles();
@@ -184,8 +207,8 @@ async function executeMove() {
     pendingAction = null;
 
     if (successCount > 0) {
-        alert(`${pendingAction === 'copy' ? 'Copied' : 'Moved'} ${successCount} item(s) successfully. ${failCount > 0 ? `Failed to ${pendingAction} ${failCount} item(s).` : ''}`);
+        alert(`${completedAction === 'copy' ? 'Copied' : 'Moved'} ${successCount} item(s) successfully. ${failCount > 0 ? `Failed to ${completedAction} ${failCount} item(s).` : ''}`);
     } else if (failCount > 0) {
-        alert(`Failed to ${pendingAction} ${failCount} item(s). Please try again.`);
+        alert(`Failed to ${completedAction} ${failCount} item(s). Please try again.`);
     }
 }

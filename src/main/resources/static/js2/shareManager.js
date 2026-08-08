@@ -12,6 +12,20 @@ function showShareModal(id, name) {
     showModal('shareModal');
 }
 
+function shareSelected() {
+    if (selectedItems.size !== 1) {
+        alert('Select exactly one file or folder to create a share link.');
+        return;
+    }
+    const id = Array.from(selectedItems)[0];
+    const item = allFiles.find(file => file.id === id);
+    if (!item) {
+        alert('The selected item is no longer available. Refresh and try again.');
+        return;
+    }
+    showShareModal(item.id, item.name);
+}
+
 function toggleShareOptions() {
     const type = document.getElementById('shareType').value;
     document.getElementById('passwordOption').style.display = type === 'PROTECTED' ? 'block' : 'none';
@@ -35,29 +49,23 @@ async function createShareLink() {
     }
 
     if (shareData.shareType === 'USER_ONLY') {
-        const emails = document.getElementById('allowedUsers').value.split(',').map(e => e.trim()).filter(e => e);
-        shareData.allowedUserIds = emails;
-        if (emails.length === 0) {
-            alert('At least one user email is required');
-            return;
-        }
+        alert('User-specific sharing is not available on this server yet. Use a public or password-protected link.');
+        return;
     }
 
     try {
         const response = await apiCall('/share', {
             method: 'POST',
             body: JSON.stringify({
-                resourceId: shareData.driveId,
-                type: shareData.shareType,
-                permission: shareData.permission,
+                fileId: shareData.driveId,
+                publicAccess: true,
                 password: shareData.password || null,
-                allowedUsers: shareData.allowedUserIds || null,
-                expiresAt: shareData.expiresAt
+                expiry: shareData.expiresAt || null
             })
         });
 
         const result = await response.json();
-        const shareUrl = `${window.location.origin}/static2/share.html?token=${result.token || result.shareToken || ''}`;
+        const shareUrl = `${window.location.origin}/share2.html?token=${result.token || result.shareToken || ''}`;
         document.getElementById('shareLink').value = shareUrl;
         closeModal('shareModal');
         showModal('shareLinkModal');

@@ -8,46 +8,52 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(AppException.class)
-    public ResponseEntity<ErrorResponse> handleAppException(AppException ex) {
+        @ExceptionHandler(AppException.class)
+        public ResponseEntity<ErrorResponse> handleAppException(AppException ex) {
 
-        ErrorCode code = ex.getErrorCode();
+                ErrorCode code = ex.getErrorCode();
+                String message = ex.getMessage();
+                if (message == null || message.isBlank()) {
+                        message = code.getMessage();
+                }
 
-        return ResponseEntity
-                .status(code.getStatus())
-                .body(new ErrorResponse(
-                        code.getStatus().value(),
-                        code.name(),
-                        code.getMessage()
-                ));
-    }
+                return ResponseEntity
+                                .status(code.getStatus())
+                                .body(new ErrorResponse(
+                                                code.getStatus().value(),
+                                                code.name(),
+                                                message));
+        }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
 
-        String msg = ex.getBindingResult()
-                .getFieldErrors()
-                .get(0)
-                .getDefaultMessage();
+                String msg = ex.getBindingResult()
+                                .getFieldErrors()
+                                .get(0)
+                                .getDefaultMessage();
 
-        return ResponseEntity
-                .badRequest()
-                .body(new ErrorResponse(
-                        400,
-                        "VALIDATION_ERROR",
-                        msg
-                ));
-    }
+                return ResponseEntity
+                                .badRequest()
+                                .body(new ErrorResponse(
+                                                400,
+                                                "VALIDATION_ERROR",
+                                                msg));
+        }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
 
-        return ResponseEntity
-                .internalServerError()
-                .body(new ErrorResponse(
-                        500,
-                        "INTERNAL_ERROR",
-                        "Something went wrong"
-                ));
-    }
+                String message = ex.getMessage();
+                if (message == null || message.isBlank()) {
+                        message = "Something went wrong";
+                }
+
+                return ResponseEntity
+                                .internalServerError()
+                                .body(new ErrorResponse(
+                                                500,
+                                                "INTERNAL_ERROR",
+                                                message));
+        }
 }

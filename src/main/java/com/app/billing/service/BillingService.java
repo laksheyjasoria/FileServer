@@ -1,6 +1,7 @@
 package com.app.billing.service;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 import org.springframework.stereotype.Service;
 
@@ -65,6 +66,35 @@ public class BillingService {
 
         return subRepo.findByUserIdAndActiveTrue(userId)
                 .orElseThrow(SubscriptionNotFoundException::new);
+    }
+
+    /** Ensures every registered user can upload without manual plan assignment. */
+    public Subscription getOrCreateActiveSubscription(String userId) {
+        return subRepo.findByUserIdAndActiveTrue(userId)
+                .filter(subscription -> subscription.getExpiryDate().isAfter(LocalDateTime.now()))
+                .orElseGet(() -> createFreeSubscription(userId));
+    }
+
+    private Subscription createFreeSubscription(String userId) {
+        Plan plan = planRepo.findByName("FREE").orElseGet(() -> {
+            Plan free = new Plan();
+            free.setName("FREE");
+            free.setStorageLimitBytes(1_073_741_824L);
+            free.setMaxUploadSizeBytes(104_857_600L);
+            free.setDailyUploadLimit(100);
+            free.setApiRequestLimit(10_000);
+            free.setPrice(BigDecimal.ZERO);
+            free.setActive(true);
+            return planRepo.save(free);
+        });
+
+        Subscription subscription = new Subscription();
+        subscription.setUserId(userId);
+        subscription.setPlan(plan);
+        subscription.setStartDate(LocalDateTime.now());
+        subscription.setExpiryDate(LocalDateTime.now().plusYears(1));
+        subscription.setActive(true);
+        return subRepo.save(subscription);
     }
 
     public boolean hasValidPlan(String userId) {

@@ -16,6 +16,10 @@ public class CopyService {
     }
 
     public MasterFile copy(String id) {
+        return copy(id, null);
+    }
+
+    public MasterFile copy(String id, String destinationId) {
 
         MasterFile original = repo.findById(id)
                 .orElseThrow(FileNotFoundException::new);
@@ -27,6 +31,9 @@ public class CopyService {
         copy.setSize(original.getSize());
         copy.setContentType(original.getContentType());
         copy.setUserId(original.getUserId());
+        copy.setParentId(destinationId);
+        copy.setDriveType(original.getDriveType());
+        copy.setAccessType(original.getAccessType());
 
         return repo.save(copy);
     }

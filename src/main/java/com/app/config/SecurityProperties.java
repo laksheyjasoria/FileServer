@@ -5,41 +5,40 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.security.jwt")
 public class SecurityProperties {
 
-	private String secret;
-	private long accessTokenValidity;
-	private long resetTokenValidity;
-	
-	private boolean redisEnabled;
+    private String secret;
+    private long accessTokenValidity;
+    private long resetTokenValidity;
+    private boolean redisEnabled;
 
-	public boolean isRedisEnabled() {
-	    return redisEnabled;
-	}
+    public String getSecret() {
+        return secret;
+    }
 
-	public void setRedisEnabled(boolean redisEnabled) {
-	    this.redisEnabled = redisEnabled;
-	}
+    public void setSecret(String secret) {
+        this.secret = secret;
+    }
 
-	public String getSecret() {
-		return secret;
-	}
+    public long getAccessTokenValidity() {
+        return accessTokenValidity;
+    }
 
-	public void setSecret(String secret) {
-		this.secret = secret;
-	}
+    public void setAccessTokenValidity(long accessTokenValidity) {
+        this.accessTokenValidity = accessTokenValidity;
+    }
 
-	public long getAccessTokenValidity() {
-		return accessTokenValidity;
-	}
+    public long getResetTokenValidity() {
+        return resetTokenValidity;
+    }
 
-	public void setAccessTokenValidity(long accessTokenValidity) {
-		this.accessTokenValidity = accessTokenValidity;
-	}
+    public void setResetTokenValidity(long resetTokenValidity) {
+        this.resetTokenValidity = resetTokenValidity;
+    }
 
-	public long getResetTokenValidity() {
-		return resetTokenValidity;
-	}
+    public boolean isRedisEnabled() {
+        return redisEnabled;
+    }
 
-	public void setResetTokenValidity(long resetTokenValidity) {
-		this.resetTokenValidity = resetTokenValidity;
-	}
+    public void setRedisEnabled(boolean redisEnabled) {
+        this.redisEnabled = redisEnabled;
+    }
 }

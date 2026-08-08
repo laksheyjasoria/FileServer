@@ -14,6 +14,9 @@ import com.app.share.dto.CreateShareRequest;
 import com.app.share.dto.ShareResponse;
 import com.app.share.entity.SharedResource;
 import com.app.share.repository.SharedResourceRepository;
+import com.app.master.entity.MasterFile;
+import com.app.master.repository.MasterFileRepository;
+import com.app.share.dto.PublicShareResponse;
 
 @Service
 public class ShareService {
@@ -21,18 +24,23 @@ public class ShareService {
     private final SharedResourceRepository repo;
     private final PasswordEncoder encoder;
     private final AppProperties props;
+    private final MasterFileRepository files;
 
     public ShareService(SharedResourceRepository repo,
                         PasswordEncoder encoder,
-                        AppProperties props) {
+                        AppProperties props,
+                        MasterFileRepository files) {
         this.repo = repo;
         this.encoder = encoder;
         this.props = props;
+        this.files = files;
     }
 
     public ShareResponse create(CreateShareRequest request,
                                 String userId) {
 
+        files.findByIdAndUserId(request.getFileId(), userId)
+                .orElseThrow(com.app.core.exception.FileNotFoundException::new);
         SharedResource share = new SharedResource();
 
         String token = UUID.randomUUID().toString();
@@ -82,5 +90,19 @@ public class ShareService {
         }
 
         return share;
+    }
+
+    public PublicShareResponse details(String token, String password) {
+        SharedResource share = validate(token, password);
+        MasterFile file = files.findById(share.getFileId())
+                .orElseThrow(com.app.core.exception.FileNotFoundException::new);
+        String type = share.getPassword() == null ? (share.isPublicAccess() ? "PUBLIC" : "USER_ONLY") : "PROTECTED";
+        return new PublicShareResponse(share.getToken(), file.getName(), type, share.getExpiry(), share.getCreatedAt());
+    }
+
+    public MasterFile file(String token, String password) {
+        SharedResource share = validate(token, password);
+        return files.findById(share.getFileId())
+                .orElseThrow(com.app.core.exception.FileNotFoundException::new);
     }
 }

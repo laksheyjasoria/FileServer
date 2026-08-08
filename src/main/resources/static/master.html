@@ -464,7 +464,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/api/master/drives`, {
+                const response = await fetch(`${API_URL}/admin/drives`, {
                     headers: { 'X-Master-Key': key }
                 });
 
@@ -520,12 +520,7 @@
             container.innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                let url = '';
-                if (currentFolderId) {
-                    url = `/api/master/drives/${currentFolderId}/contents`;
-                } else {
-                    url = `/api/master/drives`;
-                }
+                const url = '/admin/drives';
 
                 const response = await fetch(`${API_URL}${url}`, {
                     headers: { 'X-Master-Key': masterKey }
@@ -607,14 +602,11 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/api/master/drives/${currentFolderId}`, {
-                    headers: { 'X-Master-Key': masterKey }
-                });
-                const drive = await response.json();
+                const drive = allDrives.find(d => d.id === currentFolderId);
                 breadcrumb.innerHTML = `
                     <span class="breadcrumb-item" onclick="navigateToParent()">Master Drives</span>
                     <span class="breadcrumb-separator">/</span>
-                    <span class="breadcrumb-item">${escapeHtml(drive.name)}</span>
+                    <span class="breadcrumb-item">${escapeHtml(drive ? drive.name : 'Drive')}</span>
                 `;
             } catch (error) {
                 console.error('Error updating breadcrumb:', error);
@@ -636,27 +628,8 @@
                 return;
             }
 
-            try {
-                const response = await fetch(`${API_URL}/api/master/drives/${currentFolderId}/folders`, {
-                    method: 'POST',
-                    headers: {
-                        'X-Master-Key': masterKey,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ name, accessType: 'PUBLIC' })
-                });
-
-                if (response.ok) {
-                    closeModal('folderModal');
-                    document.getElementById('folderName').value = '';
-                    loadMasterDrives();
-                } else {
-                    alert('Failed to create folder');
-                }
-            } catch (error) {
-                console.error('Error creating folder:', error);
-                alert('Failed to create folder');
-            }
+            alert('The current backend exposes admin drive listing only. Folder creation is not available through the admin route set.');
+            return;
         }
 
         async function createMasterDrive() {
@@ -666,27 +639,8 @@
                 return;
             }
 
-            try {
-                const response = await fetch(`${API_URL}/api/master/drives`, {
-                    method: 'POST',
-                    headers: {
-                        'X-Master-Key': masterKey,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ name, accessType: 'PRIVATE' })
-                });
-
-                if (response.ok) {
-                    closeModal('createMasterDriveModal');
-                    document.getElementById('masterDriveName').value = '';
-                    loadMasterDrives();
-                } else {
-                    alert('Failed to create master drive');
-                }
-            } catch (error) {
-                console.error('Error creating master drive:', error);
-                alert('Failed to create master drive');
-            }
+            alert('The current backend admin route supports listing only. Drive creation is not exposed on the server side yet.');
+            return;
         }
 
         function showRenameModal(id, currentName) {
@@ -699,46 +653,15 @@
             const newName = document.getElementById('newName').value.trim();
             if (!newName) return;
 
-            try {
-                const response = await fetch(`${API_URL}/api/master/drives/${contextMenuItem.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'X-Master-Key': masterKey,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ name: newName, accessType: 'PRIVATE' })
-                });
-
-                if (response.ok) {
-                    closeModal('renameModal');
-                    loadMasterDrives();
-                } else {
-                    alert('Failed to rename');
-                }
-            } catch (error) {
-                console.error('Error renaming:', error);
-                alert('Failed to rename');
-            }
+            alert('The current backend does not expose rename via the admin route set.');
+            return;
         }
 
         async function deleteDrive(id, name) {
             if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
 
-            try {
-                const response = await fetch(`${API_URL}/api/master/drives/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'X-Master-Key': masterKey }
-                });
-
-                if (response.ok) {
-                    loadMasterDrives();
-                } else {
-                    alert('Failed to delete');
-                }
-            } catch (error) {
-                console.error('Error deleting:', error);
-                alert('Failed to delete');
-            }
+            alert('The current backend does not expose delete via the admin route set.');
+            return;
         }
 
         function viewDrive(driveId) {

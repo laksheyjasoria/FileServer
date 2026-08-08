@@ -23,43 +23,109 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		this.jwt = jwt;
 	}
 
+//	@Override
+//	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+//			throws ServletException, IOException {
+//
+//		try {
+//
+//			// 🔓 Skip public endpoints
+//			if (isPublic(request)) {
+//				chain.doFilter(request, response);
+//				return;
+//			}
+//
+//			String header = request.getHeader("Authorization");
+//
+//			if (header != null && header.startsWith("Bearer ")) {
+//
+//				String token = header.substring(7);
+//
+//				if (jwt.isAccessTokenValid(token)) {
+//
+//					String email = jwt.extractEmail(token);
+//					String role = jwt.extractRole(token);
+//
+//					UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(email, null,
+//							List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+//
+//					SecurityContextHolder.getContext().setAuthentication(auth);
+//				}
+//			}
+//
+//		} catch (Exception ignored) {
+//			// ❌ Never break request flow
+//		}
+//
+//		chain.doFilter(request, response);
+//	}
+
 	@Override
-	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-			throws ServletException, IOException {
+	protected void doFilterInternal(HttpServletRequest request,
+	                                HttpServletResponse response,
+	                                FilterChain chain)
+	        throws ServletException, IOException {
 
-		try {
+	    try {
 
-			// 🔓 Skip public endpoints
-			if (isPublic(request)) {
-				chain.doFilter(request, response);
-				return;
-			}
+	        System.out.println("=================================");
+	        System.out.println("PATH = " + request.getRequestURI());
 
-			String header = request.getHeader("Authorization");
+	        // Skip public endpoints
+	        if (isPublic(request)) {
+	            System.out.println("PUBLIC ENDPOINT");
+	            chain.doFilter(request, response);
+	            return;
+	        }
 
-			if (header != null && header.startsWith("Bearer ")) {
+	        String header = request.getHeader("Authorization");
 
-				String token = header.substring(7);
+	        System.out.println("HEADER = " + header);
 
-				if (jwt.isAccessTokenValid(token)) {
+	        if (header != null && header.startsWith("Bearer ")) {
 
-					String email = jwt.extractEmail(token);
-					String role = jwt.extractRole(token);
+	            String token = header.substring(7);
 
-					UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(email, null,
-							List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+	            System.out.println("TOKEN = " + token);
 
-					SecurityContextHolder.getContext().setAuthentication(auth);
-				}
-			}
+	            boolean valid = jwt.isAccessTokenValid(token);
 
-		} catch (Exception ignored) {
-			// ❌ Never break request flow
-		}
+	            System.out.println("TOKEN VALID = " + valid);
 
-		chain.doFilter(request, response);
+	            if (valid) {
+
+	                String email = jwt.extractEmail(token);
+	                String role = jwt.extractRole(token);
+
+	                System.out.println("EMAIL = " + email);
+	                System.out.println("ROLE = " + role);
+
+	                UsernamePasswordAuthenticationToken auth =
+	                        new UsernamePasswordAuthenticationToken(
+	                                email,
+	                                null,
+	                                List.of(new SimpleGrantedAuthority("ROLE_" + role))
+	                        );
+
+	                SecurityContextHolder.getContext().setAuthentication(auth);
+
+	                System.out.println("AUTHENTICATION SET SUCCESSFULLY");
+	            } else {
+	                System.out.println("TOKEN VALIDATION FAILED");
+	            }
+	        } else {
+	            System.out.println("NO AUTH HEADER FOUND");
+	        }
+
+	    } catch (Exception e) {
+
+	        System.out.println("JWT FILTER ERROR");
+	        e.printStackTrace();
+
+	    }
+
+	    chain.doFilter(request, response);
 	}
-
 	private boolean isPublic(HttpServletRequest request) {
 
 		String path = request.getRequestURI();

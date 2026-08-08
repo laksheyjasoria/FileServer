@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-@ConfigurationPropertiesScan(basePackages = "com.app.config")
+@ConfigurationPropertiesScan(basePackages = { "com.app.config", "com.app.core.config" })
 public class FileServerApplication {
 
     public static void main(String[] args) {

@@ -34,11 +34,16 @@ function renderFiles(files) {
         const info = item.driveType === 'FILE' ? formatFileSize(item.fileSize) : (item.hasChildren ? 'Contains items' : 'Empty');
         const isFolder = item.driveType === 'ROOT' || item.driveType === 'FOLDER';
         const isProtected = item.accessType === 'PROTECTED';
+        const safeId = encodeURIComponent(item.id);
+        const safeName = encodeURIComponent(item.name).replace(/'/g, '%27');
+        const safeType = encodeURIComponent(item.driveType);
+        const safeFileType = encodeURIComponent(item.fileType || '');
+        const safeParentId = item.parentId ? encodeURIComponent(item.parentId) : '';
         const lockIcon = isProtected ? '🔒 ' : '';
 
         let doubleClickAction = '';
         if (isFolder) {
-            doubleClickAction = `openFolder(${item.id}, '${escapeHtml(item.name)}', ${isProtected})`;
+            doubleClickAction = `openFolder(decodeURIComponent('${safeId}'), decodeURIComponent('${safeName}'), ${isProtected})`;
         } else {
             const isViewable = item.fileType && (
                 item.fileType.startsWith('image/') ||
@@ -46,9 +51,9 @@ function renderFiles(files) {
                 item.fileType.startsWith('video/')
             );
             if (isViewable) {
-                doubleClickAction = `viewFile(${item.id}, '${escapeHtml(item.name)}')`;
+                doubleClickAction = `viewFile(decodeURIComponent('${safeId}'), decodeURIComponent('${safeName}'))`;
             } else {
-                doubleClickAction = `downloadFile(${item.id}, '${escapeHtml(item.name)}')`;
+                doubleClickAction = `downloadFile(decodeURIComponent('${safeId}'), decodeURIComponent('${safeName}'))`;
             }
         }
 
@@ -59,12 +64,12 @@ function renderFiles(files) {
                  data-type="${item.driveType}" 
                  data-name="${escapeHtml(item.name)}"
                  ondblclick="${doubleClickAction}"
-                 onclick="handleItemClick(event, ${item.id}, ${isFolder})">
-                <input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectItem(event, ${item.id}, this.checked)">
+                 onclick="handleItemClick(event, decodeURIComponent('${safeId}'), ${isFolder})">
+                <input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectItem(event, decodeURIComponent('${safeId}'), this.checked)">
                 <div class="file-icon">${icon}</div>
                 <div class="file-name">${lockIcon}${escapeHtml(item.name)}</div>
                 <div class="file-info">${info}</div>
-                <div class="file-menu" onclick="showContextMenu(event, ${item.id}, '${escapeHtml(item.name)}', '${item.driveType}', '${item.fileType || ''}', ${isProtected}, ${item.parentId || 'null'})">
+                <div class="file-menu" onclick="showContextMenu(event, decodeURIComponent('${safeId}'), decodeURIComponent('${safeName}'), decodeURIComponent('${safeType}'), decodeURIComponent('${safeFileType}'), ${isProtected}, '${safeParentId}' ? decodeURIComponent('${safeParentId}') : null)">
                     ⋮
                 </div>
             </div>
@@ -181,7 +186,7 @@ async function updateBreadcrumb() {
 
         for (const item of path) {
             html += '<span class="breadcrumb-separator">/</span>';
-            html += `<span class="breadcrumb-item" onclick="navigateToFolder(${item.id})">${escapeHtml(item.name)}</span>`;
+            html += `<span class="breadcrumb-item" onclick="navigateToFolder(decodeURIComponent('${encodeURIComponent(item.id)}'))">${escapeHtml(item.name)}</span>`;
         }
 
         breadcrumb.innerHTML = html;
@@ -231,7 +236,7 @@ async function deleteItem(id) {
         const response = await apiCall('/resources/action', {
             method: 'POST',
             body: JSON.stringify({
-                resourceIds: [id],
+                ids: [id],
                 action: 'DELETE'
             })
         });
@@ -270,7 +275,7 @@ async function deleteSelected() {
         const response = await apiCall('/resources/action', {
             method: 'POST',
             body: JSON.stringify({
-                resourceIds: Array.from(selectedItems),
+                ids: Array.from(selectedItems),
                 action: 'DELETE'
             })
         });
@@ -286,5 +291,18 @@ async function deleteSelected() {
     } catch (error) {
         console.error('Error deleting items:', error);
         alert('Failed to delete items: ' + error.message);
+    }
+}
+
+async function downloadSelected() {
+    const files = Array.from(selectedItems)
+        .map(id => allFiles.find(file => file.id === id))
+        .filter(file => file && file.driveType === 'FILE');
+    if (!files.length) {
+        alert('Select at least one file to download.');
+        return;
+    }
+    for (const file of files) {
+        await downloadFile(file.id, file.name);
     }
 }

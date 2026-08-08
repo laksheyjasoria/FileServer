@@ -11,5 +11,11 @@ public interface MasterFileRepository
 
     List<MasterFile> findByUserId(String userId);
 
+    List<MasterFile> findByUserIdAndParentIdIsNull(String userId);
+
+    List<MasterFile> findByUserIdAndParentId(String userId, String parentId);
+
+    java.util.Optional<MasterFile> findByIdAndUserId(String id, String userId);
+
     Long countByUserId(String userId);
 }

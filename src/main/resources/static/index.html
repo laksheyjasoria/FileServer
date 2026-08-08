@@ -29,6 +29,7 @@
         <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
         <span class="selection-count" id="selectionCount">0 items selected</span>
         <div class="selection-actions">
+            <button class="icon-btn" onclick="shareSelected()" title="Share">Share</button>
             <button class="icon-btn" onclick="deleteSelected()" title="Delete">🗑️</button>
             <button class="icon-btn" onclick="moveSelected()" title="Move">📁</button>
             <button class="icon-btn" onclick="copySelected()" title="Copy">📋</button>
@@ -50,6 +51,14 @@
             <div class="sidebar-item" data-view="recent">
                 <span class="icon">🕐</span>
                 <span>Recent</span>
+            </div>
+            <div class="sidebar-item" data-view="profile">
+                <span class="icon">👤</span>
+                <span>My Profile</span>
+            </div>
+            <div class="sidebar-item" id="signOutBtn" style="margin-top:auto; color:#d93025;">
+                <span class="icon">↩</span>
+                <span>Sign Out</span>
             </div>
         </div>
 

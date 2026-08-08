@@ -1,0 +1,110 @@
+spring:
+  application:
+    name: File Server
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/fileserver
+    username: fileserver
+    password: fileserver123
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: false
+    open-in-view: false
+
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${SPRING_MAIL_USERNAME:yourmail@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+            scope:
+              - email
+              - profile
+
+app:
+  name: File Server
+  environment: dev
+  frontend-url: http://localhost:3000
+  redis-enabled: false
+  swagger-enabled: true
+
+  admin:
+    email: ${APP_ADMIN_EMAIL:lkjasoria0@gmail.com}
+    password: ${APP_ADMIN_PASSWORD:admin@123}
+    name: ${APP_ADMIN_NAME:Admin}
+
+  upload:
+    max-file-size: 2147483648
+    chunk-size-mb: 50
+    resumable: true
+
+  storage:
+    provider: telegram
+
+  email:
+    enabled: true
+    from: ${SPRING_MAIL_USERNAME:yourmail@gmail.com}
+
+  oauth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+
+  scheduler:
+    enabled: true
+
+  master-key:
+    value: ${APP_SECURITY_MASTER_KEY:dsklgjldfsgjbdjlzdrghaergk}
+
+  security:
+    jwt:
+      secret: ${APP_SECURITY_JWT_SECRET:VERY_LONG_SECRET_KEY_123456789012345678901234567890}
+      access-token-validity: 3600000
+      reset-token-validity: 900000
+      redis-enabled: true
+
+  telegram:
+    storage:
+      bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN:AAFuMcdfMzQufISHQouEuDObjBQWnF9HqMM}
+      chat-id: ${TELEGRAM_STORAGE_CHAT_ID:8700206876}
+    logger:
+      enabled: true
+      bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN:AAEQL6OnxLITm6XtWn3fvOLNJhEi7nYWcNI}
+      chat-id: ${TELEGRAM_LOGGER_CHAT_ID:8199363389}
+
+  logger:
+    levels:
+      info: true
+      warn: true
+      error: true
+
+logging:
+  level:
+    com.app: INFO
+    org.springframework.web: INFO

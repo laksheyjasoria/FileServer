@@ -69,6 +69,12 @@ async function startUpload(uploadId) {
         formData.append('parentId', currentFolderId);
     }
 
+    if (!jwtToken) {
+        uploadItem.status = 'failed';
+        updateUploadStatus(uploadId, 'Please login again to upload', true);
+        return;
+    }
+
     const xhr = new XMLHttpRequest();
     uploadItem.xhr = xhr;
 
@@ -76,14 +82,15 @@ async function startUpload(uploadId) {
         if (e.lengthComputable) {
             const percent = (e.loaded / e.total) * 100;
             uploadItem.progress = percent;
-            const fill = document.querySelector(`#upload-${uploadId} .progress-fill`);
+            const itemDiv = document.getElementById(`upload-${uploadId}`);
+            const fill = itemDiv ? itemDiv.querySelector('.progress-fill') : null;
             if (fill) fill.style.width = `${percent}%`;
             updateUploadStatus(uploadId, `Uploading ${Math.round(percent)}%`, false);
         }
     });
 
     xhr.onload = () => {
-        if (xhr.status === 200) {
+        if (xhr.status >= 200 && xhr.status < 300) {
             uploadItem.status = 'completed';
             updateUploadStatus(uploadId, 'Completed ✅', true);
             const cancelBtn = document.querySelector(`#upload-${uploadId} .cancel-upload`);
@@ -91,7 +98,14 @@ async function startUpload(uploadId) {
             loadFiles();
         } else {
             uploadItem.status = 'failed';
-            updateUploadStatus(uploadId, 'Failed ❌', true);
+            let message = 'Upload failed';
+            try {
+                const error = JSON.parse(xhr.responseText);
+                message = error.message || message;
+            } catch (_) {
+                message = xhr.responseText || message;
+            }
+            updateUploadStatus(uploadId, `${message} (HTTP ${xhr.status})`, true);
         }
     };
 

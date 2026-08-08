@@ -12,6 +12,9 @@ public class ResourceActionRequest {
 
     private String destination;
 
+    // optional name (for rename or folder name)
+    private String name;
+
     public ResourceAction getAction() {
         return action;
     }
@@ -24,6 +27,10 @@ public class ResourceActionRequest {
         return destination;
     }
 
+    public String getName() {
+        return name;
+    }
+
     public void setAction(ResourceAction action) {
         this.action = action;
     }
@@ -34,5 +41,9 @@ public class ResourceActionRequest {
 
     public void setDestination(String destination) {
         this.destination = destination;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 }

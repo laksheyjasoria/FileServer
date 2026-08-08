@@ -507,7 +507,7 @@
             document.getElementById('viewerArea').style.display = 'none';
 
             try {
-                let url = `${API_URL}/api/public/share/browse/${token}`;
+                let url = `${API_URL}/share/${token}`;
                 if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
                 if (currentPath) url += `${currentPassword ? '&' : '?'}path=${encodeURIComponent(currentPath)}`;
 
@@ -763,7 +763,7 @@
             updateQueueDisplay();
 
             try {
-                let url = `${API_URL}/api/public/share/download-file/${token}?fileId=${file.id}`;
+                let url = `${API_URL}/share/stream/${token}?fileId=${file.id}`;
                 if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
 
                 const response = await fetch(url);
@@ -872,7 +872,7 @@
             document.getElementById('viewerArea').innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading file...</div></div>';
 
             try {
-                let url = `${API_URL}/api/public/share/view-file/${token}?fileId=${fileId}`;
+                let url = `${API_URL}/share/stream/${token}?fileId=${fileId}`;
                 if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
 
                 const response = await fetch(url);
@@ -915,7 +915,7 @@
             document.getElementById('viewerArea').style.display = 'none';
 
             try {
-                let url = `${API_URL}/api/public/share/view-file/${token}?fileId=${fileId}`;
+                let url = `${API_URL}/share/stream/${token}?fileId=${fileId}`;
                 if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
 
                 const response = await fetch(url);

@@ -27,6 +27,7 @@ public class User {
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
 	private String name;
+	private String photoUrl;
 
 	@Enumerated(EnumType.STRING)
 	private AuthProvider provider;
@@ -67,6 +68,14 @@ public class User {
 
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	public String getPhotoUrl() {
+		return photoUrl;
+	}
+
+	public void setPhotoUrl(String photoUrl) {
+		this.photoUrl = photoUrl;
 	}
 
 	public AuthProvider getProvider() {

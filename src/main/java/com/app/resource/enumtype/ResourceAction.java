@@ -6,5 +6,7 @@ public enum ResourceAction {
     COPY,
     MOVE,
     DOWNLOAD,
-    SHARE
+    SHARE,
+    RENAME,
+    CREATE_FOLDER
 }

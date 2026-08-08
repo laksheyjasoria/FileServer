@@ -275,7 +275,7 @@
         async function loadFile() {
             try {
                 // Fetch file information
-                const infoResponse = await fetch(`${API_URL}/download/${fileId}`, {
+                const infoResponse = await fetch(`${API_URL}/download/${fileId}?metadata=true`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -296,17 +296,15 @@
                 document.getElementById('fileIcon').textContent = getFileIcon(fileInfo.name);
                 document.title = `${fileInfo.name} - File Viewer`;
 
-                const fileSize = formatFileSize(fileInfo.fileSize);
-                const fileType = fileInfo.fileType || 'Unknown type';
+                const fileSize = formatFileSize(fileInfo.size);
+                const fileType = fileInfo.contentType || 'Unknown type';
                 document.getElementById('fileMeta').textContent = `${fileSize} • ${fileType}`;
 
                 // Setup download button
-                document.getElementById('downloadBtn').onclick = () => {
-                    window.location.href = `${API_URL}/download/${fileId}?token=${token}`;
-                };
+                document.getElementById('downloadBtn').onclick = () => downloadFile();
 
                 // Fetch file content from stream endpoint
-                const fileResponse = await fetch(`${API_URL}/download/${fileId}?token=${token}`, {
+                const fileResponse = await fetch(`${API_URL}/download/${fileId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -324,7 +322,7 @@
                 }
 
                 const url = URL.createObjectURL(blob);
-                const contentType = fileInfo.fileType || blob.type;
+                const contentType = fileInfo.contentType || blob.type;
 
                 displayFile(url, contentType, fileInfo.name);
 
@@ -446,7 +444,19 @@
         }
 
         function downloadFile() {
-            window.location.href = `${API_URL}/api/user/drives/download/${fileId}?token=${token}`;
+            fetch(`${API_URL}/download/${fileId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+                .then(response => {
+                    if (!response.ok) throw new Error('Download failed');
+                    return response.blob();
+                })
+                .then(blob => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = fileInfo ? fileInfo.name : 'download';
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                })
+                .catch(error => showError(error.message));
         }
 
         function closeViewer() {

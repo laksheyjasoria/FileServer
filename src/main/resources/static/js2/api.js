@@ -1,33 +1,43 @@
 // API Calls (static2) - Backend API wrapper
 async function apiCall(endpoint, options = {}) {
-    const defaultOptions = {
-        headers: {
-            'Authorization': `Bearer ${jwtToken}`,
-            'Content-Type': 'application/json'
-        }
-    };
 
     const response = await fetch(`${API_URL}${endpoint}`, {
-        ...defaultOptions,
         ...options,
-        headers: { ...defaultOptions.headers, ...options.headers }
+        headers: {
+            'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`,
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        }
     });
 
     if (response.status === 401) {
+
         localStorage.removeItem('jwtToken');
+
+        alert('Session expired. Please login again.');
+
         window.location.href = '/login.html';
+
         throw new Error('Unauthorized');
     }
 
     return response;
 }
-
 // Load all files from backend - returns flat list, no folder hierarchy
 async function loadAllFiles() {
     try {
         const response = await apiCall('/drive');
+
         if (!response.ok) throw new Error('Failed to load files');
-        return await response.json();
+        const files = await response.json();
+        return files.map(file => ({
+            ...file,
+            fileSize: file.size || 0,
+            fileType: file.contentType || '',
+            driveType: file.driveType || (file.fileId ? 'FILE' : 'FOLDER'),
+            accessType: file.accessType || 'PUBLIC'
+        }));
+
     } catch (error) {
         console.error('Error loading files:', error);
         throw error;
@@ -92,6 +102,23 @@ async function checkDuplicateName(name, parentId) {
     }
 }
 
+// Google sign-in: send id_token to backend to receive JWT
+async function googleSignIn(idToken) {
+    const res = await fetch(`${API_URL}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken })
+    });
+
+    if (!res.ok) throw new Error('Google sign-in failed');
+    const json = await res.json();
+    if (json && json.success) {
+        localStorage.setItem('jwtToken', json.data);
+        return json.data;
+    }
+    throw new Error(json.message || 'Sign-in error');
+}
+
 async function loadUserInfo() {
     try {
         const user = getUserFromToken();
@@ -111,8 +138,13 @@ async function loadUserInfo() {
             return null;
         }
 
-        document.getElementById('userEmail').textContent = user.email || '';
-        document.getElementById('userAvatar').textContent = user.email ? user.email.charAt(0).toUpperCase() : 'U';
+        document.getElementById('userEmail').textContent = user.name || user.email || '';
+        const avatarEl = document.getElementById('userAvatar');
+        if (user.photoUrl) {
+            avatarEl.innerHTML = `<img src="${user.photoUrl}" alt="avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+        } else {
+            avatarEl.textContent = user.name ? user.name.charAt(0).toUpperCase() : (user.email ? user.email.charAt(0).toUpperCase() : 'U');
+        }
         return user;
 
     } catch (error) {
