@@ -32,6 +32,9 @@ public class MasterFile {
     private String accessType;
 
     private LocalDateTime createdAt;
+    
+    @Transient
+    private int childrenCount;
 
     @PrePersist
     public void prePersist() {
@@ -109,4 +112,13 @@ public class MasterFile {
     public void setAccessType(String accessType) {
         this.accessType = accessType;
     }
+
+	public int getChildrenCount() {
+		return childrenCount;
+	}
+
+	public void setChildrenCount(int childrenCount) {
+		this.childrenCount = childrenCount;
+	}
+    
 }

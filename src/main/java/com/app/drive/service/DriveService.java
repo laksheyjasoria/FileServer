@@ -21,12 +21,26 @@ public class DriveService {
     }
 
     public List<MasterFile> listRoot(String userId) {
-        return repo.findByUserIdAndParentIdIsNull(userId);
+        List<MasterFile> files = repo.findByUserIdAndParentIdIsNull(userId);
+        for (MasterFile file : files) {
+            if ("FOLDER".equals(file.getDriveType())) {
+                Long count = repo.countByParentId(file.getId());
+                file.setChildrenCount(count.intValue()); // convert Long to int
+            }
+        }
+        return files;
     }
 
     public List<MasterFile> listContents(String userId, String parentId) {
         requireOwned(parentId, userId);
-        return repo.findByUserIdAndParentId(userId, parentId);
+        List<MasterFile> files = repo.findByUserIdAndParentId(userId, parentId);
+        for (MasterFile file : files) {
+            if ("FOLDER".equals(file.getDriveType())) {
+                Long count = repo.countByParentId(file.getId());
+                file.setChildrenCount(count.intValue());
+            }
+        }
+        return files;
     }
 
     public MasterFile get(String userId, String id) {

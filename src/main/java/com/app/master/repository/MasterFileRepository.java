@@ -18,4 +18,6 @@ public interface MasterFileRepository
     java.util.Optional<MasterFile> findByIdAndUserId(String id, String userId);
 
     Long countByUserId(String userId);
+    
+    Long countByParentId(String parentId);
 }
