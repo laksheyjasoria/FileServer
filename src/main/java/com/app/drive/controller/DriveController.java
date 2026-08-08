@@ -23,7 +23,6 @@ public class DriveController {
 
     @GetMapping
     public List<MasterFile> list(Authentication auth) {
-
         return service.list(auth.getName());
     }
 

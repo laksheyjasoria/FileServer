@@ -153,6 +153,7 @@ async function copyItem(id) {
         pendingAction = 'copy';
         pendingItems = [{ id, password }];
         await selectDestination();
+		await loadFiles();
     } catch (error) {
         console.error('Error checking item:', error);
         alert('Failed to check item status');
@@ -177,6 +178,7 @@ async function moveItem(id) {
         pendingAction = 'move';
         pendingItems = [{ id, password }];
         await selectDestination();
+		await loadFiles();
     } catch (error) {
         console.error('Error checking item:', error);
         alert('Failed to check item status');
@@ -187,12 +189,14 @@ async function copySelected() {
     pendingAction = 'copy';
     pendingItems = Array.from(selectedItems).map(id => ({ id, password: null }));
     await selectDestination();
+	await loadFiles();
 }
 
 async function moveSelected() {
     pendingAction = 'move';
     pendingItems = Array.from(selectedItems).map(id => ({ id, password: null }));
     await selectDestination();
+	await loadFiles();
 }
 
 async function selectDestination() {
