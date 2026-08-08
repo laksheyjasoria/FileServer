@@ -106,3 +106,7 @@ coverage/
 
 ### PID files ###
 *.pid
+
+### yml files
+*.yml
+*.yaml
