@@ -36,6 +36,7 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
             { icon: '✏️', label: 'Rename', action: () => showRenameModal(id, name) },
             { icon: '📁', label: 'Move', action: () => moveItem(id) },
             { icon: '🔗', label: 'Share', action: () => showShareModal(id, name) },
+			{ icon: '⬇️', label: 'Download', action: () => downloadSingleFolder(id) },
             { icon: '🗑️', label: 'Delete', action: () => deleteItem(id) }
         ];
     }
@@ -57,3 +58,32 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
         document.addEventListener('click', () => menu.remove(), { once: true });
     }, 0);
 }
+
+async function downloadSingleFolder(folderId) {
+    // Use the bulk endpoint with only this folder ID
+    showDownloadOverlay('Preparing folder download...'); // Add loading
+    try {
+        const response = await apiCall('/download/bulk', {
+            method: 'POST',
+            body: JSON.stringify([folderId])
+        });
+
+        if (!response.ok) throw new Error('Download failed');
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'download.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Error downloading folder:', error);
+        alert('Failed to download folder: ' + error.message);
+    } finally {
+        hideDownloadOverlay(); // Ensure loading hides even on error
+    }
+}
+

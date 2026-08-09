@@ -50,3 +50,25 @@ function showEmptyState(container, message = 'This folder is empty') {
 function showError(container, message = 'Error loading files') {
     container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">❌</div><div>${message}</div></div>`;
 }
+
+function showDownloadOverlay(message = 'Preparing your download...') {
+    let overlay = document.getElementById('downloadOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'downloadOverlay';
+        overlay.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 9999; align-items: center; justify-content: center; flex-direction: column;';
+        overlay.innerHTML = `
+            <div class="spinner" style="width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #1a73e8; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="color: white; margin-top: 20px; font-size: 18px; font-weight: 500;">${message}</p>
+        `;
+        document.body.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+}
+
+function hideDownloadOverlay() {
+    const overlay = document.getElementById('downloadOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}

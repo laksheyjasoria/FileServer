@@ -1,8 +1,10 @@
 // Share Operations (static2)
 let currentShareItem = null;
 
-function showShareModal(id, name) {
-    currentShareItem = { id, name };
+function showShareModal(ids, name) {
+    // ids can be a single string OR an array of strings
+    currentShareItem = { ids, name };
+    
     document.getElementById('shareType').value = 'PUBLIC';
     document.getElementById('sharePermission').value = 'VIEW';
     document.getElementById('expiresAt').value = '';
@@ -12,6 +14,23 @@ function showShareModal(id, name) {
     showModal('shareModal');
 }
 
+function shareSelected() {
+    const ids = Array.from(selectedItems);
+    if (ids.length === 0) {
+        alert('Please select at least one item to share.');
+        return;
+    }
+
+    if (ids.length === 1) {
+        // Single item share (existing logic)
+        const item = allFiles.find(f => f.id === ids[0]);
+        if (item) showShareModal(item.id, item.name);
+    } else {
+        // Multi-item share (NEW logic)
+        showShareModal(ids, `${ids.length} items`);
+    }
+}
+
 function toggleShareOptions() {
     const type = document.getElementById('shareType').value;
     document.getElementById('passwordOption').style.display = type === 'PROTECTED' ? 'block' : 'none';
@@ -19,45 +38,60 @@ function toggleShareOptions() {
 }
 
 async function createShareLink() {
-    const shareData = {
-        driveId: currentShareItem.id,
-        shareType: document.getElementById('shareType').value,
-        permission: document.getElementById('sharePermission').value,
-        expiresAt: document.getElementById('expiresAt').value || null
-    };
+    const shareType = document.getElementById('shareType').value;
+    const permission = document.getElementById('sharePermission').value;
+    const expiresAt = document.getElementById('expiresAt').value || null;
+    const password = document.getElementById('sharePassword').value;
 
-    if (shareData.shareType === 'PROTECTED') {
-        shareData.password = document.getElementById('sharePassword').value;
-        if (!shareData.password) {
+    // Validation for Protected shares
+    if (shareType === 'PROTECTED') {
+        if (!password) {
             alert('Password is required for protected share');
             return;
         }
     }
 
-    if (shareData.shareType === 'USER_ONLY') {
-        const emails = document.getElementById('allowedUsers').value.split(',').map(e => e.trim()).filter(e => e);
-        shareData.allowedUserIds = emails;
-        if (emails.length === 0) {
-            alert('At least one user email is required');
-            return;
-        }
+    // Validation for User Only shares
+    if (shareType === 'USER_ONLY') {
+        alert('User-specific sharing is not available on this server yet. Use a public or password-protected link.');
+        return;
     }
 
     try {
-        const response = await apiCall('/share', {
+        let endpoint = '/share';
+        let body = {};
+
+        // Determine if it is a single share or multi share
+        const isMulti = Array.isArray(currentShareItem.ids);
+        
+        if (!isMulti) {
+            // Single share endpoint
+            endpoint = '/share';
+            body = {
+                fileId: currentShareItem.ids,
+                publicAccess: shareType === 'PUBLIC',
+                password: password || null,
+                expiry: expiresAt || null
+            };
+        } else {
+            // Multi share endpoint (NEW)
+            endpoint = '/share/multi';
+            body = {
+                fileIds: currentShareItem.ids,
+                publicAccess: shareType === 'PUBLIC',
+                password: password || null,
+                expiry: expiresAt || null
+            };
+        }
+
+        const response = await apiCall(endpoint, {
             method: 'POST',
-            body: JSON.stringify({
-                resourceId: shareData.driveId,
-                type: shareData.shareType,
-                permission: shareData.permission,
-                password: shareData.password || null,
-                allowedUsers: shareData.allowedUserIds || null,
-                expiresAt: shareData.expiresAt
-            })
+            body: JSON.stringify(body)
         });
 
         const result = await response.json();
-        const shareUrl = `${window.location.origin}/static2/share.html?token=${result.token || result.shareToken || ''}`;
+        const shareUrl = `${window.location.origin}/share2.html?token=${result.token || result.shareToken || ''}`;
+        
         document.getElementById('shareLink').value = shareUrl;
         closeModal('shareModal');
         showModal('shareLinkModal');

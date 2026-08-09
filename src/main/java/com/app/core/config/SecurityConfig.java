@@ -57,7 +57,8 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/profile.html",
 								"/viewer.html", "/share.html", "/share2.html", "/favicon.ico", "/css/**", "/js/**",
-								"/js2/**", "/auth/**", "/share/**", "/logger/log", "/logger/error")
+								"/js2/**", "/auth/**", "/share/**", "/share/download/**", "/share/stream/**",
+								"/logger/log", "/logger/error", "/download/bulk/shared")
 						.permitAll().anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
 				.exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {

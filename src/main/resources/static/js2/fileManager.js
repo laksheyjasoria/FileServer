@@ -220,6 +220,7 @@ function viewFile(fileId, filename) {
 }
 
 async function downloadFile(fileId, filename) {
+    showDownloadOverlay('Preparing your file...'); // 👈 Show global loading
     try {
         const response = await apiCall(`/download/${fileId}`);
         if (!response.ok) throw new Error('Download failed');
@@ -235,6 +236,8 @@ async function downloadFile(fileId, filename) {
     } catch (error) {
         console.error('Error downloading file:', error);
         alert('Failed to download file');
+    } finally {
+        hideDownloadOverlay(); // 👈 Hide global loading
     }
 }
 
@@ -297,15 +300,40 @@ async function deleteSelected() {
 }
 
 async function downloadSelected() {
-    const files = Array.from(selectedItems)
-        .map(id => allFiles.find(file => file.id === id))
-        .filter(file => file && file.driveType === 'FILE');
-    if (!files.length) {
-        alert('Select at least one file to download.');
+    const selectedIds = Array.from(selectedItems);
+    if (selectedIds.length === 0) {
+        alert('Select at least one item to download.');
         return;
     }
-    for (const file of files) {
-        await downloadFile(file.id, file.name);
+
+    showDownloadOverlay('Preparing your ZIP file...'); // 👈 Show global loading
+
+    try {
+        const response = await apiCall('/download/bulk', {
+            method: 'POST',
+            body: JSON.stringify(selectedIds)
+        });
+
+        if (!response.ok) throw new Error('Download failed');
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'download.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        // Clear selection after download
+        selectedItems.clear();
+        renderFiles(allFiles);
+    } catch (error) {
+        console.error('Error downloading items:', error);
+        alert('Failed to download items: ' + error.message);
+    } finally {
+        hideDownloadOverlay(); // 👈 Hide global loading
     }
 }
 
