@@ -23,7 +23,10 @@ public enum ErrorCode {
 	SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "Subscription not found"),
 	WEBHOOK_NOT_FOUND(HttpStatus.NOT_FOUND, "Webhook not found"),
 	STORAGE_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Storage limit exceeded"),
-	UPLOAD_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Upload limit exceeded"),;
+	UPLOAD_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Upload limit exceeded"),
+	SHARE_AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED,
+			"This share is restricted to registered users. Please log in."),
+	SHARE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "You are not authorized to access this share.");
 
 	private final HttpStatus status;
 	private final String message;
