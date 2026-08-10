@@ -13,10 +13,11 @@ import org.springframework.stereotype.Service;
 
 import com.app.config.AppProperties;
 import com.app.core.exception.FileNotFoundException;
-import com.app.core.exception.InvalidShareException;
 import com.app.core.exception.InvalidSharePasswordException;
 import com.app.core.exception.ShareAccessDeniedException;
 import com.app.core.exception.ShareAuthenticationRequiredException;
+import com.app.core.exception.ShareExpiredException;
+import com.app.core.exception.ShareNotFoundException;
 import com.app.core.exception.SharePasswordRequiredException;
 import com.app.master.entity.MasterFile;
 import com.app.master.repository.MasterFileRepository;
@@ -81,10 +82,15 @@ public class ShareService {
 
 	// ---------------------- Token Validation ----------------------
 	public SharedResource validate(String token, String password) {
-		SharedResource share = repo.findByToken(token).orElseThrow(InvalidShareException::new);
+		// 1. If token not found -> Return 404 (SHARE_NOT_FOUND)
+		SharedResource share = repo.findByToken(token).orElseThrow(() -> new ShareNotFoundException());
+
+		// 2. If expired -> Return 410 (SHARE_EXPIRED)
 		if (share.getExpiry() != null && share.getExpiry().isBefore(LocalDateTime.now())) {
-			throw new InvalidShareException();
+			throw new ShareExpiredException();
 		}
+
+		// 3. Password check (For PROTECTED shares)
 		if (share.getPassword() != null) {
 			if (password == null || password.isBlank()) {
 				throw new SharePasswordRequiredException();
@@ -93,7 +99,10 @@ public class ShareService {
 				throw new InvalidSharePasswordException();
 			}
 		}
+
+		// 4. 🔐 Enforce USER_ONLY authentication (Will throw 401 or 403 if they fail)
 		checkUserOnlyAccess(share);
+
 		return share;
 	}
 

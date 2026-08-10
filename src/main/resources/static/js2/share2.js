@@ -21,17 +21,26 @@ if (!token) {
 async function loadShareInfo() {
     try {
         const response = await fetch(`${API_URL}/share/${token}`);
-        if (response.status === 404 || response.status === 410) {
-            isExpired = true;
-            showExpired();
+        
+        // ✅ Handle 401 (Unauthorized), 404 (Not Found), and 410 (Gone) all together
+        if (response.status === 401 || response.status === 404 || response.status === 410) {
+            let message = "This share link is invalid or has expired.";
+            try {
+                const errorJson = await response.json();
+                if (errorJson && errorJson.message) {
+                    message = errorJson.message; // Use the exact error from the backend
+                }
+            } catch (e) { /* ignore parsing error, use default message */ }
+            
+            showExpired(message);
             return;
         }
+
         if (!response.ok) throw new Error('Failed to load share information');
         currentShare = await response.json();
 
         if (currentShare.expiresAt && new Date(currentShare.expiresAt) < new Date()) {
-            isExpired = true;
-            showExpired();
+            showExpired("This share link has expired.");
             return;
         }
         await displayShareInfo(currentShare);
@@ -41,7 +50,7 @@ async function loadShareInfo() {
     }
 }
 
-function showExpired() {
+function showExpired(message = "This share link has expired or is no longer available.") {
     document.getElementById('loading').style.display = 'none';
     const contentArea = document.getElementById('contentArea');
     contentArea.style.display = 'block';
@@ -49,7 +58,7 @@ function showExpired() {
         <div class="expired-message">
             <div class="expired-icon">⏰</div>
             <h3>Link Expired</h3>
-            <p>This share link has expired or is no longer available.</p>
+            <p>${escapeHtml(message)}</p>
             <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the file owner for a new link.</p>
         </div>
     `;
