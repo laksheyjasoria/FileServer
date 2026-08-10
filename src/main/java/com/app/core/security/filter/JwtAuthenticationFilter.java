@@ -57,14 +57,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	// ---------------------- Helper Methods ----------------------
 
 	private boolean isPublic(String path) {
-		// Auth endpoints
-		if (path.startsWith("/auth")) {
+		// 🛡️ FIX: Replace `if (path.startsWith("/auth"))` with explicit public auth
+		// endpoints
+		if (path.equals("/auth/login") || path.equals("/auth/register") || path.equals("/auth/google")
+				|| path.equals("/auth/forgot-password") || path.equals("/auth/reset-password")) {
 			return true;
 		}
+
 		// Public logger log/error endpoints (exact match)
 		if (path.equals("/logger/log") || path.equals("/logger/error")) {
 			return true;
 		}
+
 		// Static resources
 		if (path.startsWith("/js/") || path.startsWith("/js2/") || path.startsWith("/css/")
 				|| path.startsWith("/images/") || path.startsWith("/assets/") || path.equals("/favicon.ico")

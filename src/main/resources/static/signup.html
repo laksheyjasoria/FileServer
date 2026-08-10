@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -46,36 +47,46 @@
                 <label>Password</label>
                 <input type="password" id="password" required placeholder="Create a password">
             </div>
+            <!-- 👇 Added Profile Photo Input -->
+            <div class="form-group">
+                <label>Profile Photo (Optional)</label>
+                <input type="file" id="signupPhoto" accept="image/*" />
+            </div>
             <button type="submit" class="btn-signup">Create Account</button>
         </form>
-
-        <!-- Google Sign-In Container (No hardcoded Client ID) -->
-        <div style="margin-top: 20px; text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
-            <div id="g_id_onload" data-callback="handleCredentialResponse"></div>
-            <div class="g_id_signin" data-type="standard"></div>
-        </div>
 
         <div class="login-link">
             Already have an account? <a href="/login.html">Sign In</a>
         </div>
     </div>
 
-    <!-- Global Variables -->
     <script>
         const API_URL = window.location.origin;
 
+        // 👇 Updated register function to support FormData (for file upload)
         async function register(event) {
             event.preventDefault();
             const name = document.getElementById('name').value.trim();
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
+            const photoFile = document.getElementById('signupPhoto').files[0];
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('email', email);
+            formData.append('password', password);
+            if (photoFile) {
+                formData.append('file', photoFile);
+            }
+
             try {
                 const response = await fetch(`${API_URL}/auth/register`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email, password })
+                    body: formData // FormData automatically sets Content-Type to multipart/form-data
                 });
+
                 const result = await response.json();
+
                 if (response.ok && result.success) {
                     showSuccess("Registration successful. Redirecting...");
                     localStorage.setItem("jwtToken", result.data);
@@ -104,9 +115,5 @@
             document.getElementById("errorMessage").style.display = "none";
         }
     </script>
-
-    <!-- Google SDK and Common Logic -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="/js2/googleAuth.js"></script>
 </body>
 </html>

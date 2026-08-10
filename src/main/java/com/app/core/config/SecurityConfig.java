@@ -56,10 +56,12 @@ public class SecurityConfig {
 				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/profile.html",
-								"/viewer.html", "/share.html", "/share2.html", "/favicon.ico", "/css/**", "/js/**",
-								"/js2/**", "/auth/**", "/share/**", "/share/download/**", "/share/stream/**",
-								"/logger/log", "/logger/error", "/download/bulk/shared")
-						.permitAll().anyRequest().authenticated())
+								"/viewer.html", "/share.html", "/share2.html", "/favicon.ico", "/css/**", "/js/**", "/js2/**",
+								"/auth/login", "/auth/register", "/auth/google", "/auth/forgot-password", "/auth/reset-password",
+								"/share/**", "/share/download/**", "/share/stream/**",
+								"/logger/log", "/logger/error", "/download/bulk/shared","/assets/**")
+						.permitAll()
+						.anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
 				.exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
 					response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
