@@ -1,5 +1,6 @@
 package com.app.share.service;
 
+import java.security.Permission;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +26,7 @@ import com.app.share.dto.CreateMultiShareRequest;
 import com.app.share.dto.CreateShareRequest;
 import com.app.share.dto.PublicShareResponse;
 import com.app.share.dto.ShareResponse;
+import com.app.share.entity.SharePermission;
 import com.app.share.entity.SharedResource;
 import com.app.share.repository.SharedResourceRepository;
 
@@ -57,6 +59,7 @@ public class ShareService {
 		if (request.getPassword() != null && !request.getPassword().isBlank()) {
 			share.setPassword(encoder.encode(request.getPassword()));
 		}
+		share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
 		repo.save(share);
 		return new ShareResponse(props.getFrontendUrl() + "/share/" + token, token);
 	}
@@ -76,6 +79,7 @@ public class ShareService {
 		if (request.getPassword() != null && !request.getPassword().isBlank()) {
 			share.setPassword(encoder.encode(request.getPassword()));
 		}
+		share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
 		repo.save(share);
 		return new ShareResponse(props.getFrontendUrl() + "/share/" + token, token);
 	}
@@ -148,9 +152,16 @@ public class ShareService {
 		} else {
 			shareType = "USER_ONLY";
 		}
+		
+		SharePermission finalPermission = share.getPermission();
+	    if (finalPermission == null) {
+	        finalPermission = SharePermission.VIEW_DOWNLOAD;
+	    }
+	    
+	    System.out.println("PER>> "+finalPermission);
 
 		return new PublicShareResponse(share.getToken(), driveName, driveType, shareType, share.getExpiry(),
-				share.getCreatedAt());
+				share.getCreatedAt(), finalPermission);
 	}
 
 	// ---------------------- Single File Fetch ----------------------

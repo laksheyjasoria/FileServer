@@ -2,6 +2,8 @@ package com.app.share.dto;
 
 import java.time.LocalDateTime;
 
+import com.app.share.entity.SharePermission;
+
 public class CreateShareRequest {
 
 	private String fileId;
@@ -11,6 +13,16 @@ public class CreateShareRequest {
 	private String password;
 
 	private LocalDateTime expiry;
+
+	private SharePermission permission;
+
+	public SharePermission getPermission() {
+		return permission;
+	}
+
+	public void setPermission(SharePermission permission) {
+		this.permission = permission;
+	}
 
 	public String getFileId() {
 		return fileId;

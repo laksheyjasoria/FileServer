@@ -1,4 +1,9 @@
-// share2.js – logic for shared file/folder page with navigation
+// share2.js – Bulletproof version with viewer and folder permission enforcement
+
+// 🛡️ SAFEGUARD: Helper to safely escape strings for HTML onclick attributes
+function escapeJSString(str) {
+    return (str || '').replace(/'/g, "\\'");
+}
 
 const urlParams = new URLSearchParams(window.location.search);
 const token = urlParams.get('token');
@@ -8,7 +13,7 @@ let currentPassword = null;
 let isExpired = false;
 let selectedSharedItems = new Set();
 
-// Navigation state - RENAMED to avoid conflicts with global config.js
+// Navigation state
 let sharedCurrentFolderId = null; 
 let navHistory = []; // array of { id, name }
 
@@ -21,26 +26,21 @@ if (!token) {
 async function loadShareInfo() {
     try {
         const response = await fetch(`${API_URL}/share/${token}`);
-        
-        // ✅ Handle 401 (Unauthorized), 404 (Not Found), and 410 (Gone) all together
+        // Handle 401, 404, 410 as expired/invalid
         if (response.status === 401 || response.status === 404 || response.status === 410) {
-            let message = "This share link is invalid or has expired.";
-            try {
-                const errorJson = await response.json();
-                if (errorJson && errorJson.message) {
-                    message = errorJson.message; // Use the exact error from the backend
-                }
-            } catch (e) { /* ignore parsing error, use default message */ }
-            
-            showExpired(message);
+            isExpired = true;
+            showExpired();
             return;
         }
-
         if (!response.ok) throw new Error('Failed to load share information');
         currentShare = await response.json();
 
+        // Log permission to console
+        console.log('🔑 Share Permission:', currentShare.permission);
+
         if (currentShare.expiresAt && new Date(currentShare.expiresAt) < new Date()) {
-            showExpired("This share link has expired.");
+            isExpired = true;
+            showExpired();
             return;
         }
         await displayShareInfo(currentShare);
@@ -57,7 +57,7 @@ function showExpired(message = "This share link has expired or is no longer avai
     contentArea.innerHTML = `
         <div class="expired-message">
             <div class="expired-icon">⏰</div>
-            <h3>Link Expired</h3>
+            <h3>Link Not Found</h3>
             <p>${escapeHtml(message)}</p>
             <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the file owner for a new link.</p>
         </div>
@@ -107,6 +107,10 @@ async function displayShareInfo(share) {
     }
 
     // --- FILE share logic ---
+    const permission = share.permission; 
+    const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
+    const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+
     if (share.shareType === 'PROTECTED') {
         html += `
             <div class="password-section">
@@ -125,8 +129,8 @@ async function displayShareInfo(share) {
                 <div class="login-section">
                     <p>✅ You are logged in. You can access this file.</p>
                     <div class="action-buttons">
-                        <button class="btn btn-primary" onclick="loadFileContent()">View File</button>
-                        <button class="btn btn-secondary" onclick="downloadFile()">Download</button>
+                        ${canView ? `<button class="btn btn-primary" onclick="loadRootFileContent()">👁️ View File</button>` : ''}
+                        ${canDownload ? `<button class="btn btn-secondary" onclick="downloadRootFile()">⬇️ Download</button>` : ''}
                     </div>
                 </div>
             `;
@@ -145,8 +149,8 @@ async function displayShareInfo(share) {
         // PUBLIC file
         html += `
             <div class="action-buttons">
-                <button class="btn btn-primary" onclick="loadFileContent()">👁️ View File</button>
-                <button class="btn btn-secondary" onclick="downloadFile()">⬇️ Download</button>
+                ${canView ? `<button class="btn btn-primary" onclick="loadRootFileContent()">👁️ View File</button>` : ''}
+                ${canDownload ? `<button class="btn btn-secondary" onclick="downloadRootFile()">⬇️ Download</button>` : ''}
             </div>
         `;
         contentArea.innerHTML = html;
@@ -162,6 +166,10 @@ async function loadCurrentFolder() {
         ? `/share/${token}/folder/${folderId}/contents`
         : `/share/${token}/contents`;
 
+    // 🛡️ PERMISSION FIX: Calculate download permission here
+    const permission = currentShare ? currentShare.permission : null;
+    const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+
     contentArea.innerHTML = `
         <div class="folder-toolbar">
             <div>
@@ -169,8 +177,8 @@ async function loadCurrentFolder() {
                 <span style="margin-left:12px; font-size:13px; color:#5f6368;">Select items to download</span>
             </div>
             <div class="action-buttons">
-                <button class="btn btn-secondary" onclick="toggleSelectAllShared()">☑️ Select All</button>
-                <button class="btn btn-primary" onclick="downloadSelectedShared()">⬇️ Download Selected</button>
+                ${canDownload ? `<button class="btn btn-secondary" onclick="toggleSelectAllShared()">☑️ Select All</button>` : ''}
+                ${canDownload ? `<button class="btn btn-primary" onclick="downloadSelectedShared()">⬇️ Download Selected</button>` : ''}
             </div>
         </div>
         <div id="folderGrid" class="folder-grid"></div>
@@ -200,7 +208,7 @@ function renderBreadcrumb() {
     let html = `<span onclick="navigateToFolder(null)" style="cursor:pointer; color:#1a73e8;">${escapeHtml(currentShare.driveName)}</span>`;
     for (let i = 0; i < navHistory.length; i++) {
         const item = navHistory[i];
-        html += ` / <span onclick="navigateToFolder('${item.id}')" style="cursor:pointer; color:#1a73e8;">${escapeHtml(item.name)}</span>`;
+        html += ` / <span onclick="navigateToFolder('${escapeJSString(item.id)}')" style="cursor:pointer; color:#1a73e8;">${escapeHtml(item.name)}</span>`;
     }
     container.innerHTML = html;
 }
@@ -214,9 +222,9 @@ async function navigateToFolder(folderId, folderName) {
         if (navHistory.length === 0 || navHistory[navHistory.length - 1].id !== folderId) {
             navHistory.push({ id: folderId, name: folderName });
         }
-        sharedCurrentFolderId = folderId; // FIXED: Correct assignment
+        sharedCurrentFolderId = folderId;
     }
-    await loadCurrentFolder(); // CRITICAL FIX: Awaited
+    await loadCurrentFolder(); 
 }
 
 function renderFolderGrid(items) {
@@ -231,10 +239,21 @@ function renderFolderGrid(items) {
         const icon = item.driveType === 'FILE' ? getFileIcon(item.name) : '📁';
         const info = item.driveType === 'FILE' ? formatFileSize(item.size) : 'Folder';
         const isFolder = item.driveType === 'FOLDER';
-        const ondblclick = isFolder ? `ondblclick="navigateToFolder('${item.id}', '${escapeHtml(item.name)}')"` : '';
+
+        const eId = escapeJSString(item.id);
+        const eName = escapeJSString(item.name);
+        
+        // Double-click behavior for Files AND Folders
+        let ondblclick = '';
+        if (isFolder) {
+            ondblclick = `ondblclick="navigateToFolder('${eId}', '${eName}')"`;
+        } else {
+            ondblclick = `ondblclick="viewSharedFile('${eId}', '${eName}')"`;
+        }
+        
         html += `
             <div class="folder-item" data-id="${item.id}" ${ondblclick}>
-                <input type="checkbox" class="checkbox" onchange="toggleSharedSelection('${item.id}', this.checked)">
+                <input type="checkbox" class="checkbox" onchange="toggleSharedSelection('${eId}', this.checked)">
                 <div class="icon">${icon}</div>
                 <div class="name">${escapeHtml(item.name)}</div>
                 <div class="info">${info}</div>
@@ -309,59 +328,32 @@ async function downloadSelectedShared() {
     }
 }
 
-// ---------- SINGLE FILE VIEW & DOWNLOAD ----------
-async function accessWithPassword() {
-    const password = document.getElementById('password').value;
-    if (!password) { showTemporaryError('Please enter the password'); return; }
-    const button = document.querySelector('#contentArea .btn-primary');
-    button.disabled = true;
-    button.textContent = 'Verifying...';
-    currentPassword = password;
-    try {
-        const response = await fetch(`${API_URL}/share/${token}?password=${encodeURIComponent(password)}`);
-        if (response.status === 403) throw new Error('Invalid password');
-        if (!response.ok) throw new Error('Access denied');
-        const contentArea = document.getElementById('contentArea');
-        contentArea.innerHTML = `
-            <div class="file-info">
-                <div class="file-icon">${getFileIcon(currentShare.driveName)}</div>
-                <div class="file-details">
-                    <div class="file-name">${escapeHtml(currentShare.driveName)}</div>
-                    <div class="file-meta">Shared via ${currentShare.shareType} link</div>
-                </div>
-            </div>
-            <div class="action-buttons">
-                <button class="btn btn-primary" onclick="loadFileContent()">👁️ View File</button>
-                <button class="btn btn-secondary" onclick="downloadFile()">⬇️ Download</button>
-            </div>
-        `;
-    } catch (error) {
-        showTemporaryError('Invalid password. Please try again.');
-        button.disabled = false;
-        button.textContent = 'Access File';
-    }
-}
+// ---------- FILE VIEWER (Root & Specific Files) ----------
 
-async function loadFileContent() {
+// Opens the viewer for the root shared file (buttons)
+async function loadRootFileContent() {
     const viewerArea = document.getElementById('viewerArea');
     const contentArea = document.getElementById('contentArea');
     viewerArea.style.display = 'block';
     viewerArea.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading file...</div></div>';
+    
     const buttons = document.querySelectorAll('.action-buttons .btn');
     buttons.forEach(btn => btn.disabled = true);
+
     try {
         let url = `${API_URL}/share/stream/${token}`;
         if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
+
         const response = await fetch(url);
-        if (response.status === 403) throw new Error('Access denied. Invalid password.');
+        if (response.status === 403) throw new Error('Access denied. Invalid password or permissions.');
         if (response.status === 410) throw new Error('This share link has expired');
         if (!response.ok) throw new Error('Failed to load file');
         const blob = await response.blob();
         const fileUrl = URL.createObjectURL(blob);
         const contentType = blob.type;
-        const filename = currentShare.driveName;
-        const ext = filename.split('.').pop().toLowerCase();
-        displayFileInViewer(fileUrl, contentType, filename, ext);
+        const ext = currentShare.driveName.split('.').pop().toLowerCase();
+        
+        displayFileInViewer(fileUrl, contentType, currentShare.driveName, ext);
     } catch (error) {
         viewerArea.innerHTML = `<div class="error-message" style="display:block; text-align:center; margin:20px;">❌ ${error.message}</div>`;
     } finally {
@@ -369,8 +361,50 @@ async function loadFileContent() {
     }
 }
 
+// Downloads the root shared file (buttons)
+async function downloadRootFile() {
+    downloadFile();
+}
+
+// 🛡️ View any specific file inside a share via double-click
+async function viewSharedFile(fileId, fileName) {
+    const viewerArea = document.getElementById('viewerArea');
+    const contentArea = document.getElementById('contentArea');
+    viewerArea.style.display = 'block';
+    viewerArea.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading file...</div></div>';
+    
+    const buttons = document.querySelectorAll('.action-buttons .btn');
+    buttons.forEach(btn => btn.disabled = true);
+
+    try {
+        let url = `${API_URL}/share/stream/${token}`;
+        if (fileId) url += `?fileId=${encodeURIComponent(fileId)}`;
+        if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
+
+        const response = await fetch(url);
+        if (response.status === 403) throw new Error('Access denied. Invalid password or permissions.');
+        if (response.status === 410) throw new Error('This share link has expired');
+        if (!response.ok) throw new Error('Failed to load file');
+        const blob = await response.blob();
+        const fileUrl = URL.createObjectURL(blob);
+        const contentType = blob.type;
+        const ext = fileName.split('.').pop().toLowerCase();
+        
+        displayFileInViewer(fileUrl, contentType, fileName, ext);
+    } catch (error) {
+        viewerArea.innerHTML = `<div class="error-message" style="display:block; text-align:center; margin:20px;">❌ ${error.message}</div>`;
+    } finally {
+        buttons.forEach(btn => btn.disabled = false);
+    }
+}
+
+// 🛡️ Function to display the file in the viewer area - with permission checks
 function displayFileInViewer(fileUrl, contentType, filename, ext) {
     const viewerArea = document.getElementById('viewerArea');
+    
+    const permission = currentShare ? currentShare.permission : null;
+    const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+
     if (contentType.startsWith('image/')) {
         viewerArea.innerHTML = `<div class="viewer-container"><img src="${fileUrl}" alt="${filename}"></div>`;
         return;
@@ -397,16 +431,19 @@ function displayFileInViewer(fileUrl, contentType, filename, ext) {
             .catch(() => { viewerArea.innerHTML = `<div class="text-viewer">Failed to load text content.</div>`; });
         return;
     }
+    
+    // FALLBACK for unsupported types - Hide Download button if canDownload is false
     viewerArea.innerHTML = `
         <div class="viewer-container" style="flex-direction:column; padding:40px;">
             <div style="font-size:64px; margin-bottom:20px;">📄</div>
             <div style="margin-bottom:20px;">Preview not available for this file type.</div>
-            <button class="btn btn-primary" onclick="downloadFile()">⬇️ Download File</button>
+            ${canDownload ? `<button class="btn btn-primary" onclick="downloadFile()">⬇️ Download File</button>` : ''}
         </div>
     `;
     URL.revokeObjectURL(fileUrl);
 }
 
+// ---------- SINGLE FILE DOWNLOAD (Root or Specific File) ----------
 async function downloadFile() {
     let url = `${API_URL}/share/download/${token}`;
     if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
@@ -430,12 +467,49 @@ async function downloadFile() {
     }
 }
 
+// ---------- HELPER FUNCTIONS ----------
+async function accessWithPassword() {
+    const password = document.getElementById('password').value;
+    if (!password) { showTemporaryError('Please enter the password'); return; }
+    const button = document.querySelector('#contentArea .btn-primary');
+    button.disabled = true;
+    button.textContent = 'Verifying...';
+    currentPassword = password;
+    try {
+        const response = await fetch(`${API_URL}/share/${token}?password=${encodeURIComponent(password)}`);
+        if (response.status === 403) throw new Error('Invalid password');
+        if (!response.ok) throw new Error('Access denied');
+        const contentArea = document.getElementById('contentArea');
+        
+        const permission = currentShare ? currentShare.permission : null;
+        const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
+        const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+
+        contentArea.innerHTML = `
+            <div class="file-info">
+                <div class="file-icon">${getFileIcon(currentShare.driveName)}</div>
+                <div class="file-details">
+                    <div class="file-name">${escapeHtml(currentShare.driveName)}</div>
+                    <div class="file-meta">Shared via ${currentShare.shareType} link</div>
+                </div>
+            </div>
+            <div class="action-buttons">
+                ${canView ? `<button class="btn btn-primary" onclick="loadRootFileContent()">👁️ View File</button>` : ''}
+                ${canDownload ? `<button class="btn btn-secondary" onclick="downloadRootFile()">⬇️ Download</button>` : ''}
+            </div>
+        `;
+    } catch (error) {
+        showTemporaryError('Invalid password. Please try again.');
+        button.disabled = false;
+        button.textContent = 'Access File';
+    }
+}
+
 function redirectToLogin() {
     localStorage.setItem('redirectAfterLogin', window.location.href);
     window.location.href = '/login.html';
 }
 
-// --- Error helpers ---
 function showError(message) {
     document.getElementById('loading').style.display = 'none';
     const contentArea = document.getElementById('contentArea');

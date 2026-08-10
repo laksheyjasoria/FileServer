@@ -8,6 +8,8 @@ import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -42,6 +44,9 @@ public class SharedResource {
 	private LocalDateTime expiry;
 
 	private LocalDateTime createdAt;
+
+	@Enumerated(EnumType.STRING)
+	private SharePermission permission = SharePermission.VIEW_DOWNLOAD; // default
 
 	@PrePersist
 	public void prePersist() {
@@ -110,5 +115,13 @@ public class SharedResource {
 
 	public void setFileIds(List<String> fileIds) {
 		this.fileIds = fileIds;
+	}
+
+	public SharePermission getPermission() {
+		return permission;
+	}
+
+	public void setPermission(SharePermission permission) {
+		this.permission = permission;
 	}
 }

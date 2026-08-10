@@ -3,23 +3,35 @@ package com.app.share.dto;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.app.share.entity.SharePermission;
+
 public class CreateMultiShareRequest {
 
 	private List<String> fileIds;
 	private boolean publicAccess;
 	private String password;
 	private LocalDateTime expiry;
+	private SharePermission permission;
+
+	public SharePermission getPermission() {
+		return permission;
+	}
+
+	public void setPermission(SharePermission permission) {
+		this.permission = permission;
+	}
 
 	// Default no-args constructor
 	public CreateMultiShareRequest() {
 	}
 
 	// All-args constructor
-	public CreateMultiShareRequest(List<String> fileIds, boolean publicAccess, String password, LocalDateTime expiry) {
+	public CreateMultiShareRequest(List<String> fileIds, boolean publicAccess, String password, LocalDateTime expiry,SharePermission permission) {
 		this.fileIds = fileIds;
 		this.publicAccess = publicAccess;
 		this.password = password;
 		this.expiry = expiry;
+		this.permission = permission;
 	}
 
 	// Getters and Setters

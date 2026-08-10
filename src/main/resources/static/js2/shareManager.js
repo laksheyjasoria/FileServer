@@ -5,12 +5,15 @@ function showShareModal(ids, name) {
     // ids can be a single string OR an array of strings
     currentShareItem = { ids, name };
     
-    document.getElementById('shareType').value = 'PUBLIC';
-    document.getElementById('sharePermission').value = 'VIEW';
+    // Default to PUBLIC and VIEW_DOWNLOAD
+    document.getElementById('shareType').value = 'PUBLIC'; 
+    document.getElementById('sharePermission').value = 'VIEW_DOWNLOAD'; // Defaults to View & Download
     document.getElementById('expiresAt').value = '';
     document.getElementById('sharePassword').value = '';
     document.getElementById('allowedUsers').value = '';
-    toggleShareOptions();
+    
+    // Ensures visibility states update correctly based on the PUBLIC default
+    toggleShareOptions(); 
     showModal('shareModal');
 }
 
@@ -39,7 +42,7 @@ function toggleShareOptions() {
 
 async function createShareLink() {
     const shareType = document.getElementById('shareType').value;
-    const permission = document.getElementById('sharePermission').value;
+    const permission = document.getElementById('sharePermission').value; 
     const expiresAt = document.getElementById('expiresAt').value || null;
     const password = document.getElementById('sharePassword').value;
 
@@ -58,20 +61,19 @@ async function createShareLink() {
     }
 
     try {
-        // 1. Determine if we are doing single or multi share
+        // Determine if we are doing single or multi share
         const isMulti = Array.isArray(currentShareItem.ids) && currentShareItem.ids.length > 1;
         let endpoint = isMulti ? '/share/multi' : '/share';
         let body = {
-            publicAccess: shareType === 'PUBLIC', // PUBLIC: true, PROTECTED/USER_ONLY: false
+            publicAccess: shareType === 'PUBLIC', 
             password: password || null,
-            expiry: expiresAt || null
+            expiry: expiresAt || null,
+            permission: permission
         };
 
         if (isMulti) {
-            // Multi-share payload
             body.fileIds = currentShareItem.ids;
         } else {
-            // Single-share payload
             body.fileId = currentShareItem.ids[0];
         }
 
