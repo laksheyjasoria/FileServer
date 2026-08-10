@@ -1,6 +1,5 @@
 package com.app.share.service;
 
-import java.security.Permission;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -152,13 +151,11 @@ public class ShareService {
 		} else {
 			shareType = "USER_ONLY";
 		}
-		
+
 		SharePermission finalPermission = share.getPermission();
-	    if (finalPermission == null) {
-	        finalPermission = SharePermission.VIEW_DOWNLOAD;
-	    }
-	    
-	    System.out.println("PER>> "+finalPermission);
+		if (finalPermission == null) {
+			finalPermission = SharePermission.VIEW_DOWNLOAD;
+		}
 
 		return new PublicShareResponse(share.getToken(), driveName, driveType, shareType, share.getExpiry(),
 				share.getCreatedAt(), finalPermission);
