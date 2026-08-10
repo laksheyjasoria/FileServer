@@ -41,51 +41,36 @@ public class ShareController {
         this.files = files;
     }
 
-    // ----- Create single share link -----
     @PostMapping
     public ShareResponse create(@RequestBody CreateShareRequest request, Authentication auth) {
         return service.create(request, auth.getName());
     }
 
-    // ----- Create multi‑share link -----
     @PostMapping("/multi")
     public ShareResponse createMulti(@RequestBody CreateMultiShareRequest request, Authentication auth) {
         return service.createMulti(request, auth.getName());
     }
 
-    // ----- Get share details -----
     @GetMapping("/{token}")
     public PublicShareResponse access(@PathVariable String token,
                                       @RequestParam(required = false) String password) {
         return service.details(token, password);
     }
 
-    // ----- Stream file (inline preview) -----
     @GetMapping("/stream/{token}")
     public ResponseEntity<byte[]> stream(@PathVariable String token,
                                          @RequestParam(required = false) String password,
-                                         @RequestParam(required = false) String fileId) { // 👈 ADD fileId
+                                         @RequestParam(required = false) String fileId) {
         SharedResource share = service.validate(token, password);
         MasterFile file;
 
         if (fileId != null && !fileId.isBlank()) {
-            // 🛡️ Ensure the requested file actually belongs to this share
-            boolean isAuthorized = false;
-            if (share.getFileIds() != null && share.getFileIds().contains(fileId)) {
-                isAuthorized = true;
-            } else if (share.getFileId() != null && share.getFileId().equals(fileId)) {
-                isAuthorized = true;
-            }
-            if (!isAuthorized) {
-                throw new ShareAccessDeniedException("This file is not part of the shared resource.");
-            }
+            service.validateFileInShare(token, password, fileId);
             file = files.findById(fileId).orElseThrow(com.app.core.exception.FileNotFoundException::new);
         } else {
-            // Default: fetch the root shared file
             file = service.file(token, password);
         }
 
-        // 🔐 Enforce Share Permission (VIEW or VIEW_DOWNLOAD)
         SharePermission perm = share.getPermission();
         if (perm == null) { perm = SharePermission.VIEW_DOWNLOAD; }
         if (perm == SharePermission.DOWNLOAD) {
@@ -111,32 +96,20 @@ public class ShareController {
                 .body(storageFactory.get().download(file.getFileId()));
     }
 
-    // ----- Download file (attachment) -----
     @GetMapping("/download/{token}")
     public ResponseEntity<byte[]> download(@PathVariable String token,
                                            @RequestParam(required = false) String password,
-                                           @RequestParam(required = false) String fileId) { // 👈 ADD fileId
+                                           @RequestParam(required = false) String fileId) {
         SharedResource share = service.validate(token, password);
         MasterFile file;
 
         if (fileId != null && !fileId.isBlank()) {
-            // 🛡️ Ensure the requested file actually belongs to this share
-            boolean isAuthorized = false;
-            if (share.getFileIds() != null && share.getFileIds().contains(fileId)) {
-                isAuthorized = true;
-            } else if (share.getFileId() != null && share.getFileId().equals(fileId)) {
-                isAuthorized = true;
-            }
-            if (!isAuthorized) {
-                throw new ShareAccessDeniedException("This file is not part of the shared resource.");
-            }
+            service.validateFileInShare(token, password, fileId);
             file = files.findById(fileId).orElseThrow(com.app.core.exception.FileNotFoundException::new);
         } else {
-            // Default: download the root shared file
             file = service.file(token, password);
         }
 
-        // 🔐 Enforce Share Permission (DOWNLOAD or VIEW_DOWNLOAD)
         SharePermission perm = share.getPermission();
         if (perm == null) { perm = SharePermission.VIEW_DOWNLOAD; }
         if (perm == SharePermission.VIEW) {
@@ -162,14 +135,12 @@ public class ShareController {
                 .body(storageFactory.get().download(file.getFileId()));
     }
 
-    // ----- Folder contents (single folder) -----
     @GetMapping("/{token}/contents")
     public List<MasterFile> getFolderContents(@PathVariable String token,
                                               @RequestParam(required = false) String password) {
         return service.folderContents(token, password);
     }
 
-    // ----- Subfolder contents (for navigation) -----
     @GetMapping("/{token}/folder/{folderId}/contents")
     public List<MasterFile> getSubfolderContents(@PathVariable String token,
                                                  @PathVariable String folderId,
@@ -177,7 +148,6 @@ public class ShareController {
         return service.folderContents(token, password, folderId);
     }
 
-    // ----- Multi‑share items -----
     @GetMapping("/{token}/items")
     public List<MasterFile> getSharedItems(@PathVariable String token,
                                            @RequestParam(required = false) String password) {
@@ -188,7 +158,6 @@ public class ShareController {
         return files.findAllById(share.getFileIds());
     }
 
-    // 👇 Helper validation method
     private void validateFileId(MasterFile file) {
         if (file.getFileId() == null || file.getFileId().isBlank()) {
             throw new RuntimeException("File ID missing for file: " + file.getName());

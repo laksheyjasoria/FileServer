@@ -13,11 +13,11 @@ import org.springframework.stereotype.Service;
 
 import com.app.config.AppProperties;
 import com.app.core.exception.FileNotFoundException;
+import com.app.core.exception.InvalidShareException;
 import com.app.core.exception.InvalidSharePasswordException;
 import com.app.core.exception.ShareAccessDeniedException;
 import com.app.core.exception.ShareAuthenticationRequiredException;
 import com.app.core.exception.ShareExpiredException;
-import com.app.core.exception.ShareNotFoundException;
 import com.app.core.exception.SharePasswordRequiredException;
 import com.app.master.entity.MasterFile;
 import com.app.master.repository.MasterFileRepository;
@@ -45,7 +45,6 @@ public class ShareService {
 		this.files = files;
 	}
 
-	// ---------------------- Single Share Creation ----------------------
 	public ShareResponse create(CreateShareRequest request, String userId) {
 		files.findByIdAndUserId(request.getFileId(), userId).orElseThrow(FileNotFoundException::new);
 		SharedResource share = new SharedResource();
@@ -55,15 +54,14 @@ public class ShareService {
 		share.setCreatedBy(userId);
 		share.setPublicAccess(request.isPublicAccess());
 		share.setExpiry(request.getExpiry());
+		share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
 		if (request.getPassword() != null && !request.getPassword().isBlank()) {
 			share.setPassword(encoder.encode(request.getPassword()));
 		}
-		share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
 		repo.save(share);
 		return new ShareResponse(props.getFrontendUrl() + "/share/" + token, token);
 	}
 
-	// ---------------------- Multi-Share Creation ----------------------
 	public ShareResponse createMulti(CreateMultiShareRequest request, String userId) {
 		for (String id : request.getFileIds()) {
 			files.findByIdAndUserId(id, userId).orElseThrow(FileNotFoundException::new);
@@ -75,25 +73,19 @@ public class ShareService {
 		share.setCreatedBy(userId);
 		share.setPublicAccess(request.isPublicAccess());
 		share.setExpiry(request.getExpiry());
+		share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
 		if (request.getPassword() != null && !request.getPassword().isBlank()) {
 			share.setPassword(encoder.encode(request.getPassword()));
 		}
-		share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
 		repo.save(share);
 		return new ShareResponse(props.getFrontendUrl() + "/share/" + token, token);
 	}
 
-	// ---------------------- Token Validation ----------------------
 	public SharedResource validate(String token, String password) {
-		// 1. If token not found -> Return 404 (SHARE_NOT_FOUND)
-		SharedResource share = repo.findByToken(token).orElseThrow(() -> new ShareNotFoundException());
-
-		// 2. If expired -> Return 410 (SHARE_EXPIRED)
+		SharedResource share = repo.findByToken(token).orElseThrow(InvalidShareException::new);
 		if (share.getExpiry() != null && share.getExpiry().isBefore(LocalDateTime.now())) {
 			throw new ShareExpiredException();
 		}
-
-		// 3. Password check (For PROTECTED shares)
 		if (share.getPassword() != null) {
 			if (password == null || password.isBlank()) {
 				throw new SharePasswordRequiredException();
@@ -102,10 +94,7 @@ public class ShareService {
 				throw new InvalidSharePasswordException();
 			}
 		}
-
-		// 4. 🔐 Enforce USER_ONLY authentication (Will throw 401 or 403 if they fail)
 		checkUserOnlyAccess(share);
-
 		return share;
 	}
 
@@ -126,7 +115,6 @@ public class ShareService {
 		}
 	}
 
-	// ---------------------- Share Details ----------------------
 	public PublicShareResponse details(String token, String password) {
 		SharedResource share = validate(token, password);
 		boolean isMulti = share.getFileIds() != null && !share.getFileIds().isEmpty();
@@ -161,13 +149,29 @@ public class ShareService {
 				share.getCreatedAt(), finalPermission);
 	}
 
-	// ---------------------- Single File Fetch ----------------------
 	public MasterFile file(String token, String password) {
 		SharedResource share = validate(token, password);
 		return files.findById(share.getFileId()).orElseThrow(FileNotFoundException::new);
 	}
 
-	// ---------------------- Folder Navigation ----------------------
+	public void validateFileInShare(String token, String password, String fileId) {
+		SharedResource share = validate(token, password);
+		if (fileId == null || fileId.isBlank())
+			return;
+
+		boolean isAuthorized = false;
+		if (share.getFileIds() != null && share.getFileIds().contains(fileId)) {
+			isAuthorized = true;
+		} else if (share.getFileId() != null && share.getFileId().equals(fileId)) {
+			isAuthorized = true;
+		} else {
+			isAuthorized = isUnderSharedRoot(fileId, share);
+		}
+		if (!isAuthorized) {
+			throw new ShareAccessDeniedException("This file is not part of the shared resource.");
+		}
+	}
+
 	public List<MasterFile> folderContents(String token, String password) {
 		return folderContents(token, password, null);
 	}
@@ -179,10 +183,8 @@ public class ShareService {
 		if (folderId == null) {
 			// 📂 ROOT OF THE SHARE
 			if (isMulti) {
-				// Multi-share: return all the root items directly
 				return files.findAllById(share.getFileIds());
 			} else {
-				// Single Folder share: return the children of that folder
 				MasterFile folder = files.findById(share.getFileId()).orElseThrow(FileNotFoundException::new);
 				if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
 					throw new RuntimeException("The shared item is not a folder.");
@@ -191,11 +193,9 @@ public class ShareService {
 			}
 		} else {
 			// 📂 NAVIGATING INTO A SUB-FOLDER
-			// Security check: Ensure the target folder actually belongs to this share
 			if (!isUnderSharedRoot(folderId, share)) {
 				throw new ShareAccessDeniedException("You are not authorized to access this folder.");
 			}
-
 			MasterFile folder = files.findById(folderId).orElseThrow(FileNotFoundException::new);
 			if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
 				throw new RuntimeException("The requested item is not a folder.");
@@ -204,9 +204,7 @@ public class ShareService {
 		}
 	}
 
-	// ---------------------- Permission Helpers ----------------------
 	private boolean isUnderSharedRoot(String itemId, SharedResource share) {
-		// If it's a multi-share, we must check against all root IDs
 		if (share.getFileIds() != null && !share.getFileIds().isEmpty()) {
 			for (String rootId : share.getFileIds()) {
 				if (isUnderSharedRoot(itemId, rootId))
@@ -214,7 +212,6 @@ public class ShareService {
 			}
 			return false;
 		}
-		// Single share: just check against the one root ID
 		return isUnderSharedRoot(itemId, share.getFileId());
 	}
 
@@ -228,11 +225,14 @@ public class ShareService {
 			MasterFile current = files.findById(currentId).orElse(null);
 			if (current == null)
 				return false;
-			if (current.getParentId() == null)
-				break;
-			currentId = current.getParentId();
+			// 🛡️ FIX: Check if the current ID matches the root before trying to go up
+			// further
 			if (currentId.equals(sharedRootId))
 				return true;
+			String parentId = current.getParentId();
+			if (parentId == null)
+				break;
+			currentId = parentId;
 		}
 		return false;
 	}
