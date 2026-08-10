@@ -36,9 +36,6 @@
         #toast.success { background: #1e8e3e; }
         #toast.show { display: block; opacity: 1; }
         
-        .url-display-container { margin-top: 10px; width: 100%; text-align: center; }
-        .url-display { background: #f1f3f4; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #5f6368; word-break: break-all; font-family: monospace; width: 100%; box-sizing: border-box; }
-        
         @media (max-width: 600px) { .profile-body { padding: 20px; } .profile-header { padding: 20px; } .profile-avatar-wrapper { width: 90px; height: 90px; } .form-row { flex-direction: column; gap: 0; } }
     </style>
 </head>
@@ -84,10 +81,6 @@
                             </div>
                         </div>
                         <div class="profile-email" id="userEmailDisplay">Loading...</div>
-                        
-                        <div class="url-display-container">
-                            <div class="url-display" id="photoUrlDisplay">No URL loaded</div>
-                        </div>
                         
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; margin-top:4px;">
                             <label for="photoFile" class="upload-photo-btn" style="cursor:pointer;">📷 Change Photo</label>
@@ -152,7 +145,6 @@
             const emailDisplay = document.getElementById('userEmailDisplay');
             const userAvatar = document.getElementById('userAvatar');
             const headerEmail = document.getElementById('userEmail');
-            const photoUrlDisplay = document.getElementById('photoUrlDisplay');
             const defaultAvatar = '/assets/img/default_avatar.jpg';
 
             function fallbackToDefaultAvatar() {
@@ -161,7 +153,6 @@
                 userAvatar.style.backgroundSize = 'cover';
                 userAvatar.textContent = '';
                 emailDisplay.textContent = 'User';
-                if (photoUrlDisplay) photoUrlDisplay.textContent = 'Using default avatar';
             }
 
             try {
@@ -181,10 +172,6 @@
                     document.getElementById('name').value = user.name || '';
                     headerEmail.textContent = user.email || '';
                     emailDisplay.textContent = user.email || '';
-
-                    if (photoUrlDisplay) {
-                        photoUrlDisplay.textContent = user.photoUrl || 'No photo URL stored';
-                    }
 
                     if (user.photoUrl) {
                         try {
@@ -218,7 +205,6 @@
             }
         }
 
-        // 🛡️ FIXED: Now sends ONLY name. photoUrl omitted so existing image stays!
         async function saveProfile() {
             if (!requireAuth()) return;
             const name = document.getElementById('name').value;
@@ -226,7 +212,7 @@
                 const res = await fetch(`${API_URL}/auth/profile`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('jwtToken') },
-                    body: JSON.stringify({ name: name }) // 👈 Added the fix here
+                    body: JSON.stringify({ name: name }) // Photo URL omitted intentionally
                 });
                 const json = await res.json();
                 if (res.ok && json.success) {
