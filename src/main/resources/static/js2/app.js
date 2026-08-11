@@ -40,31 +40,6 @@ function setupEventListeners() {
     if (shareType) shareType.addEventListener('change', toggleShareOptions);
 }
 
-function setupSidebarNavigation() {
-    document.querySelectorAll('.sidebar-item').forEach(item => {
-        item.addEventListener('click', () => {
-            if (item.id === 'signOutBtn') {
-                localStorage.removeItem('jwtToken');
-                window.location.href = '/login.html';
-                return;
-            }
-
-            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
-            currentView = item.dataset.view;
-
-            if (currentView === 'profile') {
-                window.location.href = '/profile.html';
-                return;
-            }
-
-            currentFolderId = null;
-            selectedItems.clear();
-            loadFiles();
-        });
-    });
-}
-
 function setupSearch() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {

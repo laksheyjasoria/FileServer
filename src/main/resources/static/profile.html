@@ -1,287 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile - File Server</title>
-    <link rel="stylesheet" href="/css/styles.css">
-    <style>
-        /* Profile Specific Overrides & Enhancements */
-        .profile-container { max-width: 800px; margin: 20px auto; padding: 0 16px; }
-        .profile-card { background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); overflow: hidden; border: 1px solid #f0f0f0; }
-        .profile-header { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px 20px; text-align: center; border-bottom: 1px solid #eee; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-        .profile-avatar-wrapper { position: relative; width: 120px; height: 120px; margin: 0 auto; }
-        .profile-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 4px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); background: #e9ecef; }
-        .profile-email { font-size: 14px; color: #5f6368; margin-top: -4px; min-height: 20px; }
-        .upload-photo-btn { background: #1a73e8; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: 0.2s; margin-top: 4px; }
-        .upload-photo-btn:hover { background: #1557b0; }
-        .profile-body { padding: 30px 30px 20px 30px; }
-        .section-title { font-size: 16px; font-weight: 600; color: #202124; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; font-size: 13px; font-weight: 500; color: #5f6368; margin-bottom: 6px; }
-        .form-group input { width: 100%; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.2s; background: #fafafa; }
-        .form-group input:focus { outline: none; border-color: #1a73e8; background: #fff; box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1); }
-        .form-row { display: flex; gap: 20px; flex-wrap: wrap; }
-        .form-row .form-group { flex: 1; min-width: 200px; }
-        .divider { border: 0; border-top: 1px solid #eee; margin: 24px 0; }
-        .action-buttons { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
-        .btn-profile { padding: 10px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-        .btn-primary { background: #1a73e8; color: white; }
-        .btn-primary:hover { background: #1557b0; box-shadow: 0 2px 6px rgba(26, 115, 232, 0.4); }
-        .btn-secondary { background: #f1f3f4; color: #5f6368; }
-        .btn-secondary:hover { background: #e8eaed; }
-        #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #323232; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); display: none; opacity: 0; transition: opacity 0.3s ease; z-index: 9999; max-width: 90%; text-align: center; }
-        #toast.error { background: #d93025; }
-        #toast.success { background: #1e8e3e; }
-        #toast.show { display: block; opacity: 1; }
-        
-        @media (max-width: 600px) { .profile-body { padding: 20px; } .profile-header { padding: 20px; } .profile-avatar-wrapper { width: 90px; height: 90px; } .form-row { flex-direction: column; gap: 0; } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile - File Server</title>
+<!-- Load Global CSS -->
+<link rel="stylesheet" href="/css/styles.css">
+<!-- Load Profile Specific CSS -->
+<link rel="stylesheet" href="/css/profile.css">
 </head>
-
 <body>
-    <div class="header">
-        <div class="logo">
-            <span class="logo-icon">📁</span>
-            <span class="logo-text">File Server</span>
-        </div>
-        <div class="search-bar">
-            <input type="text" placeholder="Search files..." id="searchInput">
-        </div>
-        <div class="user-menu">
-            <span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
-            <div class="user-avatar" id="userAvatar">U</div>
-        </div>
-    </div>
 
-    <div class="app-container">
-        <div class="sidebar">
-            <div class="sidebar-item" data-view="my-drive"><span class="icon">📁</span><span>My Drive</span></div>
-            <div class="sidebar-item" data-view="shared"><span class="icon">👥</span><span>Shared with me</span></div>
-            <div class="sidebar-item" data-view="recent"><span class="icon">🕐</span><span>Recent</span></div>
-            <div class="sidebar-item active" data-view="profile"><span class="icon">👤</span><span>My Profile</span></div>
-            <div class="sidebar-item" id="signOutBtn" style="margin-top:auto; color:#d93025;"><span class="icon">↩</span><span>Sign Out</span></div>
-        </div>
+	<!-- Hardcoded Header -->
+	<div class="header">
+		<div class="logo">
+			<span class="logo-icon">📁</span> <span class="logo-text">File
+				Server</span>
+		</div>
+		<div class="search-bar">
+			<input type="text" placeholder="Search files..." id="searchInput">
+		</div>
+		<div class="user-menu">
+			<span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
+			<div class="user-avatar" id="userAvatar">U</div>
+		</div>
+	</div>
 
-        <div class="main-content">
-            <div class="toolbar">
-                <div class="breadcrumb" id="breadcrumb">
-                    <span class="breadcrumb-item">Profile</span>
-                </div>
-            </div>
+	<!-- Main Container -->
+	<div class="app-container">
+		<!-- Hardcoded Sidebar -->
+		<div class="sidebar">
+			<div class="sidebar-item" data-view="my-drive">
+				<span class="icon">📁</span><span>My Drive</span>
+			</div>
+			<div class="sidebar-item" data-view="shared">
+				<span class="icon">👥</span><span>Shared with me</span>
+			</div>
+			<div class="sidebar-item" data-view="recent">
+				<span class="icon">🕐</span><span>Recent</span>
+			</div>
+			<div class="sidebar-item active" data-view="profile">
+				<span class="icon">👤</span><span>My Profile</span>
+			</div>
+			<div class="sidebar-item" id="signOutBtn"
+				style="margin-top: auto; color: #d93025;">
+				<span class="icon">↩</span><span>Sign Out</span>
+			</div>
+		</div>
 
-            <div class="profile-container">
-                <div class="profile-card">
-                    <!-- Header -->
-                    <div class="profile-header">
-                        <div class="profile-avatar-wrapper">
-                            <div id="photoPreview">
-                                <div id="profileLoadingIndicator" style="width:120px;height:120px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;color:#666;font-size:12px;">Loading...</div>
-                            </div>
-                        </div>
-                        <div class="profile-email" id="userEmailDisplay">Loading...</div>
-                        
-                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; margin-top:4px;">
-                            <label for="photoFile" class="upload-photo-btn" style="cursor:pointer;">📷 Change Photo</label>
-                            <input id="photoFile" type="file" accept="image/*" style="display:none;" onchange="uploadPhoto()" />
-                        </div>
-                    </div>
-                    <!-- Body -->
-                    <div class="profile-body">
-                        <div class="section-title">👤 Personal Information</div>
-                        <div class="form-group">
-                            <label for="name">Full Name</label>
-                            <input id="name" type="text" placeholder="Enter your full name" />
-                        </div>
-                        <hr class="divider" />
-                        <div class="section-title">🔒 Security</div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="oldPassword">Current Password</label>
-                                <input id="oldPassword" type="password" placeholder="Enter current password" />
-                            </div>
-                            <div class="form-group">
-                                <label for="newPassword">New Password</label>
-                                <input id="newPassword" type="password" placeholder="Enter new password" />
-                            </div>
-                        </div>
-                        <div class="action-buttons">
-                            <button class="btn-profile btn-primary" onclick="saveProfile()">💾 Save Changes</button>
-                            <button class="btn-profile btn-secondary" onclick="changePassword()">🔑 Update Password</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+		<div class="main-content">
+			<div class="toolbar">
+				<div class="breadcrumb" id="breadcrumb">
+					<span class="breadcrumb-item">Profile</span>
+				</div>
+			</div>
 
-    <div id="toast"></div>
-    <div class="upload-queue" id="uploadQueue" style="display: none;"></div>
+			<div class="profile-container">
+				<div class="profile-card">
+					<!-- Profile Header -->
+					<div class="profile-header">
+						<div class="profile-avatar-wrapper">
+							<div id="photoPreview">
+								<div id="profileLoadingIndicator"
+									style="width: 120px; height: 120px; border-radius: 50%; background: #e9ecef; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">Loading...</div>
+							</div>
+						</div>
+						<div class="profile-email" id="userEmailDisplay">Loading...</div>
+						<div
+							style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
+							<label for="photoFile" class="upload-photo-btn"
+								style="cursor: pointer;">📷 Change Photo</label> <input
+								id="photoFile" type="file" accept="image/*"
+								style="display: none;" onchange="uploadPhoto()" />
+						</div>
+					</div>
 
-    <script src="/js2/config.js"></script>
-    <script>
-        function requireAuth() {
-            if (!localStorage.getItem('jwtToken')) {
-                window.location.href = '/login.html';
-                return false;
-            }
-            return true;
-        }
+					<!-- Profile Body -->
+					<div class="profile-body">
+						<div class="section-title">👤 Personal Information</div>
+						<div class="form-group">
+							<label for="name">Full Name</label> <input id="name" type="text"
+								placeholder="Enter your full name" />
+						</div>
+						<hr class="divider" />
+						<div class="section-title">🔒 Security</div>
+						<div class="form-row">
+							<div class="form-group">
+								<label for="oldPassword">Current Password</label> <input
+									id="oldPassword" type="password"
+									placeholder="Enter current password" />
+							</div>
+							<div class="form-group">
+								<label for="newPassword">New Password</label> <input
+									id="newPassword" type="password"
+									placeholder="Enter new password" />
+							</div>
+						</div>
+						<div class="action-buttons">
+							<button class="btn-profile btn-primary" onclick="saveProfile()">💾
+								Save Changes</button>
+							<button class="btn-profile btn-secondary"
+								onclick="changePassword()">🔑 Update Password</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('toast');
-            if (toast) {
-                toast.textContent = message;
-                toast.className = type + ' show';
-                clearTimeout(toast._timeout);
-                toast._timeout = setTimeout(() => { toast.className = ''; }, 3000);
-            }
-        }
+	<!-- Toast Notification -->
+	<div id="toast"></div>
 
-        async function loadProfile() {
-            if (!requireAuth()) return;
-            const previewContainer = document.getElementById('photoPreview');
-            const emailDisplay = document.getElementById('userEmailDisplay');
-            const userAvatar = document.getElementById('userAvatar');
-            const headerEmail = document.getElementById('userEmail');
-            const defaultAvatar = '/assets/img/default_avatar.jpg';
+	<!-- Hidden Upload Queue (Kept for compatibility) -->
+	<div class="upload-queue" id="uploadQueue" style="display: none;"></div>
 
-            function fallbackToDefaultAvatar() {
-                previewContainer.innerHTML = `<img src="${defaultAvatar}" alt="Default Avatar" class="profile-avatar" />`;
-                userAvatar.style.backgroundImage = `url(${defaultAvatar})`;
-                userAvatar.style.backgroundSize = 'cover';
-                userAvatar.textContent = '';
-                emailDisplay.textContent = 'User';
-            }
-
-            try {
-                const res = await fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jwtToken') } });
-                
-                if (res.status === 401) {
-                    localStorage.removeItem('jwtToken');
-                    showToast('Session expired. Redirecting to login...', 'error');
-                    setTimeout(() => window.location.href = '/login.html', 1000);
-                    return;
-                }
-
-                const json = await res.json();
-                
-                if (res.ok && json.success) {
-                    const user = json.data;
-                    document.getElementById('name').value = user.name || '';
-                    headerEmail.textContent = user.email || '';
-                    emailDisplay.textContent = user.email || '';
-
-                    if (user.photoUrl) {
-                        try {
-                            const imgRes = await fetch(`${API_URL}/auth/profile/photo`, { 
-                                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jwtToken') } 
-                            });
-
-                            if (imgRes.ok) {
-                                const blob = await imgRes.blob();
-                                const imageUrl = URL.createObjectURL(blob);
-                                previewContainer.innerHTML = `<img src="${imageUrl}" alt="profile" class="profile-avatar" onerror="this.src='${defaultAvatar}'" />`;
-                                userAvatar.style.backgroundImage = `url(${imageUrl})`;
-                                userAvatar.style.backgroundSize = 'cover';
-                                userAvatar.textContent = '';
-                            } else {
-                                fallbackToDefaultAvatar();
-                            }
-                        } catch (error) {
-                            fallbackToDefaultAvatar();
-                        }
-                    } else {
-                        fallbackToDefaultAvatar();
-                    }
-                } else {
-                    fallbackToDefaultAvatar();
-                    showToast('Unable to load profile details', 'error');
-                }
-            } catch (e) {
-                fallbackToDefaultAvatar();
-                showToast('Network error loading profile', 'error');
-            }
-        }
-
-        async function saveProfile() {
-            if (!requireAuth()) return;
-            const name = document.getElementById('name').value;
-            try {
-                const res = await fetch(`${API_URL}/auth/profile`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('jwtToken') },
-                    body: JSON.stringify({ name: name }) // Photo URL omitted intentionally
-                });
-                const json = await res.json();
-                if (res.ok && json.success) {
-                    showToast('Profile updated successfully!');
-                    loadProfile();
-                } else {
-                    showToast(json.message || 'Update failed', 'error');
-                }
-            } catch (e) {
-                showToast('Network error saving profile', 'error');
-            }
-        }
-
-        async function uploadPhoto() {
-            if (!requireAuth()) return;
-            const fileInput = document.getElementById('photoFile');
-            const file = fileInput.files[0];
-            if (!file) { 
-                showToast('Please choose an image to upload', 'error'); 
-                return; 
-            }
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                const res = await fetch(`${API_URL}/auth/profile/photo`, {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jwtToken') },
-                    body: formData
-                });
-                const json = await res.json();
-                if (res.ok && json.success) {
-                    showToast('Photo uploaded successfully!');
-                    loadProfile();
-                } else {
-                    showToast(json.message || 'Photo upload failed', 'error');
-                }
-            } catch (e) {
-                showToast('Network error uploading photo', 'error');
-            }
-        }
-
-        async function changePassword() {
-            const oldP = document.getElementById('oldPassword').value;
-            const newP = document.getElementById('newPassword').value;
-            if(!oldP || !newP) {
-                showToast('Please fill in both password fields', 'error');
-                return;
-            }
-            try {
-                const res = await fetch(`${API_URL}/auth/change-password`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('jwtToken') },
-                    body: JSON.stringify({ oldPassword: oldP, newPassword: newP })
-                });
-                const json = await res.json();
-                if (res.ok && json.success) {
-                    showToast('Password changed successfully!');
-                    document.getElementById('oldPassword').value = '';
-                    document.getElementById('newPassword').value = '';
-                } else {
-                    showToast(json.message || 'Failed to change password', 'error');
-                }
-            } catch (e) {
-                showToast('Network error changing password', 'error');
-            }
-        }
-
-        // Initialize profile on load
-        loadProfile();
-    </script>
+	<!-- Load Global Config & Utilities -->
+	<script src="/js2/config.js"></script>
+	<script src="/js2/utils.js"></script>
+	<script src="/js2/navigation.js"></script>
+	<!-- Load Profile Specific JS -->
+	<script src="/js2/profile.js"></script>
 </body>
 </html>
