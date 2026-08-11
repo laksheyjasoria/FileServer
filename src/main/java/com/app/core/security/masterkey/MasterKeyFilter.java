@@ -2,6 +2,7 @@ package com.app.core.security.masterkey;
 
 import java.io.IOException;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import com.app.config.MasterKeyProperties;
@@ -26,6 +27,11 @@ public class MasterKeyFilter implements Filter {
 	@Override
 	public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
 			throws IOException, ServletException {
+
+		if (SecurityContextHolder.getContext().getAuthentication() != null) {
+			chain.doFilter(req, res);
+			return;
+		}
 
 		HttpServletRequest request = (HttpServletRequest) req;
 

@@ -26,4 +26,6 @@ public interface MasterFileRepository extends JpaRepository<MasterFile, String> 
 	List<MasterFile> findByDriveTypeAndUserIdIn(String driveType, List<String> userIds);
 
 	Optional<MasterFile> findByIdAndDriveTypeAndUserIdIn(String id, String driveType, List<String> userIds);
+
+	List<MasterFile> findByDriveTypeAndUserIdInAndParentIdIsNull(String driveType, List<String> userIds);
 }

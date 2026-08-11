@@ -57,7 +57,7 @@ public class SecurityConfig {
 				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/profile.html",
-								"/viewer.html", "/share.html", "/shared.html", "/shared-by-me.html", "/share2.html",
+								"/viewer.html", "/share.html", "/shared.html", "/shared-by-me.html", "/share2.html","/master.html",
 								"/favicon.ico", "/css/**", "/js/**", "/js2/**", "/auth/**", "/logger/log",
 								"/logger/error", "/download/bulk/shared", "/assets/**")
 						.permitAll()

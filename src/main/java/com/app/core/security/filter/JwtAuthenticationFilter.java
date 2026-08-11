@@ -34,7 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
-        // 1. Public endpoints – skip authentication (only truly public paths)
+        // 1. Public endpoints – skip authentication
         if (isPublic(path)) {
             chain.doFilter(request, response);
             return;
@@ -48,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 3. Regular JWT authentication for all other APIs (including /share/**)
+        // 3. Regular JWT authentication for other APIs
         handleRegularJwt(request);
         chain.doFilter(request, response);
     }
@@ -56,16 +56,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     // ---------------------- Helper Methods ----------------------
 
     private boolean isPublic(String path) {
-        // Explicitly public auth endpoints
         if (path.equals("/auth/login") || path.equals("/auth/register") || path.equals("/auth/google")
                 || path.equals("/auth/forgot-password") || path.equals("/auth/reset-password")) {
             return true;
         }
-        // Public logger endpoints
         if (path.equals("/logger/log") || path.equals("/logger/error")) {
             return true;
         }
-        // Static resources – do NOT include "/share/" here!
         if (path.startsWith("/js/") || path.startsWith("/js2/") || path.startsWith("/css/")
                 || path.startsWith("/images/") || path.startsWith("/assets/") || path.equals("/favicon.ico")
                 || path.equals("/") || path.equals("/index.html")) {
@@ -81,24 +78,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws IOException, ServletException {
 
         String path = request.getRequestURI();
-        String method = request.getMethod();
 
-        boolean isAdminDelete = path.startsWith("/admin/") && "DELETE".equalsIgnoreCase(method);
-        if (!isAdminDelete) {
-            String masterKeyHeader = request.getHeader("X-Master-Key");
-            if (masterKeyHeader != null && masterKeyHeader.equals(masterKey)) {
-                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken("master", null,
-                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-                SecurityContextHolder.getContext().setAuthentication(auth);
-                chain.doFilter(request, response);
-                return true;
-            }
+        // 🛡️ Master Key now works for ALL methods (DELETE included)
+        String masterKeyHeader = request.getHeader("X-Master-Key");
+        if (masterKeyHeader != null && masterKeyHeader.equals(masterKey)) {
+            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken("master", null,
+                    List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+            SecurityContextHolder.getContext().setAuthentication(auth);
+            chain.doFilter(request, response);
+            return true;
         }
 
+        // ---------- Admin JWT (Backup for all /admin/ endpoints) ----------
         if (path.startsWith("/admin/")) {
             return handleAdminJwt(request, response, chain);
         }
 
+        // For /logger/ endpoints (only Master Key works)
         response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or missing Master Key");
         return false;
     }

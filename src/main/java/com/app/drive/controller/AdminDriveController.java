@@ -1,6 +1,5 @@
 package com.app.drive.controller;
 
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -32,7 +31,14 @@ public class AdminDriveController {
 	// -------------------- READ --------------------
 	@GetMapping
 	public List<MasterFile> listAll() {
-		return repo.findByDriveTypeAndUserIdIn("FOLDER", ALLOWED_USER_IDS);
+	    List<MasterFile> rootFolders = repo.findByDriveTypeAndUserIdInAndParentIdIsNull("FOLDER", ALLOWED_USER_IDS);
+	    
+	    for (MasterFile folder : rootFolders) {
+	        long count = repo.countByParentId(folder.getId());
+	        folder.setChildrenCount((int) count); 
+	    }
+	    
+	    return rootFolders;
 	}
 
 	@GetMapping("/{id}")
