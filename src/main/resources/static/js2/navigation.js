@@ -1,33 +1,34 @@
-// js2/navigation.js - Shared Sidebar Navigation Logic
-
+// navigation.js - Updated sidebar navigation logic
 function setupSidebarNavigation() {
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', () => {
-            // Handle Sign Out
             if (item.id === 'signOutBtn') {
                 localStorage.removeItem('jwtToken');
                 window.location.href = '/login.html';
                 return;
             }
 
-            // Remove active from all, set active to clicked
             document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
-            const currentView = item.dataset.view;
+            const view = item.dataset.view;
 
-            // 🔹 Redirect My Drive to Index
-            if (currentView === 'my-drive') {
+            if (view === 'my-drive') {
                 window.location.href = '/index.html';
                 return;
             }
-
-            // 🔹 Redirect Profile to Profile
-            if (currentView === 'profile') {
+            if (view === 'profile') {
                 window.location.href = '/profile.html';
                 return;
             }
-
-            // For Shared / Recent, fallback to Index
+            if (view === 'shared') {
+                window.location.href = '/shared.html';
+                return;
+            }
+            if (view === 'shared-by-me') {
+                window.location.href = '/shared-by-me.html';
+                return;
+            }
+            // Fallback
             window.location.href = '/index.html';
         });
     });

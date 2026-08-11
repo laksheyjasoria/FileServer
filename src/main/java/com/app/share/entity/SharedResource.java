@@ -35,6 +35,12 @@ public class SharedResource {
 	@Column(name = "file_id")
 	private List<String> fileIds = new ArrayList<>(); // multiple files/folders
 
+	// 👇 NEW: Store the list of allowed user emails for USER_ONLY shares
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "shared_resource_allowed_users", joinColumns = @JoinColumn(name = "share_id"))
+	@Column(name = "user_email")
+	private List<String> allowedUsers = new ArrayList<>();
+
 	private String createdBy;
 
 	private boolean publicAccess;
@@ -46,12 +52,14 @@ public class SharedResource {
 	private LocalDateTime createdAt;
 
 	@Enumerated(EnumType.STRING)
-	private SharePermission permission = SharePermission.VIEW_DOWNLOAD; // default
+	private SharePermission permission = SharePermission.VIEW_DOWNLOAD;
 
 	@PrePersist
 	public void prePersist() {
 		createdAt = LocalDateTime.now();
 	}
+
+	// Existing Getters and Setters ...
 
 	public String getId() {
 		return id;
@@ -85,6 +93,14 @@ public class SharedResource {
 		return createdAt;
 	}
 
+	public List<String> getFileIds() {
+		return fileIds;
+	}
+
+	public SharePermission getPermission() {
+		return permission;
+	}
+
 	public void setToken(String token) {
 		this.token = token;
 	}
@@ -109,19 +125,19 @@ public class SharedResource {
 		this.expiry = expiry;
 	}
 
-	public List<String> getFileIds() {
-		return fileIds;
-	}
-
 	public void setFileIds(List<String> fileIds) {
 		this.fileIds = fileIds;
 	}
 
-	public SharePermission getPermission() {
-		return permission;
-	}
-
 	public void setPermission(SharePermission permission) {
 		this.permission = permission;
+	}
+
+	public List<String> getAllowedUsers() {
+		return allowedUsers;
+	}
+
+	public void setAllowedUsers(List<String> allowedUsers) {
+		this.allowedUsers = allowedUsers;
 	}
 }

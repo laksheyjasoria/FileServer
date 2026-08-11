@@ -12,6 +12,20 @@ public class CreateMultiShareRequest {
 	private String password;
 	private LocalDateTime expiry;
 	private SharePermission permission;
+	private List<String> allowedUsers;
+
+	public CreateMultiShareRequest() {
+	}
+
+	public CreateMultiShareRequest(List<String> fileIds, boolean publicAccess, String password, LocalDateTime expiry,
+			SharePermission permission, List<String> allowedUsers) {
+		this.fileIds = fileIds;
+		this.publicAccess = publicAccess;
+		this.password = password;
+		this.expiry = expiry;
+		this.permission = permission;
+		this.allowedUsers = allowedUsers;
+	}
 
 	public SharePermission getPermission() {
 		return permission;
@@ -20,21 +34,6 @@ public class CreateMultiShareRequest {
 	public void setPermission(SharePermission permission) {
 		this.permission = permission;
 	}
-
-	// Default no-args constructor
-	public CreateMultiShareRequest() {
-	}
-
-	// All-args constructor
-	public CreateMultiShareRequest(List<String> fileIds, boolean publicAccess, String password, LocalDateTime expiry,SharePermission permission) {
-		this.fileIds = fileIds;
-		this.publicAccess = publicAccess;
-		this.password = password;
-		this.expiry = expiry;
-		this.permission = permission;
-	}
-
-	// Getters and Setters
 
 	public List<String> getFileIds() {
 		return fileIds;
@@ -66,5 +65,13 @@ public class CreateMultiShareRequest {
 
 	public void setExpiry(LocalDateTime expiry) {
 		this.expiry = expiry;
+	}
+
+	public List<String> getAllowedUsers() {
+		return allowedUsers;
+	}
+
+	public void setAllowedUsers(List<String> allowedUsers) {
+		this.allowedUsers = allowedUsers;
 	}
 }

@@ -87,3 +87,52 @@ async function downloadSingleFolder(folderId) {
     }
 }
 
+// ---------------------- SHARED WITH ME CONTEXT MENU ----------------------
+
+function showSharedContextMenu(event, token, name, type) {
+    event.stopPropagation();
+    const existingMenu = document.querySelector('.dropdown-menu');
+    if (existingMenu) existingMenu.remove();
+
+    const menu = document.createElement('div');
+    menu.className = 'dropdown-menu show';
+    menu.style.position = 'absolute';
+    menu.style.top = `${event.clientY}px`;
+    menu.style.left = `${event.clientX}px`;
+
+    let items = [];
+    
+    if (type === 'FILE') {
+        items = [
+            { icon: '👁️', label: 'View', action: () => openSharedItem(token) },
+            { icon: '⬇️', label: 'Download', action: () => downloadSharedFile(token) }
+        ];
+    } else { // FOLDER or MULTI
+        items = [
+            { icon: '📂', label: 'Open', action: () => openSharedItem(token) }
+        ];
+    }
+
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'dropdown-item';
+        div.innerHTML = `${item.icon} ${item.label}`;
+        div.onclick = () => {
+            item.action();
+            menu.remove();
+        };
+        menu.appendChild(div);
+    });
+
+    document.body.appendChild(menu);
+
+    setTimeout(() => {
+        document.addEventListener('click', () => menu.remove(), { once: true });
+    }, 0);
+}
+
+// Helper to download a shared file (bypasses the need for complex JWT fetch in download actions)
+function downloadSharedFile(token) {
+    // Triggers backend's download endpoint with the token
+    window.location.href = `/share/download/${token}`;
+}

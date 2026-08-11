@@ -1,4 +1,6 @@
-// share2.js – Bulletproof version with frontend view blocking for DOWNLOAD permission
+// share2.js – logic for shared file/folder page with navigation
+
+// Helper to safely escape strings for HTML onclick attributes
 function escapeJSString(str) {
     return (str || '').replace(/'/g, "\\'");
 }
@@ -11,8 +13,9 @@ let currentPassword = null;
 let isExpired = false;
 let selectedSharedItems = new Set();
 
+// Navigation state
 let sharedCurrentFolderId = null; 
-let navHistory = []; 
+let navHistory = []; // array of { id, name }
 
 if (!token) {
     showError('Invalid share link. No token provided.');
@@ -22,7 +25,15 @@ if (!token) {
 
 async function loadShareInfo() {
     try {
-        const response = await fetch(`${API_URL}/share/${token}`);
+        // 🔐 FIX: Attach JWT token to the fetch request if available!
+        const headers = {};
+        const jwtToken = localStorage.getItem('jwtToken');
+        if (jwtToken) {
+            headers['Authorization'] = 'Bearer ' + jwtToken;
+        }
+
+        const response = await fetch(`${API_URL}/share/${token}`, { headers });
+        
         if (response.status === 401 || response.status === 404 || response.status === 410) {
             isExpired = true;
             showExpired();
@@ -30,7 +41,6 @@ async function loadShareInfo() {
         }
         if (!response.ok) throw new Error('Failed to load share information');
         currentShare = await response.json();
-        console.log('🔑 Share Permission:', currentShare.permission);
 
         if (currentShare.expiresAt && new Date(currentShare.expiresAt) < new Date()) {
             isExpired = true;
@@ -92,6 +102,7 @@ async function displayShareInfo(share) {
         return;
     }
 
+    // For both FOLDER and MULTI, we display a folder-like view
     if (share.driveType === 'FOLDER' || share.driveType === 'MULTI') {
         sharedCurrentFolderId = null;
         navHistory = [];
@@ -99,6 +110,7 @@ async function displayShareInfo(share) {
         return;
     }
 
+    // --- FILE share logic ---
     const permission = share.permission; 
     const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
     const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
@@ -177,7 +189,14 @@ async function loadCurrentFolder() {
     renderBreadcrumb();
 
     try {
-        const response = await fetch(`${API_URL}${endpoint}`);
+        // 🔐 Attach JWT to the folder contents fetch
+        const headers = {};
+        const jwtToken = localStorage.getItem('jwtToken');
+        if (jwtToken) {
+            headers['Authorization'] = 'Bearer ' + jwtToken;
+        }
+
+        const response = await fetch(`${API_URL}${endpoint}`, { headers });
         if (!response.ok) {
             throw new Error(`Failed to load folder contents (Status: ${response.status})`);
         }
@@ -316,16 +335,9 @@ async function downloadSelectedShared() {
     }
 }
 
-// ---------- FILE VIEWER ----------
-async function loadRootFileContent() {
-    // 🛡️ Strict frontend block for DOWNLOAD permission
-    const permission = currentShare ? currentShare.permission : null;
-    const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
-    if (!canView) {
-        showTemporaryError('You do not have permission to view this file.');
-        return;
-    }
+// ---------- FILE VIEWER (Root & Specific Files) ----------
 
+async function loadRootFileContent() {
     const viewerArea = document.getElementById('viewerArea');
     const contentArea = document.getElementById('contentArea');
     viewerArea.style.display = 'block';
@@ -335,7 +347,13 @@ async function loadRootFileContent() {
     try {
         let url = `${API_URL}/share/stream/${token}`;
         if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
-        const response = await fetch(url);
+
+        // 🔐 Attach JWT to the file fetch
+        const headers = {};
+        const jwtToken = localStorage.getItem('jwtToken');
+        if (jwtToken) headers['Authorization'] = 'Bearer ' + jwtToken;
+
+        const response = await fetch(url, { headers });
         if (response.status === 403) throw new Error('Access denied. Invalid password or permissions.');
         if (response.status === 410) throw new Error('This share link has expired');
         if (!response.ok) throw new Error('Failed to load file');
@@ -351,17 +369,11 @@ async function loadRootFileContent() {
     }
 }
 
-async function downloadRootFile() { downloadFile(); }
+async function downloadRootFile() {
+    downloadFile();
+}
 
 async function viewSharedFile(fileId, fileName) {
-    // 🛡️ Strict frontend block for DOWNLOAD permission
-    const permission = currentShare ? currentShare.permission : null;
-    const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
-    if (!canView) {
-        showTemporaryError('You do not have permission to view this file.');
-        return;
-    }
-
     const viewerArea = document.getElementById('viewerArea');
     const contentArea = document.getElementById('contentArea');
     viewerArea.style.display = 'block';
@@ -372,7 +384,13 @@ async function viewSharedFile(fileId, fileName) {
         let url = `${API_URL}/share/stream/${token}`;
         if (fileId) url += `?fileId=${encodeURIComponent(fileId)}`;
         if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
-        const response = await fetch(url);
+
+        // 🔐 Attach JWT to the specific file fetch
+        const headers = {};
+        const jwtToken = localStorage.getItem('jwtToken');
+        if (jwtToken) headers['Authorization'] = 'Bearer ' + jwtToken;
+
+        const response = await fetch(url, { headers });
         if (response.status === 403) throw new Error('Access denied. Invalid password or permissions.');
         if (response.status === 410) throw new Error('This share link has expired');
         if (!response.ok) throw new Error('Failed to load file');
@@ -451,7 +469,8 @@ async function downloadFile() {
     }
 }
 
-// ---------- HELPERS ----------
+// ---------- HELPER FUNCTIONS ----------
+
 async function accessWithPassword() {
     const password = document.getElementById('password').value;
     if (!password) { showTemporaryError('Please enter the password'); return; }

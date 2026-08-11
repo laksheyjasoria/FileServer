@@ -1,6 +1,7 @@
 package com.app.share.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.app.share.entity.SharePermission;
 
@@ -16,6 +17,40 @@ public class CreateShareRequest {
 
 	private SharePermission permission;
 
+	private List<String> allowedUsers;
+
+	public String getFileId() {
+		return fileId;
+	}
+
+	public void setFileId(String fileId) {
+		this.fileId = fileId;
+	}
+
+	public boolean isPublicAccess() {
+		return publicAccess;
+	}
+
+	public void setPublicAccess(boolean publicAccess) {
+		this.publicAccess = publicAccess;
+	}
+
+	public String getPassword() {
+		return password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
+	}
+
+	public LocalDateTime getExpiry() {
+		return expiry;
+	}
+
+	public void setExpiry(LocalDateTime expiry) {
+		this.expiry = expiry;
+	}
+
 	public SharePermission getPermission() {
 		return permission;
 	}
@@ -24,35 +59,11 @@ public class CreateShareRequest {
 		this.permission = permission;
 	}
 
-	public String getFileId() {
-		return fileId;
+	public List<String> getAllowedUsers() {
+		return allowedUsers;
 	}
 
-	public boolean isPublicAccess() {
-		return publicAccess;
-	}
-
-	public String getPassword() {
-		return password;
-	}
-
-	public LocalDateTime getExpiry() {
-		return expiry;
-	}
-
-	public void setFileId(String fileId) {
-		this.fileId = fileId;
-	}
-
-	public void setPublicAccess(boolean publicAccess) {
-		this.publicAccess = publicAccess;
-	}
-
-	public void setPassword(String password) {
-		this.password = password;
-	}
-
-	public void setExpiry(LocalDateTime expiry) {
-		this.expiry = expiry;
+	public void setAllowedUsers(List<String> allowedUsers) {
+		this.allowedUsers = allowedUsers;
 	}
 }

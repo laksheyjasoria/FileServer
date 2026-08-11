@@ -1,4 +1,4 @@
-// Utility Functions (copied to static2)
+// Utility Functions (static2)
 function formatFileSize(bytes) {
     if (!bytes) return '0 B';
     const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -37,12 +37,13 @@ function showLoading(container, show) {
     }
 }
 
-function showEmptyState(container, message = 'This folder is empty') {
+function showEmptyState(container, message = 'This folder is empty', subtitle = 'Click "Upload File" or "New Folder" to add items') {
+    const subtitleHtml = subtitle ? `<div style="font-size: 12px; margin-top: 8px;">${escapeHtml(subtitle)}</div>` : '';
     container.innerHTML = `
         <div class="empty-state">
             <div class="empty-state-icon">📁</div>
-            <div>${message}</div>
-            <div style="font-size: 12px; margin-top: 8px;">Click "Upload File" or "New Folder" to add items</div>
+            <div>${escapeHtml(message)}</div>
+            ${subtitleHtml}
         </div>
     `;
 }

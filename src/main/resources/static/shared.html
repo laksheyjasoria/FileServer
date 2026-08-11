@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shared with me - File Server</title>
+<link rel="stylesheet" href="/css/styles.css">
+<link rel="icon"
+	href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>">
+</head>
+<body>
+
+	<!-- STATIC HEADER -->
+	<div class="header">
+		<div class="logo">
+			<span class="logo-icon">📁</span> <span class="logo-text">File
+				Server</span>
+		</div>
+		<div class="search-bar">
+			<input type="text" placeholder="Search files..." id="searchInput">
+		</div>
+		<div class="user-menu">
+			<span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
+			<div class="user-avatar" id="userAvatar"
+				onclick="window.location.href='/profile.html'"
+				style="cursor: pointer;">U</div>
+		</div>
+	</div>
+
+	<div class="app-container">
+		<!-- STATIC SIDEBAR -->
+		<div class="sidebar">
+			<div class="sidebar-item" data-view="my-drive">
+				<span class="icon">📁</span> <span>My Drive</span>
+			</div>
+			<div class="sidebar-item active" data-view="shared">
+				<span class="icon">👥</span> <span>Shared with me</span>
+			</div>
+			<div class="sidebar-item active" data-view="shared-by-me">
+				<span class="icon">↗️</span> <span>Shared by me</span>
+			</div>
+			<div class="sidebar-item" data-view="profile">
+				<span class="icon">👤</span> <span>My Profile</span>
+			</div>
+			<div class="sidebar-item" id="signOutBtn"
+				style="margin-top: auto; color: #d93025;">
+				<span class="icon">↩</span> <span>Sign Out</span>
+			</div>
+		</div>
+
+		<!-- READ-ONLY MAIN CONTENT -->
+		<div class="main-content">
+			<div class="toolbar">
+				<div class="breadcrumb" id="breadcrumb">
+					<span class="breadcrumb-item">Shared with me</span>
+				</div>
+			</div>
+
+			<div id="fileContainer">
+				<div class="loading">Loading shared items...</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="upload-queue" id="uploadQueue" style="display: none;"></div>
+
+	<!-- 👇 SCRIPTS (ORDER IS CRITICAL!) -->
+	<script src="/js2/config.js"></script>
+	<script src="/js2/app.js"></script>
+	<script src="/js2/utils.js"></script>
+	<script src="/js2/api.js"></script>
+	<script src="/js2/navigation.js"></script>
+	<script src="/js2/shared.js"></script>
+	<script src="/js2/navigation.js"></script>
+</body>
+</html>

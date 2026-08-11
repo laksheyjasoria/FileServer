@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -56,11 +57,18 @@ public class SecurityConfig {
 				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/profile.html",
-								"/viewer.html", "/share.html", "/share2.html", "/favicon.ico", "/css/**", "/js/**", "/js2/**",
-								"/auth/login", "/auth/register", "/auth/google/**", "/auth/forgot-password", "/auth/reset-password",
-								"/share/**", "/share/download/**", "/share/stream/**",
-								"/logger/log", "/logger/error", "/download/bulk/shared","/assets/**","/api/**")
+								"/viewer.html", "/share.html", "/shared.html", "/shared-by-me.html", "/share2.html",
+								"/favicon.ico", "/css/**", "/js/**", "/js2/**", "/auth/**", "/logger/log",
+								"/logger/error", "/download/bulk/shared", "/assets/**")
 						.permitAll()
+
+						// 🔐 Authenticated share endpoints
+						.requestMatchers("/share/shared-with-me").authenticated().requestMatchers("/share/shared-by-me")
+						.authenticated().requestMatchers(HttpMethod.DELETE, "/share/{token}").authenticated()
+
+						// 🌐 Public share viewing/streaming/downloading
+						.requestMatchers("/share/**").permitAll()
+
 						.anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
 				.exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {

@@ -1,10 +1,12 @@
 package com.app.share.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -13,11 +15,11 @@ import org.springframework.stereotype.Service;
 
 import com.app.config.AppProperties;
 import com.app.core.exception.FileNotFoundException;
-import com.app.core.exception.InvalidShareException;
 import com.app.core.exception.InvalidSharePasswordException;
 import com.app.core.exception.ShareAccessDeniedException;
 import com.app.core.exception.ShareAuthenticationRequiredException;
 import com.app.core.exception.ShareExpiredException;
+import com.app.core.exception.ShareNotFoundException;
 import com.app.core.exception.SharePasswordRequiredException;
 import com.app.master.entity.MasterFile;
 import com.app.master.repository.MasterFileRepository;
@@ -25,215 +27,296 @@ import com.app.share.dto.CreateMultiShareRequest;
 import com.app.share.dto.CreateShareRequest;
 import com.app.share.dto.PublicShareResponse;
 import com.app.share.dto.ShareResponse;
-import com.app.share.entity.SharePermission;
 import com.app.share.entity.SharedResource;
+import com.app.share.entity.SharePermission;
 import com.app.share.repository.SharedResourceRepository;
 
 @Service
 public class ShareService {
 
-	private final SharedResourceRepository repo;
-	private final PasswordEncoder encoder;
-	private final AppProperties props;
-	private final MasterFileRepository files;
+    private final SharedResourceRepository repo;
+    private final PasswordEncoder encoder;
+    private final AppProperties props;
+    private final MasterFileRepository files;
 
-	public ShareService(SharedResourceRepository repo, PasswordEncoder encoder, AppProperties props,
-			MasterFileRepository files) {
-		this.repo = repo;
-		this.encoder = encoder;
-		this.props = props;
-		this.files = files;
-	}
+    public ShareService(SharedResourceRepository repo, PasswordEncoder encoder, AppProperties props,
+            MasterFileRepository files) {
+        this.repo = repo;
+        this.encoder = encoder;
+        this.props = props;
+        this.files = files;
+    }
 
-	public ShareResponse create(CreateShareRequest request, String userId) {
-		files.findByIdAndUserId(request.getFileId(), userId).orElseThrow(FileNotFoundException::new);
-		SharedResource share = new SharedResource();
-		String token = UUID.randomUUID().toString();
-		share.setToken(token);
-		share.setFileId(request.getFileId());
-		share.setCreatedBy(userId);
-		share.setPublicAccess(request.isPublicAccess());
-		share.setExpiry(request.getExpiry());
-		share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
-		if (request.getPassword() != null && !request.getPassword().isBlank()) {
-			share.setPassword(encoder.encode(request.getPassword()));
-		}
-		repo.save(share);
-		return new ShareResponse(props.getFrontendUrl() + "/share/" + token, token);
-	}
+    // ================= CREATE =================
 
-	public ShareResponse createMulti(CreateMultiShareRequest request, String userId) {
-		for (String id : request.getFileIds()) {
-			files.findByIdAndUserId(id, userId).orElseThrow(FileNotFoundException::new);
-		}
-		SharedResource share = new SharedResource();
-		String token = UUID.randomUUID().toString();
-		share.setToken(token);
-		share.setFileIds(request.getFileIds());
-		share.setCreatedBy(userId);
-		share.setPublicAccess(request.isPublicAccess());
-		share.setExpiry(request.getExpiry());
-		share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
-		if (request.getPassword() != null && !request.getPassword().isBlank()) {
-			share.setPassword(encoder.encode(request.getPassword()));
-		}
-		repo.save(share);
-		return new ShareResponse(props.getFrontendUrl() + "/share/" + token, token);
-	}
+    public ShareResponse create(CreateShareRequest request, String userId) {
+        files.findByIdAndUserId(request.getFileId(), userId)
+                .orElseThrow(FileNotFoundException::new);
+        SharedResource share = new SharedResource();
+        String token = UUID.randomUUID().toString();
+        share.setToken(token);
+        share.setFileId(request.getFileId());
+        share.setCreatedBy(userId);
+        share.setPublicAccess(request.isPublicAccess());
+        share.setExpiry(request.getExpiry());
+        share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
+        share.setAllowedUsers(request.getAllowedUsers());
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            share.setPassword(encoder.encode(request.getPassword()));
+        }
+        repo.save(share);
+        return new ShareResponse(props.getFrontendUrl() + "/share/" + token, token);
+    }
 
-	public SharedResource validate(String token, String password) {
-		SharedResource share = repo.findByToken(token).orElseThrow(InvalidShareException::new);
-		if (share.getExpiry() != null && share.getExpiry().isBefore(LocalDateTime.now())) {
-			throw new ShareExpiredException();
-		}
-		if (share.getPassword() != null) {
-			if (password == null || password.isBlank()) {
-				throw new SharePasswordRequiredException();
-			}
-			if (!encoder.matches(password, share.getPassword())) {
-				throw new InvalidSharePasswordException();
-			}
-		}
-		checkUserOnlyAccess(share);
-		return share;
-	}
+    public ShareResponse createMulti(CreateMultiShareRequest request, String userId) {
+        for (String id : request.getFileIds()) {
+            files.findByIdAndUserId(id, userId)
+                    .orElseThrow(FileNotFoundException::new);
+        }
+        SharedResource share = new SharedResource();
+        String token = UUID.randomUUID().toString();
+        share.setToken(token);
+        share.setFileIds(request.getFileIds());
+        share.setCreatedBy(userId);
+        share.setPublicAccess(request.isPublicAccess());
+        share.setExpiry(request.getExpiry());
+        share.setPermission(request.getPermission() != null ? request.getPermission() : SharePermission.VIEW_DOWNLOAD);
+        share.setAllowedUsers(request.getAllowedUsers());
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            share.setPassword(encoder.encode(request.getPassword()));
+        }
+        repo.save(share);
+        return new ShareResponse(props.getFrontendUrl() + "/share/" + token, token);
+    }
 
-	private void checkUserOnlyAccess(SharedResource share) {
-		boolean isUserOnly = share.getPassword() == null && !share.isPublicAccess();
-		if (!isUserOnly) {
-			return;
-		}
-		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-		if (auth == null || !auth.isAuthenticated()) {
-			throw new ShareAuthenticationRequiredException(
-					"This share is restricted to registered users. Please log in.");
-		}
-		String currentUser = auth.getName();
-		boolean isAdmin = auth.getAuthorities().stream().anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
-		if (!currentUser.equals(share.getCreatedBy()) && !isAdmin) {
-			throw new ShareAccessDeniedException("You are not authorized to access this share.");
-		}
-	}
+    // ================= VALIDATE =================
 
-	public PublicShareResponse details(String token, String password) {
-		SharedResource share = validate(token, password);
-		boolean isMulti = share.getFileIds() != null && !share.getFileIds().isEmpty();
+    public SharedResource validate(String token, String password) {
+        SharedResource share = repo.findByToken(token).orElseThrow(ShareNotFoundException::new);
+        if (share.getExpiry() != null && share.getExpiry().isBefore(LocalDateTime.now())) {
+            throw new ShareExpiredException();
+        }
+        if (share.getPassword() != null) {
+            if (password == null || password.isBlank()) {
+                throw new SharePasswordRequiredException();
+            }
+            if (!encoder.matches(password, share.getPassword())) {
+                throw new InvalidSharePasswordException();
+            }
+        }
+        checkUserOnlyAccess(share);
+        return share;
+    }
 
-		String driveName;
-		String driveType;
+    private void checkUserOnlyAccess(SharedResource share) {
+        boolean isUserOnly = share.getPassword() == null && !share.isPublicAccess();
+        if (!isUserOnly) {
+            return;
+        }
 
-		if (isMulti) {
-			driveName = "Shared Items (" + share.getFileIds().size() + " items)";
-			driveType = "MULTI";
-		} else {
-			MasterFile file = files.findById(share.getFileId()).orElseThrow(FileNotFoundException::new);
-			driveName = file.getName();
-			driveType = file.getDriveType();
-		}
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-		String shareType;
-		if (share.getPassword() != null) {
-			shareType = "PROTECTED";
-		} else if (share.isPublicAccess()) {
-			shareType = "PUBLIC";
-		} else {
-			shareType = "USER_ONLY";
-		}
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new ShareAuthenticationRequiredException(
+                    "This share is restricted to registered users. Please log in.");
+        }
 
-		SharePermission finalPermission = share.getPermission();
-		if (finalPermission == null) {
-			finalPermission = SharePermission.VIEW_DOWNLOAD;
-		}
+        String currentUserTrimmed = auth.getName().trim();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
 
-		return new PublicShareResponse(share.getToken(), driveName, driveType, shareType, share.getExpiry(),
-				share.getCreatedAt(), finalPermission);
-	}
+        boolean isOwner = share.getCreatedBy() != null && share.getCreatedBy().trim().equalsIgnoreCase(currentUserTrimmed);
 
-	public MasterFile file(String token, String password) {
-		SharedResource share = validate(token, password);
-		return files.findById(share.getFileId()).orElseThrow(FileNotFoundException::new);
-	}
+        boolean isAllowedUser = share.getAllowedUsers() != null && share.getAllowedUsers().stream()
+                .anyMatch(email -> email != null && email.trim().equalsIgnoreCase(currentUserTrimmed));
 
-	public void validateFileInShare(String token, String password, String fileId) {
-		SharedResource share = validate(token, password);
-		if (fileId == null || fileId.isBlank())
-			return;
+        if (!isOwner && !isAdmin && !isAllowedUser) {
+            throw new ShareAccessDeniedException("You are not authorized to access this share.");
+        }
+    }
 
-		boolean isAuthorized = false;
-		if (share.getFileIds() != null && share.getFileIds().contains(fileId)) {
-			isAuthorized = true;
-		} else if (share.getFileId() != null && share.getFileId().equals(fileId)) {
-			isAuthorized = true;
-		} else {
-			isAuthorized = isUnderSharedRoot(fileId, share);
-		}
-		if (!isAuthorized) {
-			throw new ShareAccessDeniedException("This file is not part of the shared resource.");
-		}
-	}
+    // ================= DETAILS =================
 
-	public List<MasterFile> folderContents(String token, String password) {
-		return folderContents(token, password, null);
-	}
+    public PublicShareResponse details(String token, String password) {
+        SharedResource share = validate(token, password);
+        boolean isMulti = share.getFileIds() != null && !share.getFileIds().isEmpty();
 
-	public List<MasterFile> folderContents(String token, String password, String folderId) {
-		SharedResource share = validate(token, password);
-		boolean isMulti = share.getFileIds() != null && !share.getFileIds().isEmpty();
+        String driveName;
+        String driveType;
+        Long fileSize = 0L;
 
-		if (folderId == null) {
-			// 📂 ROOT OF THE SHARE
-			if (isMulti) {
-				return files.findAllById(share.getFileIds());
-			} else {
-				MasterFile folder = files.findById(share.getFileId()).orElseThrow(FileNotFoundException::new);
-				if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
-					throw new RuntimeException("The shared item is not a folder.");
-				}
-				return files.findByParentId(folder.getId());
-			}
-		} else {
-			// 📂 NAVIGATING INTO A SUB-FOLDER
-			if (!isUnderSharedRoot(folderId, share)) {
-				throw new ShareAccessDeniedException("You are not authorized to access this folder.");
-			}
-			MasterFile folder = files.findById(folderId).orElseThrow(FileNotFoundException::new);
-			if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
-				throw new RuntimeException("The requested item is not a folder.");
-			}
-			return files.findByParentId(folder.getId());
-		}
-	}
+        if (isMulti) {
+            driveName = "Shared Items (" + share.getFileIds().size() + " items)";
+            driveType = "MULTI";
+            fileSize = share.getFileIds().stream()
+                    .map(id -> files.findById(id).orElse(null))
+                    .filter(f -> f != null && f.getSize() != null)
+                    .mapToLong(MasterFile::getSize)
+                    .sum();
+        } else {
+            MasterFile file = files.findById(share.getFileId())
+                    .orElseThrow(FileNotFoundException::new);
+            driveName = file.getName();
+            driveType = file.getDriveType();
+            fileSize = file.getSize() != null ? file.getSize() : 0L;
+        }
 
-	private boolean isUnderSharedRoot(String itemId, SharedResource share) {
-		if (share.getFileIds() != null && !share.getFileIds().isEmpty()) {
-			for (String rootId : share.getFileIds()) {
-				if (isUnderSharedRoot(itemId, rootId))
-					return true;
-			}
-			return false;
-		}
-		return isUnderSharedRoot(itemId, share.getFileId());
-	}
+        String shareType;
+        if (share.getPassword() != null) {
+            shareType = "PROTECTED";
+        } else if (share.isPublicAccess()) {
+            shareType = "PUBLIC";
+        } else {
+            shareType = "USER_ONLY";
+        }
 
-	private boolean isUnderSharedRoot(String itemId, String sharedRootId) {
-		if (itemId.equals(sharedRootId))
-			return true;
-		String currentId = itemId;
-		Set<String> visited = new HashSet<>();
-		while (currentId != null && !visited.contains(currentId)) {
-			visited.add(currentId);
-			MasterFile current = files.findById(currentId).orElse(null);
-			if (current == null)
-				return false;
-			// 🛡️ FIX: Check if the current ID matches the root before trying to go up
-			// further
-			if (currentId.equals(sharedRootId))
-				return true;
-			String parentId = current.getParentId();
-			if (parentId == null)
-				break;
-			currentId = parentId;
-		}
-		return false;
-	}
+        SharePermission finalPermission = share.getPermission();
+        if (finalPermission == null) {
+            finalPermission = SharePermission.VIEW_DOWNLOAD;
+        }
+
+        return new PublicShareResponse(
+                share.getToken(),
+                driveName,
+                driveType,
+                shareType,
+                share.getExpiry(),
+                share.getCreatedAt(),
+                finalPermission,
+                share.getCreatedBy(),
+                fileSize
+        );
+    }
+
+    // ================= FILE / FOLDER CONTENTS =================
+
+    public MasterFile file(String token, String password) {
+        SharedResource share = validate(token, password);
+        return files.findById(share.getFileId())
+                .orElseThrow(FileNotFoundException::new);
+    }
+
+    public List<MasterFile> folderContents(String token, String password) {
+        return folderContents(token, password, null);
+    }
+
+    public List<MasterFile> folderContents(String token, String password, String folderId) {
+        SharedResource share = validate(token, password);
+        boolean isMulti = share.getFileIds() != null && !share.getFileIds().isEmpty();
+
+        if (folderId == null) {
+            if (isMulti) {
+                return files.findAllById(share.getFileIds());
+            } else {
+                MasterFile folder = files.findById(share.getFileId())
+                        .orElseThrow(FileNotFoundException::new);
+                if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
+                    throw new RuntimeException("The shared item is not a folder.");
+                }
+                return files.findByParentId(folder.getId());
+            }
+        } else {
+            if (!isUnderSharedRoot(folderId, share)) {
+                throw new ShareAccessDeniedException("You are not authorized to access this folder.");
+            }
+            MasterFile folder = files.findById(folderId)
+                    .orElseThrow(FileNotFoundException::new);
+            if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
+                throw new RuntimeException("The requested item is not a folder.");
+            }
+            return files.findByParentId(folder.getId());
+        }
+    }
+
+    // ================= SHARED WITH ME =================
+
+    public List<PublicShareResponse> getSharedWithMe(String currentUserEmail) {
+        List<SharedResource> shares = repo.findByPublicAccessFalseAndPasswordIsNull();
+        String currentUserTrimmed = currentUserEmail.trim();
+
+        return shares.stream()
+                .filter(share -> {
+                    if (share.getExpiry() != null && share.getExpiry().isBefore(LocalDateTime.now())) {
+                        return false;
+                    }
+                    boolean isOwner = share.getCreatedBy() != null && share.getCreatedBy().trim().equalsIgnoreCase(currentUserTrimmed);
+                    boolean isAllowed = share.getAllowedUsers() != null && share.getAllowedUsers().stream()
+                            .anyMatch(email -> email != null && email.trim().equalsIgnoreCase(currentUserTrimmed));
+                    return isOwner || isAllowed;
+                })
+                .map(share -> details(share.getToken(), null))
+                .collect(Collectors.toList());
+    }
+
+    // ================= SHARED BY ME =================
+
+    public List<PublicShareResponse> getSharedByMe(String currentUserEmail) {
+        List<SharedResource> shares = repo.findByCreatedBy(currentUserEmail);
+
+        return shares.stream()
+                .filter(share -> {
+                    if (share.getExpiry() != null && share.getExpiry().isBefore(LocalDateTime.now())) {
+                        return false;
+                    }
+                    return true;
+                })
+                .map(share -> details(share.getToken(), null))
+                .collect(Collectors.toList());
+    }
+
+    public void deleteShare(String token, String currentUserEmail) {
+        SharedResource share = repo.findByToken(token)
+                .orElseThrow(ShareNotFoundException::new);
+        if (!share.getCreatedBy().equals(currentUserEmail)) {
+            throw new ShareAccessDeniedException("You are not the owner of this share.");
+        }
+        repo.delete(share);
+    }
+
+    // ================= RECURSIVE HELPERS =================
+
+    private boolean isUnderSharedRoot(String itemId, SharedResource share) {
+        if (share.getFileIds() != null && !share.getFileIds().isEmpty()) {
+            for (String rootId : share.getFileIds()) {
+                if (isUnderSharedRoot(itemId, rootId)) return true;
+            }
+            return false;
+        }
+        return isUnderSharedRoot(itemId, share.getFileId());
+    }
+
+    private boolean isUnderSharedRoot(String itemId, String sharedRootId) {
+        if (itemId.equals(sharedRootId)) return true;
+        String currentId = itemId;
+        Set<String> visited = new HashSet<>();
+        while (currentId != null && !visited.contains(currentId)) {
+            visited.add(currentId);
+            MasterFile current = files.findById(currentId).orElse(null);
+            if (current == null) return false;
+            if (currentId.equals(sharedRootId)) return true;
+            String parentId = current.getParentId();
+            if (parentId == null) break;
+            currentId = parentId;
+        }
+        return false;
+    }
+
+    // ================= VALIDATION HELPER (for multi‑share nested files) =================
+
+    public void validateFileInShare(String token, String password, String fileId) {
+        SharedResource share = validate(token, password);
+        if (fileId == null || fileId.isBlank()) return;
+
+        boolean isAuthorized = false;
+        if (share.getFileIds() != null && share.getFileIds().contains(fileId)) {
+            isAuthorized = true;
+        } else if (share.getFileId() != null && share.getFileId().equals(fileId)) {
+            isAuthorized = true;
+        } else {
+            isAuthorized = isUnderSharedRoot(fileId, share);
+        }
+        if (!isAuthorized) {
+            throw new ShareAccessDeniedException("This file is not part of the shared resource.");
+        }
+    }
 }
