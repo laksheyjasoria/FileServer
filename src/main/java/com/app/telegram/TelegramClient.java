@@ -84,6 +84,8 @@ public class TelegramClient {
 		form.add("chat_id", connection.getChatId());
 
 		form.add("text", message);
+		
+		form.add("parse_mode", "HTML");
 
 		HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(form, headers);
 
