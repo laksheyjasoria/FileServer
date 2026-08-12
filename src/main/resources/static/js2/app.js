@@ -1,6 +1,17 @@
 // app.js - Main Application Initialization
 
 document.addEventListener('DOMContentLoaded', async () => {
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+    if (error === 'unauthorized') {
+        // Remove the query param from the URL
+        window.history.replaceState({}, document.title, '/index.html');
+        // Show message (use alert or toast)
+        alert('You are not authorized to access that page.');
+        // If you have a toast function: showToast('You are not authorized...');
+    }
+
     if (!jwtToken) {
         window.location.href = '/login.html';
         return;
@@ -60,14 +71,14 @@ async function loadUserInfo() {
 
 function setupSidebarNavigation() {
     const sidebarItems = document.querySelectorAll('.sidebar-item');
-    
+
     // 1. Check current URL and apply 'active' class automatically
     const currentPath = window.location.pathname;
     let activeView = 'my-drive';
     if (currentPath.includes('profile.html')) activeView = 'profile';
     else if (currentPath.includes('shared')) activeView = 'shared';
     else if (currentPath.includes('recent')) activeView = 'recent';
-    
+
     sidebarItems.forEach(item => {
         item.classList.toggle('active', item.dataset.view === activeView);
     });
@@ -85,22 +96,22 @@ function setupSidebarNavigation() {
             item.classList.add('active');
             const view = item.dataset.view;
 
-			if (view === 'my-drive') {
-			     window.location.href = '/index.html';
-			     return;
-			 }
-			 if (view === 'profile') {
-			     window.location.href = '/profile.html';
-			     return;
-			 }
-			 if (view === 'shared') {
-			     window.location.href = '/shared.html';
-			     return;
-			 }
-			 if (view === 'shared-by-me') {
-			     window.location.href = '/shared-by-me.html';
-			     return;
-			 }
+            if (view === 'my-drive') {
+                window.location.href = '/index.html';
+                return;
+            }
+            if (view === 'profile') {
+                window.location.href = '/profile.html';
+                return;
+            }
+            if (view === 'shared') {
+                window.location.href = '/shared.html';
+                return;
+            }
+            if (view === 'shared-by-me') {
+                window.location.href = '/shared-by-me.html';
+                return;
+            }
 
             currentFolderId = null;
             selectedItems.clear();
@@ -150,7 +161,7 @@ function renderSharedFiles(shares) {
     shares.forEach(item => {
         const isFolder = item.driveType === 'FOLDER' || item.driveType === 'MULTI';
         const icon = isFolder ? '📁' : getFileIcon(item.driveName);
-        
+
         let infoText = `Shared by ${escapeHtml(item.createdBy)}`;
         if (!isFolder && item.fileSize > 0) {
             infoText = `${formatFileSize(item.fileSize)} • ${infoText}`;

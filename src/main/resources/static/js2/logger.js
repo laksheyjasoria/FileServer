@@ -3,13 +3,62 @@
 let currentLoggers = [];
 let filteredLoggers = [];
 
-document.addEventListener('DOMContentLoaded', async () => {
-    const user = getUserFromToken();
-    const isAdmin = user && user.role === 'ADMIN';
+// ---------- TOKEN HELPERS ----------
+function decodeJwt(token) {
+    if (!token) return null;
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        const payload = parts[1];
+        const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+        return JSON.parse(decodeURIComponent(escape(json)));
+    } catch (e) {
+        console.error('Failed to decode token', e);
+        return null;
+    }
+}
 
-    if (!isAdmin || !isTokenValid()) {
+function getUserFromToken() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) return null;
+    const payload = decodeJwt(token);
+    if (!payload) return null;
+    return {
+        email: payload.sub || payload.username || '',
+        role: payload.role || ''
+    };
+}
+
+function isTokenValid() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) return false;
+    const payload = decodeJwt(token);
+    if (!payload) return false;
+    if (payload.exp) {
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp < now) return false;
+    }
+    return true;
+}
+
+// ---------- PAGE INIT ----------
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.href = '/login.html';
+        return;
+    }
+
+    if (!isTokenValid()) {
         localStorage.removeItem('jwtToken');
         window.location.href = '/login.html';
+        return;
+    }
+
+    const user = getUserFromToken();
+    const isAdmin = user && user.role === 'ADMIN';
+    if (!isAdmin) {
+        window.location.href = '/index.html?error=unauthorized';
         return;
     }
 
@@ -40,42 +89,6 @@ function loadUserInfo(user) {
     } else {
         avatarEl.textContent = 'A';
         avatarEl.style.background = '#1a73e8';
-    }
-}
-
-// ---------- TOKEN HELPERS ----------
-function getUserFromToken() {
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return null;
-    const payload = decodeJwt(token);
-    if (!payload) return null;
-    return {
-        email: payload.sub || payload.username || '',
-        role: payload.role || ''
-    };
-}
-
-function isTokenValid() {
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return false;
-    const payload = decodeJwt(token);
-    if (!payload) return false;
-    if (payload.exp) {
-        const now = Math.floor(Date.now() / 1000);
-        if (payload.exp < now) return false;
-    }
-    return true;
-}
-
-function decodeJwt(token) {
-    try {
-        const parts = token.split('.');
-        if (parts.length !== 3) return null;
-        const payload = parts[1];
-        const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-        return JSON.parse(decodeURIComponent(escape(json)));
-    } catch (e) {
-        return null;
     }
 }
 
@@ -192,8 +205,6 @@ async function createLogger() {
     const infoEnabled = document.getElementById('infoToggle').checked;
     const warnEnabled = document.getElementById('warnToggle').checked;
 
-    // The backend create endpoint only takes name; we need separate update to set toggles.
-    // We'll create first, then update with the desired settings.
     try {
         const createRes = await loggerApiCall(`/logger/create?name=${encodeURIComponent(name)}`, {
             method: 'POST'
@@ -203,9 +214,8 @@ async function createLogger() {
             alert('Failed to create logger: ' + errorText);
             return;
         }
-        const loggerId = await createRes.text(); // returns the ID
+        const loggerId = await createRes.text();
 
-        // Now update toggles
         const updateRes = await loggerApiCall(
             `/logger/${loggerId}?info=${infoEnabled}&warn=${warnEnabled}`,
             { method: 'PUT' }

@@ -51,7 +51,6 @@ async function adminFetch(endpoint, options = {}) {
         throw new Error('Unauthorized');
     }
 
-    // Build the full URL
     const url = `${API_URL}${endpoint}`;
 
     const response = await fetch(url, {
@@ -74,17 +73,26 @@ async function adminFetch(endpoint, options = {}) {
 
 // ---------- PAGE INIT ----------
 document.addEventListener('DOMContentLoaded', async () => {
-    const user = getUserFromToken();
-    const isAdmin = user && user.role === 'ADMIN';
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.href = '/login.html';
+        return;
+    }
 
-    // Redirect if not admin or token invalid/expired
-    if (!isAdmin || !isTokenValid()) {
+    if (!isTokenValid()) {
         localStorage.removeItem('jwtToken');
         window.location.href = '/login.html';
         return;
     }
 
-    // Show main app
+    const user = getUserFromToken();
+    const isAdmin = user && user.role === 'ADMIN';
+    if (!isAdmin) {
+        window.location.href = '/index.html?error=unauthorized';
+        return;
+    }
+
+    // Admin user with valid token → show main app
     document.getElementById('mainApp').style.display = 'block';
     loadUserInfo(user);
     await loadMasterDrives();
@@ -130,7 +138,6 @@ async function loadMasterDrives() {
             url += `/${adminCurrentFolderId}/contents`;
         }
 
-        // Use adminFetch (no alert)
         const response = await adminFetch(url);
         const drives = await response.json();
         adminAllDrives = drives;
@@ -142,7 +149,7 @@ async function loadMasterDrives() {
         }
         updateBreadcrumb();
     } catch (error) {
-        if (error.message === 'Unauthorized') return; // already redirected
+        if (error.message === 'Unauthorized') return;
         console.error('Error loading drives:', error);
         showError(container);
     }
