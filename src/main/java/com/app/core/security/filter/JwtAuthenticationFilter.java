@@ -90,7 +90,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // ---------- Admin JWT (Backup for all /admin/ endpoints) ----------
-        if (path.startsWith("/admin/")) {
+        if (path.startsWith("/admin/")|| path.startsWith("/logger/")) {
             return handleAdminJwt(request, response, chain);
         }
 

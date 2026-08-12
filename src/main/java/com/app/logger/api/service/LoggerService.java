@@ -1,5 +1,7 @@
 package com.app.logger.api.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 import com.app.core.exception.LoggerNotFoundException;
@@ -37,5 +39,9 @@ public class LoggerService {
 			throw new LoggerNotFoundException();
 		}
 		repo.deleteById(id);
+	}
+
+	public List<LoggerEntity> getAll() {
+		return repo.findAll();
 	}
 }

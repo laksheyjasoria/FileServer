@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logger Management</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📝</text></svg>">
+    <style>
+        /* Reuse styles from master.html */
+        .logger-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .logger-table th, .logger-table td {
+            text-align: left;
+            padding: 12px 8px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .logger-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #5f6368;
+        }
+        .logger-table tr:hover {
+            background: #f5f5f5;
+        }
+        .toggle-btn {
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+        .toggle-btn.on {
+            background: #e8f5e9;
+            border-color: #43a047;
+            color: #2e7d32;
+        }
+        .toggle-btn.off {
+            background: #ffebee;
+            border-color: #e53935;
+            color: #c62828;
+        }
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #d32f2f;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .delete-btn:hover {
+            color: #b71c1c;
+        }
+        .admin-badge {
+            background: #e8f0fe;
+            color: #1a73e8;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            margin-left: 12px;
+        }
+        #mainApp { display: none; }
+        .loading { text-align: center; padding: 40px; color: #5f6368; }
+        .empty-state { text-align: center; padding: 40px; color: #5f6368; }
+
+        /* Modal styles (from your example) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-card {
+            background: #fff;
+            max-width: 460px;
+            width: 90%;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        }
+        .modal-header {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 24px;
+        }
+        .form-group { margin-bottom: 24px; }
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #4a5568;
+            margin-bottom: 8px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 15px;
+            outline: none;
+        }
+        .form-input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+        }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+        .toggle-row:last-of-type { margin-bottom: 32px; }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #e2e8f0;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input:checked + .slider { background-color: #4CD964; }
+        input:checked + .slider:before { transform: translateX(24px); }
+        .toggle-label {
+            font-size: 15px;
+            color: #2d3748;
+            font-weight: 500;
+            user-select: none;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .btn-cancel {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+        .btn-cancel:hover { background-color: #e5e7eb; }
+        .btn-create {
+            background-color: #2563eb;
+            color: #fff;
+            box-shadow: 0 4px 6px rgba(37,99,235,0.15);
+        }
+        .btn-create:hover {
+            background-color: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(37,99,235,0.2);
+        }
+
+        /* Toast */
+        #toast {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #323232;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 3000;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main App -->
+    <div id="mainApp">
+        <div class="header">
+            <div class="logo">
+                <span class="logo-icon">📝</span>
+                <span class="logo-text">Logger Management</span>
+                <span class="admin-badge">ADMIN</span>
+            </div>
+            <div class="user-menu">
+                <span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
+                <div class="user-avatar" id="userAvatar">A</div>
+            </div>
+        </div>
+
+        <div class="app-container">
+            <div class="sidebar">
+                <div class="sidebar-item" onclick="window.location.href='/master.html'" style="cursor: pointer;">
+                    <span class="icon">🏢</span>
+                    <span>Master Drives</span>
+                </div>
+                <div class="sidebar-item active" data-view="logger">
+                    <span class="icon">📝</span>
+                    <span>Loggers</span>
+                </div>
+                <div class="sidebar-item" onclick="window.location.href='/index.html'" style="cursor: pointer;">
+                    <span class="icon">👤</span>
+                    <span>My Drive</span>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="toolbar">
+                    <div class="breadcrumb">
+                        <span class="breadcrumb-item">Loggers</span>
+                    </div>
+                    <div class="action-buttons">
+                        <input type="text" id="searchInput" placeholder="Search loggers..." style="padding: 6px 12px; border-radius: 4px; border: 1px solid #ddd; margin-right: 12px;">
+                        <button class="btn btn-primary" id="createLoggerBtn">➕ Create Logger</button>
+                    </div>
+                </div>
+
+                <div id="loggerContainer">
+                    <!-- Rendered by logger.js -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Logger Modal -->
+    <div class="modal-overlay" id="createModal">
+        <div class="modal-card">
+            <div class="modal-header">Create New Logger</div>
+            <div class="form-group">
+                <label class="form-label" for="loggerNameInput">Logger Name</label>
+                <input type="text" id="loggerNameInput" class="form-input" placeholder="Enter logger name">
+            </div>
+            <div class="toggle-row">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="infoToggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">Enable Info</span>
+            </div>
+            <div class="toggle-row">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="warnToggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">Enable Warn</span>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" id="cancelModalBtn">Cancel</button>
+                <button class="btn btn-create" id="confirmCreateBtn">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script src="/js2/config.js"></script>
+    <script src="/js2/utils.js"></script>
+    <script src="/js2/api.js"></script>
+    <script src="/js2/logger.js"></script>
+</body>
+</html>

@@ -1,6 +1,9 @@
 package com.app.logger.api.controller;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -37,12 +40,10 @@ public class LoggerController {
 	// 🔐 MASTER KEY REQUIRED
 	@PutMapping("/{id}")
 	public void update(@PathVariable String id, @RequestParam boolean info, @RequestParam boolean warn) {
-
-		LoggerEntity logger = loggerService.get(id);
-		logger.setInfoEnabled(info);
-		logger.setWarnEnabled(warn);
-
-		loggerService.create(logger.getName()); // reuse save logic
+	    LoggerEntity logger = loggerService.get(id);
+	    logger.setInfoEnabled(info);
+	    logger.setWarnEnabled(warn);
+	    loggerService.save(logger); // use save method to update
 	}
 
 	// 🔐 MASTER KEY REQUIRED
@@ -63,5 +64,10 @@ public class LoggerController {
 	public void error(@RequestParam String loggerId, @RequestParam String message) {
 
 		logService.error(loggerId, message);
+	}
+
+	@GetMapping("/list")
+	public List<LoggerEntity> listAll() {
+		return loggerService.getAll(); // implement this in LoggerService
 	}
 }
