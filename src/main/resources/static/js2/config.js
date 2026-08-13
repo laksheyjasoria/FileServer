@@ -14,6 +14,12 @@ let contextMenuItem = null;
 let pendingAction = null;
 let pendingItems = [];
 
+// Helper: refresh jwtToken from localStorage (useful after login)
+function refreshToken() {
+    jwtToken = localStorage.getItem('jwtToken');
+    return jwtToken;
+}
+
 function decodeJwt(token) {
     if (!token) return null;
     try {
@@ -29,6 +35,7 @@ function decodeJwt(token) {
 }
 
 function getUserFromToken() {
+    // Use the global jwtToken variable
     const payload = decodeJwt(jwtToken);
     if (!payload) return null;
     return {

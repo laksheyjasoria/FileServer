@@ -116,6 +116,9 @@ async function loadLoggers() {
     } catch (e) {
         if (e.message !== 'Unauthorized') {
             container.innerHTML = '<div class="empty-state">Failed to load loggers.</div>';
+            if (typeof showToast === 'function') {
+                showToast('Failed to load loggers: ' + e.message, 'error');
+            }
         }
     }
 }
@@ -198,7 +201,11 @@ async function createLogger() {
     const nameInput = document.getElementById('loggerNameInput');
     const name = nameInput.value.trim();
     if (!name) {
-        alert('Please enter a logger name');
+        if (typeof showToast === 'function') {
+            showToast('Please enter a logger name', 'warning');
+        } else {
+            alert('Please enter a logger name');
+        }
         return;
     }
 
@@ -211,7 +218,11 @@ async function createLogger() {
         });
         if (!createRes.ok) {
             const errorText = await createRes.text();
-            alert('Failed to create logger: ' + errorText);
+            if (typeof showToast === 'function') {
+                showToast('Failed to create logger: ' + errorText, 'error');
+            } else {
+                alert('Failed to create logger: ' + errorText);
+            }
             return;
         }
         const loggerId = await createRes.text();
@@ -221,14 +232,26 @@ async function createLogger() {
             { method: 'PUT' }
         );
         if (!updateRes.ok) {
-            alert('Logger created but failed to set initial toggles');
+            if (typeof showToast === 'function') {
+                showToast('Logger created but failed to set initial toggles', 'warning');
+            } else {
+                alert('Logger created but failed to set initial toggles');
+            }
         }
 
-        showToast(`Logger "${name}" created`);
+        if (typeof showToast === 'function') {
+            showToast(`Logger "${name}" created successfully`, 'success');
+        }
         hideCreateModal();
         await loadLoggers();
     } catch (e) {
-        if (e.message !== 'Unauthorized') alert('Error: ' + e.message);
+        if (e.message !== 'Unauthorized') {
+            if (typeof showToast === 'function') {
+                showToast('Error: ' + e.message, 'error');
+            } else {
+                alert('Error: ' + e.message);
+            }
+        }
     }
 }
 
@@ -246,13 +269,25 @@ async function toggleLogger(id, type, newValue) {
             { method: 'PUT' }
         );
         if (res.ok) {
-            showToast(`Updated ${type} to ${newValue ? 'ON' : 'OFF'}`);
+            if (typeof showToast === 'function') {
+                showToast(`Updated ${type} to ${newValue ? 'ON' : 'OFF'}`, 'info');
+            }
             await loadLoggers();
         } else {
-            alert('Update failed');
+            if (typeof showToast === 'function') {
+                showToast('Update failed', 'error');
+            } else {
+                alert('Update failed');
+            }
         }
     } catch (e) {
-        if (e.message !== 'Unauthorized') alert('Error: ' + e.message);
+        if (e.message !== 'Unauthorized') {
+            if (typeof showToast === 'function') {
+                showToast('Error: ' + e.message, 'error');
+            } else {
+                alert('Error: ' + e.message);
+            }
+        }
     }
 }
 
@@ -260,6 +295,7 @@ async function toggleLogger(id, type, newValue) {
 async function deleteLogger(id) {
     const logger = currentLoggers.find(l => l.id === id);
     if (!logger) return;
+    // Native confirm (since no modal system)
     if (!confirm(`Delete logger "${logger.name}"?`)) return;
 
     try {
@@ -267,13 +303,25 @@ async function deleteLogger(id) {
             method: 'DELETE'
         });
         if (res.ok) {
-            showToast(`Logger "${logger.name}" deleted`);
+            if (typeof showToast === 'function') {
+                showToast(`Logger "${logger.name}" deleted`, 'success');
+            }
             await loadLoggers();
         } else {
-            alert('Delete failed');
+            if (typeof showToast === 'function') {
+                showToast('Delete failed', 'error');
+            } else {
+                alert('Delete failed');
+            }
         }
     } catch (e) {
-        if (e.message !== 'Unauthorized') alert('Error: ' + e.message);
+        if (e.message !== 'Unauthorized') {
+            if (typeof showToast === 'function') {
+                showToast('Error: ' + e.message, 'error');
+            } else {
+                alert('Error: ' + e.message);
+            }
+        }
     }
 }
 
@@ -284,12 +332,5 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
-function showToast(msg) {
-    const toast = document.getElementById('toast');
-    toast.textContent = msg;
-    toast.style.display = 'block';
-    clearTimeout(toast._timer);
-    toast._timer = setTimeout(() => {
-        toast.style.display = 'none';
-    }, 3000);
-}
+// Note: showToast is provided globally by toast.js
+// We removed the local showToast definition

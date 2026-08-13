@@ -1,4 +1,14 @@
 // Utility Functions (static2)
+
+// Global toast helper – uses showToast if available, falls back to alert
+function safeToast(message, type = 'info', duration = 3000) {
+    if (typeof showToast === 'function') {
+        showToast(message, type, duration);
+    } else {
+        alert(message);
+    }
+}
+
 function formatFileSize(bytes) {
     if (!bytes) return '0 B';
     const sizes = ['B', 'KB', 'MB', 'GB'];

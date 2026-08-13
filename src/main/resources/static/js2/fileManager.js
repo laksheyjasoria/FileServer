@@ -21,6 +21,9 @@ async function loadFiles() {
     } catch (error) {
         console.error('Error loading files:', error);
         showError(container);
+        if (typeof showToast === 'function') {
+            showToast('Failed to load files: ' + error.message, 'error');
+        }
     }
 }
 
@@ -160,7 +163,11 @@ async function openFolder(folderId, folderName, isProtected) {
             });
 
             if (response.status === 403) {
-                alert('Invalid password!');
+                if (typeof showToast === 'function') {
+                    showToast('Invalid password!', 'error');
+                } else {
+                    alert('Invalid password!');
+                }
                 return;
             }
 
@@ -171,7 +178,11 @@ async function openFolder(folderId, folderName, isProtected) {
             navigateToFolder(folderId);
         } catch (error) {
             console.error('Error accessing protected folder:', error);
-            alert('Failed to access folder');
+            if (typeof showToast === 'function') {
+                showToast('Failed to access folder: ' + error.message, 'error');
+            } else {
+                alert('Failed to access folder');
+            }
         }
     } else {
         navigateToFolder(folderId);
@@ -220,7 +231,9 @@ function viewFile(fileId, filename) {
 }
 
 async function downloadFile(fileId, filename) {
-    showDownloadOverlay('Preparing your file...'); // 👈 Show global loading
+    if (typeof showToast === 'function') {
+        showToast('Preparing download...', 'info', 2000);
+    }
     try {
         const response = await apiCall(`/download/${fileId}`);
         if (!response.ok) throw new Error('Download failed');
@@ -233,11 +246,16 @@ async function downloadFile(fileId, filename) {
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
+        if (typeof showToast === 'function') {
+            showToast('File downloaded successfully.', 'success');
+        }
     } catch (error) {
         console.error('Error downloading file:', error);
-        alert('Failed to download file');
-    } finally {
-        hideDownloadOverlay(); // 👈 Hide global loading
+        if (typeof showToast === 'function') {
+            showToast('Failed to download file: ' + error.message, 'error');
+        } else {
+            alert('Failed to download file');
+        }
     }
 }
 
@@ -245,11 +263,18 @@ async function deleteItem(id) {
     try {
         const item = allFiles.find(f => f.id === id);
         if (!item) {
-            alert('Item not found');
+            if (typeof showToast === 'function') {
+                showToast('Item not found', 'error');
+            } else {
+                alert('Item not found');
+            }
             return;
         }
 
-        if (!confirm(`Are you sure you want to delete "${item.name}"?`)) return;
+        // Native confirm (since we don't have modal)
+        if (!confirm(`Are you sure you want to delete "${item.name}"? This cannot be undone.`)) {
+            return;
+        }
 
         const response = await apiCall('/resources/action', {
             method: 'POST',
@@ -260,27 +285,48 @@ async function deleteItem(id) {
 
         selectedItems.delete(id);
         await loadFiles();
-        alert(`"${item.name}" deleted successfully`);
+        if (typeof showToast === 'function') {
+            showToast(`"${item.name}" deleted successfully`, 'success');
+        } else {
+            alert(`"${item.name}" deleted successfully`);
+        }
     } catch (error) {
         console.error('Error deleting item:', error);
-        alert('Failed to delete item: ' + error.message);
+        if (typeof showToast === 'function') {
+            showToast('Failed to delete item: ' + error.message, 'error');
+        } else {
+            alert('Failed to delete item: ' + error.message);
+        }
     }
 }
 
 async function deleteSelected() {
-    if (selectedItems.size === 0) return;
+    if (selectedItems.size === 0) {
+        if (typeof showToast === 'function') {
+            showToast('No items selected to delete.', 'warning');
+        } else {
+            alert('No items selected.');
+        }
+        return;
+    }
 
     const itemsToDelete = Array.from(selectedItems).map(id =>
         allFiles.find(f => f.id === id)
     ).filter(item => item != null);
 
     if (itemsToDelete.length === 0) {
-        alert('No items to delete');
+        if (typeof showToast === 'function') {
+            showToast('No valid items to delete.', 'warning');
+        } else {
+            alert('No items to delete');
+        }
         return;
     }
 
-    const confirmMsg = `Delete ${itemsToDelete.length} item(s)? This cannot be undone.`;
-    if (!confirm(confirmMsg)) return;
+    // Native confirm
+    if (!confirm(`Delete ${itemsToDelete.length} item(s)? This cannot be undone.`)) {
+        return;
+    }
 
     try {
         const response = await apiCall('/resources/action', {
@@ -292,21 +338,35 @@ async function deleteSelected() {
 
         selectedItems.clear();
         await loadFiles();
-        alert(`Deleted ${itemsToDelete.length} item(s) successfully`);
+        if (typeof showToast === 'function') {
+            showToast(`Deleted ${itemsToDelete.length} item(s) successfully`, 'success');
+        } else {
+            alert(`Deleted ${itemsToDelete.length} item(s) successfully`);
+        }
     } catch (error) {
         console.error('Error deleting items:', error);
-        alert('Failed to delete items: ' + error.message);
+        if (typeof showToast === 'function') {
+            showToast('Failed to delete items: ' + error.message, 'error');
+        } else {
+            alert('Failed to delete items: ' + error.message);
+        }
     }
 }
 
 async function downloadSelected() {
     const selectedIds = Array.from(selectedItems);
     if (selectedIds.length === 0) {
-        alert('Select at least one item to download.');
+        if (typeof showToast === 'function') {
+            showToast('Select at least one item to download.', 'warning');
+        } else {
+            alert('Select at least one item to download.');
+        }
         return;
     }
 
-    showDownloadOverlay('Preparing your ZIP file...'); // 👈 Show global loading
+    if (typeof showToast === 'function') {
+        showToast('Preparing ZIP download...', 'info', 2000);
+    }
 
     try {
         const response = await apiCall('/download/bulk', {
@@ -326,14 +386,18 @@ async function downloadSelected() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
 
-        // Clear selection after download
         selectedItems.clear();
         renderFiles(allFiles);
+        if (typeof showToast === 'function') {
+            showToast('Download completed successfully.', 'success');
+        }
     } catch (error) {
         console.error('Error downloading items:', error);
-        alert('Failed to download items: ' + error.message);
-    } finally {
-        hideDownloadOverlay(); // 👈 Hide global loading
+        if (typeof showToast === 'function') {
+            showToast('Failed to download items: ' + error.message, 'error');
+        } else {
+            alert('Failed to download items: ' + error.message);
+        }
     }
 }
 

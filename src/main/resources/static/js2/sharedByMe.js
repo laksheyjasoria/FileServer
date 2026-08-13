@@ -25,16 +25,13 @@ function getFileIcon(filename) {
     };
     return icons[ext] || '📎';
 }
-function showToast(message, type = 'success') {
-    // Reuse the same Toast element from profile.js or create a fallback
-    const toast = document.getElementById('toast');
-    if (toast) {
-        toast.textContent = message;
-        toast.className = type + ' show';
-        clearTimeout(toast._timeout);
-        toast._timeout = setTimeout(() => { toast.className = ''; }, 3000);
+
+// Use global showToast if available, else fallback to alert
+function safeToast(message, type = 'info', duration = 3000) {
+    if (typeof showToast === 'function') {
+        showToast(message, type, duration);
     } else {
-        alert(message); // fallback if toast element missing
+        alert(message);
     }
 }
 
@@ -47,6 +44,7 @@ async function loadSharedByMe() {
     const container = document.getElementById('fileContainer');
     if (!container) {
         console.error("❌ CRITICAL: 'fileContainer' not found in DOM!");
+        safeToast('Page error: file container not found.', 'error');
         return;
     }
 
@@ -66,12 +64,15 @@ async function loadSharedByMe() {
 
         if (shares && shares.length > 0) {
             renderSharedByMe(shares);
+            safeToast(`Loaded ${shares.length} shared item(s).`, 'info', 2000);
         } else {
             showEmptyState(container, 'You have not created any shares yet', '');
+            safeToast('No shares created yet.', 'info', 2000);
         }
     } catch (error) {
         console.error("❌ Error in loadSharedByMe():", error);
         showError(container);
+        safeToast('Failed to load shared items: ' + error.message, 'error');
     }
 }
 
@@ -139,20 +140,21 @@ function showSharedByMeContextMenu(event, token, name) {
 async function copyShareLink(token) {
     try {
         await navigator.clipboard.writeText(`${window.location.origin}/share2.html?token=${token}`);
-        showToast('Link copied to clipboard!', 'success');
+        safeToast('Link copied to clipboard!', 'success');
     } catch (err) {
-        showToast('Failed to copy link.', 'error');
+        safeToast('Failed to copy link.', 'error');
     }
 }
 
 async function deleteShare(token) {
+    // Native confirm (since no modal system)
     if (!confirm('Are you sure you want to delete this share?')) return;
     try {
         const response = await apiCall(`/share/${token}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Delete failed');
-        showToast('Share deleted successfully.', 'success');
-        loadSharedByMe();
+        safeToast('Share deleted successfully.', 'success');
+        await loadSharedByMe();
     } catch (error) {
-        showToast('Failed to delete share: ' + error.message, 'error');
+        safeToast('Failed to delete share: ' + error.message, 'error');
     }
 }

@@ -29,7 +29,11 @@ function showCreateFolderModal() {
 async function createFolder() {
     const name = document.getElementById('folderName').value.trim();
     if (!name) {
-        alert('Please enter a folder name');
+        if (typeof showToast === 'function') {
+            showToast('Please enter a folder name', 'warning');
+        } else {
+            alert('Please enter a folder name');
+        }
         return;
     }
 
@@ -37,14 +41,22 @@ async function createFolder() {
     const password = document.getElementById('folderPassword').value;
 
     if (isPrivate && (!password || password.length < 4)) {
-        alert('Please enter a password (minimum 4 characters) for private folder');
+        if (typeof showToast === 'function') {
+            showToast('Please enter a password (minimum 4 characters) for private folder', 'warning');
+        } else {
+            alert('Please enter a password (minimum 4 characters) for private folder');
+        }
         return;
     }
 
     try {
         await checkDuplicateName(name, currentFolderId);
     } catch (error) {
-        alert(error.message);
+        if (typeof showToast === 'function') {
+            showToast(error.message, 'error');
+        } else {
+            alert(error.message);
+        }
         return;
     }
 
@@ -73,14 +85,22 @@ async function createFolder() {
             throw new Error(text || 'Failed to create folder');
         }
 
-        alert(`Folder "${name}" created successfully.`);
+        if (typeof showToast === 'function') {
+            showToast(`Folder "${name}" created successfully.`, 'success');
+        } else {
+            alert(`Folder "${name}" created successfully.`);
+        }
         closeModal('folderModal');
         resetFolderModal();
         await loadFiles();
 
     } catch (error) {
         console.error('Error creating folder:', error);
-        alert('Failed to create folder: ' + error.message);
+        if (typeof showToast === 'function') {
+            showToast('Failed to create folder: ' + error.message, 'error');
+        } else {
+            alert('Failed to create folder: ' + error.message);
+        }
     } finally {
         createBtn.textContent = originalText;
         createBtn.disabled = false;
@@ -95,12 +115,21 @@ function showRenameModal(id, currentName) {
 
 async function executeRename() {
     const newName = document.getElementById('newName').value.trim();
-    if (!newName) return;
+    if (!newName) {
+        if (typeof showToast === 'function') {
+            showToast('Please enter a new name', 'warning');
+        }
+        return;
+    }
 
     try {
         await checkDuplicateName(newName, contextMenuItem.parentId || currentFolderId);
     } catch (error) {
-        alert(error.message);
+        if (typeof showToast === 'function') {
+            showToast(error.message, 'error');
+        } else {
+            alert(error.message);
+        }
         return;
     }
 
@@ -121,10 +150,17 @@ async function executeRename() {
         }
 
         closeModal('renameModal');
+        if (typeof showToast === 'function') {
+            showToast('Item renamed successfully.', 'success');
+        }
         await loadFiles();
     } catch (error) {
         console.error('Error renaming:', error);
-        alert('Failed to rename: ' + error.message);
+        if (typeof showToast === 'function') {
+            showToast('Failed to rename: ' + error.message, 'error');
+        } else {
+            alert('Failed to rename: ' + error.message);
+        }
     }
 }
 
@@ -207,8 +243,17 @@ async function executeMove() {
     pendingAction = null;
 
     if (successCount > 0) {
-        alert(`${completedAction === 'copy' ? 'Copied' : 'Moved'} ${successCount} item(s) successfully. ${failCount > 0 ? `Failed to ${completedAction} ${failCount} item(s).` : ''}`);
+        const msg = `${completedAction === 'copy' ? 'Copied' : 'Moved'} ${successCount} item(s) successfully. ${failCount > 0 ? `Failed to ${completedAction} ${failCount} item(s).` : ''}`;
+        if (typeof showToast === 'function') {
+            showToast(msg, failCount > 0 ? 'warning' : 'success');
+        } else {
+            alert(msg);
+        }
     } else if (failCount > 0) {
-        alert(`Failed to ${completedAction} ${failCount} item(s). Please try again.`);
+        if (typeof showToast === 'function') {
+            showToast(`Failed to ${completedAction} ${failCount} item(s). Please try again.`, 'error');
+        } else {
+            alert(`Failed to ${completedAction} ${failCount} item(s). Please try again.`);
+        }
     }
 }

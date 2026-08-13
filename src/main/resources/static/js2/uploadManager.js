@@ -1,4 +1,14 @@
 // Upload Operations (static2 - adjusted endpoints)
+
+// Helper: Use global toast or fallback to alert
+function safeToast(message, type = 'info', duration = 3000) {
+    if (typeof showToast === 'function') {
+        showToast(message, type, duration);
+    } else {
+        alert(message);
+    }
+}
+
 function addToUploadQueue(files) {
     const uploadQueueDiv = document.getElementById('uploadQueue');
     const uploadList = document.getElementById('uploadList');
@@ -52,12 +62,13 @@ async function startUpload(uploadId) {
 
         const exists = items.some(item => item.name.toLowerCase() === uploadItem.file.name.toLowerCase());
         if (exists) {
-            alert(`File "${uploadItem.file.name}" already exists in this location. Upload cancelled.`);
+            safeToast(`File "${uploadItem.file.name}" already exists in this location. Upload cancelled.`, 'warning');
             cancelUpload(uploadId);
             return;
         }
     } catch (error) {
         console.error('Error checking duplicate:', error);
+        safeToast('Failed to check for duplicate file. Upload may proceed.', 'warning');
     }
 
     uploadItem.status = 'uploading';
@@ -72,6 +83,7 @@ async function startUpload(uploadId) {
     if (!jwtToken) {
         uploadItem.status = 'failed';
         updateUploadStatus(uploadId, 'Please login again to upload', true);
+        safeToast('Please login again to upload', 'error');
         return;
     }
 
@@ -95,6 +107,7 @@ async function startUpload(uploadId) {
             updateUploadStatus(uploadId, 'Completed ✅', true);
             const cancelBtn = document.querySelector(`#upload-${uploadId} .cancel-upload`);
             if (cancelBtn) cancelBtn.remove();
+            safeToast(`File "${uploadItem.file.name}" uploaded successfully.`, 'success');
             loadFiles();
         } else {
             uploadItem.status = 'failed';
@@ -106,12 +119,14 @@ async function startUpload(uploadId) {
                 message = xhr.responseText || message;
             }
             updateUploadStatus(uploadId, `${message} (HTTP ${xhr.status})`, true);
+            safeToast(`Upload failed: ${message}`, 'error');
         }
     };
 
     xhr.onerror = () => {
         uploadItem.status = 'failed';
         updateUploadStatus(uploadId, 'Failed ❌', true);
+        safeToast('Network error during upload. Please try again.', 'error');
     };
 
     xhr.open('POST', `${API_URL}/upload`);

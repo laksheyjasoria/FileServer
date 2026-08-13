@@ -1,119 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - File Server</title>
+    <title>Login - File Server</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/toast.css"> <!-- ✅ your existing toast CSS -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .signup-container { background: white; border-radius: 8px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); width: 400px; max-width: 90%; padding: 40px; }
+        .login-container { background: white; border-radius: 8px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); width: 400px; max-width: 90%; padding: 40px; }
         .logo { text-align: center; margin-bottom: 30px; }
         .logo-icon { font-size: 48px; }
         .logo-text { font-size: 24px; font-weight: 500; color: #5f6368; margin-top: 8px; }
-        .error-message { background: #fce8e6; color: #c5221f; padding: 12px; border-radius: 4px; margin-bottom: 20px; font-size: 14px; display: none; }
-        .success-message { background: #e6f4ea; color: #137333; padding: 12px; border-radius: 4px; margin-bottom: 20px; font-size: 14px; display: none; }
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; margin-bottom: 8px; color: #5f6368; font-size: 14px; }
-        .form-group input { width: 100%; padding: 12px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 14px; transition: all .2s; }
-        .form-group input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,.2); }
-        .btn-signup { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; transition: background .2s; }
-        .btn-signup:hover { background: #1557b0; }
-        .login-link { text-align: center; margin-top: 20px; font-size: 14px; color: #5f6368; }
-        .login-link a { color: #1a73e8; text-decoration: none; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 14px; transition: all 0.2s; }
+        .form-group input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2); }
+        .btn-login { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+        .btn-login:hover { background: #1557b0; }
+        .register-link { text-align: center; margin-top: 20px; font-size: 14px; color: #5f6368; }
+        .register-link a { color: #1a73e8; text-decoration: none; }
+        .google-divider { margin-top: 20px; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
     </style>
 </head>
 <body>
-    <div class="signup-container">
+    <div class="login-container">
         <div class="logo">
             <div class="logo-icon">📁</div>
             <div class="logo-text">File Server</div>
         </div>
 
-        <div class="error-message" id="errorMessage"></div>
-        <div class="success-message" id="successMessage"></div>
-
-        <form onsubmit="register(event)">
-            <div class="form-group">
-                <label>Full Name</label>
-                <input type="text" id="name" required placeholder="Enter your name">
-            </div>
+        <form onsubmit="login(event)">
             <div class="form-group">
                 <label>Email</label>
                 <input type="email" id="email" required placeholder="Enter your email">
             </div>
             <div class="form-group">
                 <label>Password</label>
-                <input type="password" id="password" required placeholder="Create a password">
+                <input type="password" id="password" required placeholder="Enter your password">
             </div>
-            <!-- 👇 Added Profile Photo Input -->
-            <div class="form-group">
-                <label>Profile Photo (Optional)</label>
-                <input type="file" id="signupPhoto" accept="image/*" />
-            </div>
-            <button type="submit" class="btn-signup">Create Account</button>
+            <button type="submit" class="btn-login">Sign In</button>
         </form>
 
-        <div class="login-link">
-            Already have an account? <a href="/login.html">Sign In</a>
+        <!-- Google Sign-In Container -->
+        <div class="google-divider">
+            <div id="g_id_onload" data-callback="handleCredentialResponse"></div>
+            <div class="g_id_signin" data-type="standard"></div>
+        </div>
+
+        <div class="register-link">
+            Don't have an account? <a href="/signup.html">Sign up</a>
         </div>
     </div>
 
+    <!-- Toast container (required by toast.js) -->
+    <div id="toast-container"></div>
+
+    <!-- Scripts -->
     <script>
         const API_URL = window.location.origin;
 
-        // 👇 Updated register function to support FormData (for file upload)
-        async function register(event) {
+        async function login(event) {
             event.preventDefault();
-            const name = document.getElementById('name').value.trim();
-            const email = document.getElementById('email').value.trim();
+            const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const photoFile = document.getElementById('signupPhoto').files[0];
-
-            const formData = new FormData();
-            formData.append('name', name);
-            formData.append('email', email);
-            formData.append('password', password);
-            if (photoFile) {
-                formData.append('file', photoFile);
-            }
-
             try {
-                const response = await fetch(`${API_URL}/auth/register`, {
+                const response = await fetch(`${API_URL}/auth/login`, {
                     method: 'POST',
-                    body: formData // FormData automatically sets Content-Type to multipart/form-data
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
                 });
-
                 const result = await response.json();
-
                 if (response.ok && result.success) {
-                    showSuccess("Registration successful. Redirecting...");
-                    localStorage.setItem("jwtToken", result.data);
-                    localStorage.setItem("userEmail", email);
-                    setTimeout(() => { window.location.href = "/index.html"; }, 1200);
+                    localStorage.setItem('jwtToken', result.data);
+                    localStorage.setItem('userEmail', email);
+                    showToast('Login successful. Redirecting...', 'success', 2000);
+                    setTimeout(() => { window.location.href = '/index.html'; }, 1500);
                 } else {
-                    showError(result.message || "Registration failed");
+                    showToast(result.message || 'Invalid email or password', 'error');
                 }
-            } catch (e) {
-                showError("Network error. Please try again.");
+            } catch (error) {
+                showToast('Network error. Please try again.', 'error');
             }
         }
 
-        function showError(message) {
-            const div = document.getElementById("errorMessage");
-            div.innerText = message;
-            div.style.display = "block";
-            document.getElementById("successMessage").style.display = "none";
-            setTimeout(() => { div.style.display = "none"; }, 3000);
-        }
-
-        function showSuccess(message) {
-            const div = document.getElementById("successMessage");
-            div.innerText = message;
-            div.style.display = "block";
-            document.getElementById("errorMessage").style.display = "none";
-        }
+        // Google Sign-In callback (will be handled by googleAuth.js)
+        window.handleCredentialResponse = function(response) {
+            // googleAuth.js will handle this
+        };
     </script>
+
+    <!-- Google SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Your existing JS files -->
+    <script src="/js2/googleAuth.js"></script>
+    <script src="/js2/toast.js"></script> <!-- ✅ your existing toast system -->
 </body>
 </html>

@@ -8,15 +8,7 @@ function requireAuth() {
     return true;
 }
 
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    if (toast) {
-        toast.textContent = message;
-        toast.className = type + ' show';
-        clearTimeout(toast._timeout);
-        toast._timeout = setTimeout(() => { toast.className = ''; }, 3000);
-    }
-}
+// showToast is now provided globally by toast.js - removed local implementation
 
 async function loadProfile() {
     if (!requireAuth()) return;
@@ -39,7 +31,9 @@ async function loadProfile() {
         
         if (res.status === 401) {
             localStorage.removeItem('jwtToken');
-            showToast('Session expired. Redirecting to login...', 'error');
+            if (typeof showToast === 'function') {
+                showToast('Session expired. Redirecting to login...', 'error', 2000);
+            }
             setTimeout(() => window.location.href = '/login.html', 1000);
             return;
         }
@@ -76,11 +70,15 @@ async function loadProfile() {
             }
         } else {
             fallbackToDefaultAvatar();
-            showToast('Unable to load profile details', 'error');
+            if (typeof showToast === 'function') {
+                showToast('Unable to load profile details', 'error');
+            }
         }
     } catch (e) {
         fallbackToDefaultAvatar();
-        showToast('Network error loading profile', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Network error loading profile', 'error');
+        }
     }
 }
 
@@ -95,13 +93,19 @@ async function saveProfile() {
         });
         const json = await res.json();
         if (res.ok && json.success) {
-            showToast('Profile updated successfully!');
+            if (typeof showToast === 'function') {
+                showToast('Profile updated successfully!', 'success');
+            }
             loadProfile();
         } else {
-            showToast(json.message || 'Update failed', 'error');
+            if (typeof showToast === 'function') {
+                showToast(json.message || 'Update failed', 'error');
+            }
         }
     } catch (e) {
-        showToast('Network error saving profile', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Network error saving profile', 'error');
+        }
     }
 }
 
@@ -110,7 +114,9 @@ async function uploadPhoto() {
     const fileInput = document.getElementById('photoFile');
     const file = fileInput.files[0];
     if (!file) { 
-        showToast('Please choose an image to upload', 'error'); 
+        if (typeof showToast === 'function') {
+            showToast('Please choose an image to upload', 'error');
+        }
         return; 
     }
     const formData = new FormData();
@@ -123,13 +129,19 @@ async function uploadPhoto() {
         });
         const json = await res.json();
         if (res.ok && json.success) {
-            showToast('Photo uploaded successfully!');
+            if (typeof showToast === 'function') {
+                showToast('Photo uploaded successfully!', 'success');
+            }
             loadProfile();
         } else {
-            showToast(json.message || 'Photo upload failed', 'error');
+            if (typeof showToast === 'function') {
+                showToast(json.message || 'Photo upload failed', 'error');
+            }
         }
     } catch (e) {
-        showToast('Network error uploading photo', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Network error uploading photo', 'error');
+        }
     }
 }
 
@@ -137,7 +149,9 @@ async function changePassword() {
     const oldP = document.getElementById('oldPassword').value;
     const newP = document.getElementById('newPassword').value;
     if(!oldP || !newP) {
-        showToast('Please fill in both password fields', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Please fill in both password fields', 'error');
+        }
         return;
     }
     try {
@@ -148,14 +162,20 @@ async function changePassword() {
         });
         const json = await res.json();
         if (res.ok && json.success) {
-            showToast('Password changed successfully!');
+            if (typeof showToast === 'function') {
+                showToast('Password changed successfully!', 'success');
+            }
             document.getElementById('oldPassword').value = '';
             document.getElementById('newPassword').value = '';
         } else {
-            showToast(json.message || 'Failed to change password', 'error');
+            if (typeof showToast === 'function') {
+                showToast(json.message || 'Failed to change password', 'error');
+            }
         }
     } catch (e) {
-        showToast('Network error changing password', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Network error changing password', 'error');
+        }
     }
 }
 
@@ -172,4 +192,4 @@ document.addEventListener('DOMContentLoaded', () => {
 window.saveProfile = saveProfile;
 window.uploadPhoto = uploadPhoto;
 window.changePassword = changePassword;
-window.showToast = showToast;
+// showToast is already global from toast.js, no need to expose it again

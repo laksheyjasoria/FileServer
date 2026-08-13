@@ -3,8 +3,15 @@ function setupSidebarNavigation() {
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', () => {
             if (item.id === 'signOutBtn') {
+                // Show toast before signing out
+                if (typeof showToast === 'function') {
+                    showToast('Signing out...', 'info', 1500);
+                }
                 localStorage.removeItem('jwtToken');
-                window.location.href = '/login.html';
+                // Small delay to let the toast appear
+                setTimeout(() => {
+                    window.location.href = '/login.html';
+                }, 500);
                 return;
             }
 

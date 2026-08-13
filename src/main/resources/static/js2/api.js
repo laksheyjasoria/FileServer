@@ -1,6 +1,9 @@
 // API Calls (static2) - Backend API wrapper
-async function apiCall(endpoint, options = {}) {
 
+// Flag to prevent multiple 401 redirects
+let _redirecting = false;
+
+async function apiCall(endpoint, options = {}) {
     const response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
         headers: {
@@ -11,23 +14,31 @@ async function apiCall(endpoint, options = {}) {
     });
 
     if (response.status === 401) {
-
         localStorage.removeItem('jwtToken');
-
-        alert('Session expired. Please login again.');
-
-        window.location.href = '/login.html';
-
+        if (!_redirecting) {
+            _redirecting = true;
+            const msg = 'Session expired. Please login again.';
+            // Use toast if available, fallback to alert
+            if (typeof showToast === 'function') {
+                showToast(msg, 'error', 3000);
+            } else {
+                alert(msg);
+            }
+            // Redirect after a moment to let the toast show
+            setTimeout(() => {
+                window.location.href = '/login.html';
+            }, 1500);
+        }
         throw new Error('Unauthorized');
     }
 
     return response;
 }
+
 // Load all files from backend - returns flat list, no folder hierarchy
 async function loadAllFiles() {
     try {
         const response = await apiCall('/drive');
-
         if (!response.ok) throw new Error('Failed to load files');
         const files = await response.json();
         return files.map(file => ({
@@ -37,7 +48,6 @@ async function loadAllFiles() {
             driveType: file.driveType || (file.fileId ? 'FILE' : 'FOLDER'),
             accessType: file.accessType || 'PUBLIC'
         }));
-
     } catch (error) {
         console.error('Error loading files:', error);
         throw error;
@@ -48,7 +58,7 @@ async function loadAllFiles() {
 async function getFilesForFolder(folderId) {
     try {
         const endpoint = folderId ? `/drive/${folderId}/contents` : '/drive/root';
-        console.log('🔍 Fetching:', endpoint);  // 👈 log the URL
+        console.log('🔍 Fetching:', endpoint);
 
         const response = await apiCall(endpoint);
         console.log('📦 Response status:', response.status);
@@ -58,10 +68,9 @@ async function getFilesForFolder(folderId) {
         }
 
         const items = await response.json();
-        console.log('📄 Raw API response:', items);  // 👈 see exactly what the backend returns
+        console.log('📄 Raw API response:', items);
         console.log('📊 Number of items:', items.length);
 
-        // Map to frontend format
         const mapped = items.map(item => ({
             ...item,
             fileSize: item.size || item.fileSize || 0,
@@ -69,12 +78,11 @@ async function getFilesForFolder(folderId) {
             driveType: item.driveType || (item.fileId ? 'FILE' : 'FOLDER'),
             accessType: item.accessType || 'PUBLIC',
             parentId: item.parentId || null,
-			childrenCount: item.childrenCount || 0,
-			hasChildren: item.childrenCount > 0
+            childrenCount: item.childrenCount || 0,
+            hasChildren: item.childrenCount > 0
         }));
-        console.log('✅ Mapped with 	', mapped);
+        console.log('✅ Mapped with', mapped);
         return mapped;
-
     } catch (error) {
         console.error('❌ Error in getFilesForFolder:', error);
         throw error;
@@ -95,7 +103,6 @@ async function getBreadcrumbPath(folderId) {
             const response = await apiCall(`/drive/${currentId}`);
             if (!response.ok) break;
             const item = await response.json();
-
             path.unshift({ id: item.id, name: item.name });
             currentId = item.parentId || null;
         } catch (error) {
@@ -167,7 +174,6 @@ async function loadUserInfo() {
             avatarEl.textContent = user.name ? user.name.charAt(0).toUpperCase() : (user.email ? user.email.charAt(0).toUpperCase() : 'U');
         }
         return user;
-
     } catch (error) {
         console.error('Error loading user:', error);
         return null;

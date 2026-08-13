@@ -1,4 +1,4 @@
-// googleAuth.js - Common logic for Google Sign-In
+// googleAuth.js - Common logic for Google Sign-In (uses toast system)
 
 // Initialize the Google button when the page loads
 window.onload = async function() {
@@ -25,6 +25,10 @@ window.onload = async function() {
         }
     } catch (error) {
         console.error('Google Sign-In setup failed:', error);
+        // Show a toast error if possible
+        if (typeof showToast === 'function') {
+            showToast('Failed to initialize Google Sign-In. Please refresh and try again.', 'error');
+        }
         // Hide the button if something went wrong
         const button = document.querySelector('.g_id_signin');
         if (button) button.style.display = 'none';
@@ -43,10 +47,27 @@ function handleCredentialResponse(response) {
     .then(json => {
         if (json && json.success) {
             localStorage.setItem('jwtToken', json.data);
-            window.location.href = '/index.html';
+            if (typeof showToast === 'function') {
+                showToast('Google Sign-In successful. Redirecting...', 'success', 2000);
+            }
+            setTimeout(() => {
+                window.location.href = '/index.html';
+            }, 1500);
         } else {
-            showError(json.message || 'Google sign-in failed');
+            const msg = json.message || 'Google sign-in failed';
+            if (typeof showToast === 'function') {
+                showToast(msg, 'error');
+            } else {
+                alert(msg); // fallback
+            }
         }
     })
-    .catch(err => showError('Network error'));
+    .catch(err => {
+        console.error('Google sign-in error:', err);
+        if (typeof showToast === 'function') {
+            showToast('Network error during Google sign-in.', 'error');
+        } else {
+            alert('Network error');
+        }
+    });
 }

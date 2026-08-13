@@ -1,4 +1,15 @@
-// Context Menu (copied to static2)
+// contextMenu.js – Context menus for files and folders (uses toast only)
+
+// Helper: safeToast fallback
+function safeToast(message, type = 'info', duration = 3000) {
+    if (typeof showToast === 'function') {
+        showToast(message, type, duration);
+    } else {
+        alert(message);
+    }
+}
+
+// ---------- MAIN CONTEXT MENU ----------
 function showContextMenu(event, id, name, type, fileType, isProtected, parentId) {
     event.stopPropagation();
     contextMenuItem = { id, name, type, fileType, parentId, isProtected };
@@ -28,7 +39,7 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
             { icon: '📋', label: 'Copy', action: () => copyItem(id) },
             { icon: '📁', label: 'Move', action: () => moveItem(id) },
             { icon: '🔗', label: 'Share', action: () => showShareModal(id, name) },
-            { icon: '🗑️', label: 'Delete', action: () => deleteItem(id) }
+            { icon: '🗑️', label: 'Delete', action: () => deleteItem(id) }   // uses deleteItem's own confirm
         ];
     } else {
         items = [
@@ -36,7 +47,7 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
             { icon: '✏️', label: 'Rename', action: () => showRenameModal(id, name) },
             { icon: '📁', label: 'Move', action: () => moveItem(id) },
             { icon: '🔗', label: 'Share', action: () => showShareModal(id, name) },
-			{ icon: '⬇️', label: 'Download', action: () => downloadSingleFolder(id) },
+            { icon: '⬇️', label: 'Download', action: () => downloadSingleFolder(id) },
             { icon: '🗑️', label: 'Delete', action: () => deleteItem(id) }
         ];
     }
@@ -59,9 +70,9 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
     }, 0);
 }
 
+// ---------- FOLDER DOWNLOAD ----------
 async function downloadSingleFolder(folderId) {
-    // Use the bulk endpoint with only this folder ID
-    showDownloadOverlay('Preparing folder download...'); // Add loading
+    safeToast('Preparing folder download...', 'info', 2000);
     try {
         const response = await apiCall('/download/bulk', {
             method: 'POST',
@@ -79,16 +90,14 @@ async function downloadSingleFolder(folderId) {
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
+        safeToast('Folder downloaded successfully.', 'success');
     } catch (error) {
         console.error('Error downloading folder:', error);
-        alert('Failed to download folder: ' + error.message);
-    } finally {
-        hideDownloadOverlay(); // Ensure loading hides even on error
+        safeToast('Failed to download folder: ' + error.message, 'error');
     }
 }
 
-// ---------------------- SHARED WITH ME CONTEXT MENU ----------------------
-
+// ---------- SHARED ITEM CONTEXT MENU ----------
 function showSharedContextMenu(event, token, name, type) {
     event.stopPropagation();
     const existingMenu = document.querySelector('.dropdown-menu');
@@ -131,8 +140,13 @@ function showSharedContextMenu(event, token, name, type) {
     }, 0);
 }
 
-// Helper to download a shared file (bypasses the need for complex JWT fetch in download actions)
+// Helper to download a shared file
 function downloadSharedFile(token) {
-    // Triggers backend's download endpoint with the token
+    safeToast('Starting download...', 'info', 1500);
     window.location.href = `/share/download/${token}`;
+}
+
+// Helper to open shared item
+function openSharedItem(token) {
+    window.open(`/share2.html?token=${encodeURIComponent(token)}`, '_blank');
 }

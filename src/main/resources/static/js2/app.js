@@ -1,21 +1,26 @@
 // app.js - Main Application Initialization
 
 document.addEventListener('DOMContentLoaded', async () => {
-
+    // Check for unauthorized access from admin pages
     const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
     if (error === 'unauthorized') {
-        // Remove the query param from the URL
+        // Remove query param from URL
         window.history.replaceState({}, document.title, '/index.html');
-        // Show message (use alert or toast)
-        alert('You are not authorized to access that page.');
-        // If you have a toast function: showToast('You are not authorized...');
+        // Use toast instead of alert
+        if (typeof showToast === 'function') {
+            showToast('You are not authorized to access that page.', 'warning', 3500);
+        } else {
+            alert('You are not authorized to access that page.');
+        }
     }
 
-    if (!jwtToken) {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
         window.location.href = '/login.html';
         return;
     }
+
     setupEventListeners();
     await loadUserInfo();
     setupSidebarNavigation();
@@ -66,6 +71,9 @@ async function loadUserInfo() {
         }
     } catch (error) {
         console.error('Error loading user info:', error);
+        if (typeof showToast === 'function') {
+            showToast('Failed to load user info.', 'error');
+        }
     }
 }
 
@@ -87,8 +95,14 @@ function setupSidebarNavigation() {
     sidebarItems.forEach(item => {
         item.addEventListener('click', () => {
             if (item.id === 'signOutBtn') {
+                // Use toast for sign out feedback if needed
+                if (typeof showToast === 'function') {
+                    showToast('Signing out...', 'info', 1500);
+                }
                 localStorage.removeItem('jwtToken');
-                window.location.href = '/login.html';
+                setTimeout(() => {
+                    window.location.href = '/login.html';
+                }, 1200);
                 return;
             }
 
@@ -151,6 +165,9 @@ async function loadSharedWithMe() {
     } catch (error) {
         console.error('Error loading shared items:', error);
         showError(container);
+        if (typeof showToast === 'function') {
+            showToast('Failed to load shared items: ' + error.message, 'error');
+        }
     }
 }
 

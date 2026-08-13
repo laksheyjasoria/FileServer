@@ -16,6 +16,9 @@ async function loadSharedItems() {
     const container = document.getElementById('fileContainer');
     if (!container) {
         console.error("❌ CRITICAL: 'fileContainer' element not found in the DOM!");
+        if (typeof showToast === 'function') {
+            showToast('Page error: file container not found.', 'error');
+        }
         return;
     }
 
@@ -42,13 +45,22 @@ async function loadSharedItems() {
 
         if (shares && shares.length > 0) {
             renderSharedFiles(shares);
+            if (typeof showToast === 'function') {
+                showToast(`Loaded ${shares.length} shared item(s).`, 'info', 2000);
+            }
         } else {
             console.log("ℹ️ API returned empty list.");
             showEmptyState(container, 'No items shared with you', '');
+            if (typeof showToast === 'function') {
+                showToast('No items shared with you.', 'info', 2000);
+            }
         }
     } catch (error) {
         console.error("❌ Error caught in loadSharedItems():", error);
         showError(container);
+        if (typeof showToast === 'function') {
+            showToast('Failed to load shared items: ' + error.message, 'error');
+        }
     }
 }
 
@@ -90,10 +102,10 @@ function handleSharedItemClick(event, token) {
 }
 
 function openSharedItem(token) {
-   window.open(`/share2.html?token=${encodeURIComponent(token)}`, '_blank');
+    window.open(`/share2.html?token=${encodeURIComponent(token)}`, '_blank');
 }
 
-// Rest of context menu and helper functions remain the same...
+// ---------- CONTEXT MENU ----------
 function showSharedContextMenu(event, token, name, type) {
     event.stopPropagation();
     const existingMenu = document.querySelector('.dropdown-menu');
@@ -135,5 +147,10 @@ function showSharedContextMenu(event, token, name, type) {
 }
 
 function downloadSharedFile(token) {
+    // Show a toast before redirecting
+    if (typeof showToast === 'function') {
+        showToast('Starting download...', 'info', 1500);
+    }
+    // Redirect to the download endpoint
     window.location.href = `/share/download/${token}`;
 }

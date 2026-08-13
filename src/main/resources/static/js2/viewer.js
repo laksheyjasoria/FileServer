@@ -1,5 +1,14 @@
 // viewer.js – single file viewer with JWT token (for authenticated users)
 
+// Helper: Use global toast or fallback to alert
+function safeToast(message, type = 'info', duration = 3000) {
+    if (typeof showToast === 'function') {
+        showToast(message, type, duration);
+    } else {
+        alert(message);
+    }
+}
+
 const urlParams = new URLSearchParams(window.location.search);
 const fileId = urlParams.get('id');
 const token = urlParams.get('token');
@@ -58,6 +67,7 @@ async function loadFile() {
     } catch (error) {
         console.error('Error loading file:', error);
         showError(error.message);
+        safeToast('Failed to load file: ' + error.message, 'error');
     }
 }
 
@@ -99,6 +109,7 @@ function displayFile(url, contentType, filename) {
             })
             .catch(() => {
                 container.innerHTML = `<div class="text-viewer">Failed to load text content.</div>`;
+                safeToast('Failed to load text content', 'error');
             });
         return;
     }
@@ -110,6 +121,7 @@ function displayFile(url, contentType, filename) {
             })
             .catch(() => {
                 container.innerHTML = `<div class="code-viewer">Failed to load code content.</div>`;
+                safeToast('Failed to load code content', 'error');
             });
         return;
     }
@@ -145,9 +157,11 @@ function handleLoadError(element) {
             <button class="btn btn-primary" onclick="downloadFile()" style="margin-top:20px;">⬇️ Download Instead</button>
         </div>
     `;
+    safeToast('Failed to load image', 'error');
 }
 
 function downloadFile() {
+    safeToast('Preparing download...', 'info', 2000);
     fetch(`${API_URL}/download/${fileId}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(response => {
             if (!response.ok) throw new Error('Download failed');
@@ -159,8 +173,12 @@ function downloadFile() {
             link.download = fileInfo ? fileInfo.name : 'download';
             link.click();
             URL.revokeObjectURL(link.href);
+            safeToast('Download started!', 'success', 2000);
         })
-        .catch(error => showError(error.message));
+        .catch(error => {
+            console.error('Download error:', error);
+            safeToast('Download failed: ' + error.message, 'error');
+        });
 }
 
 function closeViewer() {
@@ -179,4 +197,6 @@ function showError(message) {
             <button class="btn btn-primary" onclick="window.close()" style="margin-top:20px;">✖️ Close</button>
         </div>
     `;
+    // Also show toast for critical error (optional)
+    safeToast(message, 'error');
 }

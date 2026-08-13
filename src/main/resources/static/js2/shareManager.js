@@ -2,6 +2,15 @@
 let currentShareItem = null;
 let selectedAllowedUsers = []; // Array to store selected { email, name, photoUrl }
 
+// Helper: Use global toast or fallback to alert
+function safeToast(message, type = 'info', duration = 3000) {
+    if (typeof showToast === 'function') {
+        showToast(message, type, duration);
+    } else {
+        alert(message);
+    }
+}
+
 function showShareModal(ids, name) {
     currentShareItem = { ids, name };
     selectedAllowedUsers = [];
@@ -28,7 +37,7 @@ function showShareModal(ids, name) {
 function shareSelected() {
     const ids = Array.from(selectedItems);
     if (ids.length === 0) {
-        alert('Please select at least one item to share.');
+        safeToast('Please select at least one item to share.', 'warning');
         return;
     }
 
@@ -86,6 +95,7 @@ const handleSearchInput = debounce(async (e) => {
     } catch (error) {
         console.error('Error searching users:', error);
         dropdown.style.display = 'none';
+        safeToast('Failed to search users: ' + error.message, 'error');
     }
 }, 300);
 
@@ -172,13 +182,13 @@ async function createShareLink() {
         // Extract emails from the selected tags
         allowedUsers = selectedAllowedUsers.map(u => u.email);
         if (allowedUsers.length === 0) {
-            alert('Please select at least one registered user to share with.');
+            safeToast('Please select at least one registered user to share with.', 'warning');
             return;
         }
     }
 
     if (shareType === 'PROTECTED' && !password) {
-        alert('Password is required for protected share');
+        safeToast('Password is required for protected share', 'warning');
         return;
     }
 
@@ -204,9 +214,11 @@ async function createShareLink() {
         closeModal('shareModal');
         showModal('shareLinkModal');
 
+        safeToast('Share link created successfully!', 'success');
+
     } catch (error) {
         console.error('Error creating share:', error);
-        alert('Failed to create share link: ' + error.message);
+        safeToast('Failed to create share link: ' + error.message, 'error');
     }
 }
 
@@ -214,7 +226,7 @@ function copyShareLink() {
     const link = document.getElementById('shareLink');
     link.select();
     document.execCommand('copy');
-    alert('Link copied to clipboard!');
+    safeToast('Link copied to clipboard!', 'success');
 }
 
 // ✅ GLOBAL CLICK LISTENER: Closes the dropdown only when clicking outside the container

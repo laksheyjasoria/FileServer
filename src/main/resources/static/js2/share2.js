@@ -25,7 +25,6 @@ if (!token) {
 
 async function loadShareInfo() {
     try {
-        // 🔐 FIX: Attach JWT token to the fetch request if available!
         const headers = {};
         const jwtToken = localStorage.getItem('jwtToken');
         if (jwtToken) {
@@ -66,6 +65,20 @@ function showExpired(message = "This share link has expired or is no longer avai
             <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the file owner for a new link.</p>
         </div>
     `;
+}
+
+function showError(message) {
+    document.getElementById('loading').style.display = 'none';
+    const contentArea = document.getElementById('contentArea');
+    contentArea.style.display = 'block';
+    contentArea.innerHTML = `
+        <div class="error-message" style="display:block; text-align:center;">
+            <div style="font-size:48px; margin-bottom:16px;">🔗</div>
+            <h3>Link Not Found</h3>
+            <p>${escapeHtml(message)}</p>
+        </div>
+    `;
+    // No toast for this specific error – it's a full-page error.
 }
 
 async function displayShareInfo(share) {
@@ -189,7 +202,6 @@ async function loadCurrentFolder() {
     renderBreadcrumb();
 
     try {
-        // 🔐 Attach JWT to the folder contents fetch
         const headers = {};
         const jwtToken = localStorage.getItem('jwtToken');
         if (jwtToken) {
@@ -205,6 +217,10 @@ async function loadCurrentFolder() {
     } catch (error) {
         console.error('Error loading folder contents:', error);
         document.getElementById('folderGrid').innerHTML = `<p style="color:red; padding:20px;">❌ ${error.message}</p>`;
+        // Toast for folder load error (not a "link not found" scenario)
+        if (typeof showToast === 'function') {
+            showToast('Failed to load folder contents: ' + error.message, 'error');
+        }
     }
 }
 
@@ -308,10 +324,16 @@ function toggleSelectAllShared() {
 async function downloadSelectedShared() {
     const ids = Array.from(selectedSharedItems);
     if (ids.length === 0) {
-        alert('Select at least one item to download.');
+        if (typeof showToast === 'function') {
+            showToast('Select at least one item to download.', 'warning');
+        } else {
+            alert('Select at least one item to download.');
+        }
         return;
     }
-    showDownloadOverlay('Preparing your ZIP file...');
+    if (typeof showToast === 'function') {
+        showToast('Preparing ZIP download...', 'info', 2000);
+    }
     try {
         const response = await fetch(`${API_URL}/download/bulk/shared?token=${token}`, {
             method: 'POST',
@@ -328,10 +350,16 @@ async function downloadSelectedShared() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        if (typeof showToast === 'function') {
+            showToast('Download completed successfully.', 'success');
+        }
     } catch (error) {
-        alert('Download failed: ' + error.message);
-    } finally {
-        hideDownloadOverlay();
+        console.error('Error downloading items:', error);
+        if (typeof showToast === 'function') {
+            showToast('Download failed: ' + error.message, 'error');
+        } else {
+            alert('Download failed: ' + error.message);
+        }
     }
 }
 
@@ -348,7 +376,6 @@ async function loadRootFileContent() {
         let url = `${API_URL}/share/stream/${token}`;
         if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
 
-        // 🔐 Attach JWT to the file fetch
         const headers = {};
         const jwtToken = localStorage.getItem('jwtToken');
         if (jwtToken) headers['Authorization'] = 'Bearer ' + jwtToken;
@@ -364,6 +391,9 @@ async function loadRootFileContent() {
         displayFileInViewer(fileUrl, contentType, currentShare.driveName, ext);
     } catch (error) {
         viewerArea.innerHTML = `<div class="error-message" style="display:block; text-align:center; margin:20px;">❌ ${error.message}</div>`;
+        if (typeof showToast === 'function') {
+            showToast('Failed to load file: ' + error.message, 'error');
+        }
     } finally {
         buttons.forEach(btn => btn.disabled = false);
     }
@@ -385,7 +415,6 @@ async function viewSharedFile(fileId, fileName) {
         if (fileId) url += `?fileId=${encodeURIComponent(fileId)}`;
         if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
 
-        // 🔐 Attach JWT to the specific file fetch
         const headers = {};
         const jwtToken = localStorage.getItem('jwtToken');
         if (jwtToken) headers['Authorization'] = 'Bearer ' + jwtToken;
@@ -401,6 +430,9 @@ async function viewSharedFile(fileId, fileName) {
         displayFileInViewer(fileUrl, contentType, fileName, ext);
     } catch (error) {
         viewerArea.innerHTML = `<div class="error-message" style="display:block; text-align:center; margin:20px;">❌ ${error.message}</div>`;
+        if (typeof showToast === 'function') {
+            showToast('Failed to load file: ' + error.message, 'error');
+        }
     } finally {
         buttons.forEach(btn => btn.disabled = false);
     }
@@ -449,7 +481,9 @@ function displayFileInViewer(fileUrl, contentType, filename, ext) {
 async function downloadFile() {
     let url = `${API_URL}/share/download/${token}`;
     if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
-    showDownloadOverlay('Preparing your file...');
+    if (typeof showToast === 'function') {
+        showToast('Preparing download...', 'info', 2000);
+    }
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error('Download failed');
@@ -462,10 +496,16 @@ async function downloadFile() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(fileUrl);
+        if (typeof showToast === 'function') {
+            showToast('Download completed successfully.', 'success');
+        }
     } catch (error) {
-        alert('Download failed: ' + error.message);
-    } finally {
-        hideDownloadOverlay();
+        console.error('Download error:', error);
+        if (typeof showToast === 'function') {
+            showToast('Download failed: ' + error.message, 'error');
+        } else {
+            alert('Download failed: ' + error.message);
+        }
     }
 }
 
@@ -473,7 +513,14 @@ async function downloadFile() {
 
 async function accessWithPassword() {
     const password = document.getElementById('password').value;
-    if (!password) { showTemporaryError('Please enter the password'); return; }
+    if (!password) {
+        if (typeof showToast === 'function') {
+            showToast('Please enter the password', 'warning');
+        } else {
+            alert('Please enter the password');
+        }
+        return;
+    }
     const button = document.querySelector('#contentArea .btn-primary');
     button.disabled = true;
     button.textContent = 'Verifying...';
@@ -499,8 +546,16 @@ async function accessWithPassword() {
                 ${canDownload ? `<button class="btn btn-secondary" onclick="downloadRootFile()">⬇️ Download</button>` : ''}
             </div>
         `;
+        if (typeof showToast === 'function') {
+            showToast('Access granted. You can now view or download the file.', 'success');
+        }
     } catch (error) {
-        showTemporaryError('Invalid password. Please try again.');
+        console.error('Password access error:', error);
+        if (typeof showToast === 'function') {
+            showToast('Invalid password. Please try again.', 'error');
+        } else {
+            alert('Invalid password. Please try again.');
+        }
         button.disabled = false;
         button.textContent = 'Access File';
     }
@@ -511,6 +566,7 @@ function redirectToLogin() {
     window.location.href = '/login.html';
 }
 
+// ---------- Full-page error (no toast) ----------
 function showError(message) {
     document.getElementById('loading').style.display = 'none';
     const contentArea = document.getElementById('contentArea');
@@ -522,17 +578,12 @@ function showError(message) {
             <p>${escapeHtml(message)}</p>
         </div>
     `;
+    // No toast for this error – full-page error is sufficient.
 }
 
-function showTemporaryError(message) {
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-message';
-    errorDiv.style.display = 'block';
-    errorDiv.style.marginBottom = '16px';
-    errorDiv.textContent = message;
-    const contentArea = document.getElementById('contentArea');
-    const existingError = contentArea.querySelector('.error-message');
-    if (existingError) existingError.remove();
-    contentArea.insertBefore(errorDiv, contentArea.firstChild);
-    setTimeout(() => errorDiv.remove(), 3000);
-}
+// ---------- UTILITIES ----------
+// The following functions are assumed to be provided by utils.js or app.js:
+// - getFileIcon, formatFileSize, escapeHtml, showDownloadOverlay, hideDownloadOverlay
+// They are kept as references; no changes needed.
+
+// Make sure setupSidebarNavigation is called if sidebar exists, but not required for share page.
