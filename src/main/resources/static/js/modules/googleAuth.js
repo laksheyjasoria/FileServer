@@ -38,8 +38,9 @@
                         theme: 'outline',
                         size: 'large',
                         text: 'continue_with',
-                        shape: 'rectangular',
-                        width: '100%'
+                        shape: 'pill',
+                        width: '315',
+                        logo_alignment: 'center'
                     });
                     console.log('✅ Google GSI button rendered.');
                 } else {
@@ -65,32 +66,32 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idToken })
         })
-        .then(r => r.json())
-        .then(json => {
-            if (json && json.success) {
-                localStorage.setItem('jwtToken', json.data);
-                if (isSync) {
-                    if (typeof showToast === 'function') {
-                        showToast('Profile synced with Google! Redirecting...', 'success', 2000);
+            .then(r => r.json())
+            .then(json => {
+                if (json && json.success) {
+                    localStorage.setItem('jwtToken', json.data);
+                    if (isSync) {
+                        if (typeof showToast === 'function') {
+                            showToast('Profile synced with Google! Redirecting...', 'success', 2000);
+                        }
+                        setTimeout(() => window.location.href = '/profile.html', 1500);
+                    } else {
+                        if (typeof showToast === 'function') {
+                            showToast('Google Sign-In successful. Redirecting...', 'success', 2000);
+                        }
+                        setTimeout(() => window.location.href = '/index.html', 1500);
                     }
-                    setTimeout(() => window.location.href = '/profile.html', 1500);
                 } else {
-                    if (typeof showToast === 'function') {
-                        showToast('Google Sign-In successful. Redirecting...', 'success', 2000);
-                    }
-                    setTimeout(() => window.location.href = '/index.html', 1500);
+                    const msg = json.message || 'Google sign-in failed';
+                    if (typeof showToast === 'function') showToast(msg, 'error');
+                    else alert(msg);
                 }
-            } else {
-                const msg = json.message || 'Google sign-in failed';
-                if (typeof showToast === 'function') showToast(msg, 'error');
-                else alert(msg);
-            }
-        })
-        .catch(err => {
-            console.error('Google sign-in error:', err);
-            if (typeof showToast === 'function') showToast('Network error during Google sign-in.', 'error');
-            else alert('Network error');
-        });
+            })
+            .catch(err => {
+                console.error('Google sign-in error:', err);
+                if (typeof showToast === 'function') showToast('Network error during Google sign-in.', 'error');
+                else alert('Network error');
+            });
     };
 
     // ===== Trigger Google sync (profile page) =====
