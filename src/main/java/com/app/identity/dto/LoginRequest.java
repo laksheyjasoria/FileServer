@@ -2,8 +2,9 @@ package com.app.identity.dto;
 
 public class LoginRequest {
 
-    private String email;
-    private String password;
+	private String email;
+	private String password;
+	private boolean rememberMe;
 
 	public String getEmail() {
 		return email;
@@ -21,4 +22,11 @@ public class LoginRequest {
 		this.password = password;
 	}
 
+	public boolean isRememberMe() {
+		return rememberMe;
+	}
+
+	public void setRememberMe(boolean rememberMe) {
+		this.rememberMe = rememberMe;
+	}
 }

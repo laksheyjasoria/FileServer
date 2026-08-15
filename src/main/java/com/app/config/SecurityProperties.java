@@ -5,40 +5,49 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.security.jwt")
 public class SecurityProperties {
 
-    private String secret;
-    private long accessTokenValidity;
-    private long resetTokenValidity;
-    private boolean redisEnabled;
+	private String secret;
+	private long accessTokenValidity;
+	private long resetTokenValidity;
+	private long rememberMeValidity;
+	private boolean redisEnabled;
 
-    public String getSecret() {
-        return secret;
-    }
+	public String getSecret() {
+		return secret;
+	}
 
-    public void setSecret(String secret) {
-        this.secret = secret;
-    }
+	public void setSecret(String secret) {
+		this.secret = secret;
+	}
 
-    public long getAccessTokenValidity() {
-        return accessTokenValidity;
-    }
+	public long getAccessTokenValidity() {
+		return accessTokenValidity;
+	}
 
-    public void setAccessTokenValidity(long accessTokenValidity) {
-        this.accessTokenValidity = accessTokenValidity;
-    }
+	public void setAccessTokenValidity(long accessTokenValidity) {
+		this.accessTokenValidity = accessTokenValidity;
+	}
 
-    public long getResetTokenValidity() {
-        return resetTokenValidity;
-    }
+	public long getResetTokenValidity() {
+		return resetTokenValidity;
+	}
 
-    public void setResetTokenValidity(long resetTokenValidity) {
-        this.resetTokenValidity = resetTokenValidity;
-    }
+	public void setResetTokenValidity(long resetTokenValidity) {
+		this.resetTokenValidity = resetTokenValidity;
+	}
 
-    public boolean isRedisEnabled() {
-        return redisEnabled;
-    }
+	public long getRememberMeValidity() {
+		return rememberMeValidity;
+	}
 
-    public void setRedisEnabled(boolean redisEnabled) {
-        this.redisEnabled = redisEnabled;
-    }
+	public void setRememberMeValidity(long rememberMeValidity) {
+		this.rememberMeValidity = rememberMeValidity;
+	}
+
+	public boolean isRedisEnabled() {
+		return redisEnabled;
+	}
+
+	public void setRedisEnabled(boolean redisEnabled) {
+		this.redisEnabled = redisEnabled;
+	}
 }

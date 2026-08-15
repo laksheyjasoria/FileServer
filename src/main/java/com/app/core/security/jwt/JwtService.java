@@ -21,6 +21,7 @@ public class JwtService {
 
 	private final SecretKey key;
 	private final long accessValidity;
+	private final long rememberMeValidity;
 	private final long resetValidity;
 	private final boolean redisEnabled;
 
@@ -32,15 +33,20 @@ public class JwtService {
 		this.key = Keys.hmacShaKeyFor(props.getSecret().getBytes());
 		this.accessValidity = props.getAccessTokenValidity();
 		this.resetValidity = props.getResetTokenValidity();
+		this.rememberMeValidity = props.getRememberMeValidity();
 		this.redisEnabled = props.isRedisEnabled();
 		this.redis = redis;
 	}
 
 	// ================= ACCESS TOKEN =================
 	public String generateAccessToken(String email, String role) {
+		return generateAccessToken(email, role, false);
+	}
 
+	public String generateAccessToken(String email, String role, boolean rememberMe) {
+		long validity = rememberMe ? rememberMeValidity : accessValidity;
 		return Jwts.builder().setSubject(email).claim("type", "ACCESS").claim("role", role).setIssuedAt(new Date())
-				.setExpiration(new Date(System.currentTimeMillis() + accessValidity)).signWith(key).compact();
+				.setExpiration(new Date(System.currentTimeMillis() + validity)).signWith(key).compact();
 	}
 
 	// ================= RESET TOKEN =================

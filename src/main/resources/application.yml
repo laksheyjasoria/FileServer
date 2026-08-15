@@ -68,7 +68,8 @@ app:
 
     jwt:
       secret: ${APP_SECURITY_JWT_SECRET:VERY_LONG_SECRET_KEY_123456789012345678901234567890}
-      access-token-validity: 3600000
+      access-token-validity: 43200000
+      remember-me-validity: 604800000
       reset-token-validity: 900000
       redis-enabled: true
 

@@ -106,7 +106,7 @@ public class AuthService {
     // LOGIN
     // ================================
 
-    public String login(String email, String password) {
+    public String login(String email, String password, boolean isRememberMe) {
         User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
         if (user.getProvider() != AuthProvider.LOCAL) {
             throw new InvalidCredentialsException();
@@ -114,7 +114,7 @@ public class AuthService {
         if (!encoder.matches(password, user.getPassword())) {
             throw new InvalidCredentialsException();
         }
-        return jwt.generateAccessToken(user.getEmail(), user.getRole().name());
+        return jwt.generateAccessToken(user.getEmail(), user.getRole().name(),isRememberMe);
     }
 
     // ================================
