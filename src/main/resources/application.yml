@@ -23,8 +23,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${SPRING_MAIL_USERNAME:yourmail@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:app-password}
+    username: ${SPRING_MAIL_USERNAME:moviezon99@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:jjgc pnnm uxoq xkgi}
     properties:
       mail:
         smtp:
@@ -52,7 +52,7 @@ spring:
 app:
   name: File Server
   environment: dev
-  frontend-url: http://localhost:3000
+  frontend-url: http://localhost:8080
   redis-enabled: false
   swagger-enabled: true
 
@@ -71,7 +71,7 @@ app:
       access-token-validity: 43200000
       remember-me-validity: 604800000
       reset-token-validity: 900000
-      redis-enabled: true
+      redis-enabled: false
 
   telegram:
     storage:

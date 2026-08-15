@@ -60,7 +60,8 @@ public class SecurityConfig {
 								"/viewer.html", "/share.html", "/shared.html", "/shared-by-me.html", "/share2.html",
 								"/master.html", "/logger.html", "/trash.html", "/favicon.ico", "/css/**", "/js/**",
 								"/js2/**", "/auth/**", "/logger/log", "/logger/error", "/download/bulk/shared",
-								"/assets/**")
+								"/assets/**", "/forgot-password.html", "/auth/forgot-password", "/reset-password.html",
+								"/auth/reset-password")
 						.permitAll()
 
 						// 🔐 Authenticated share endpoints

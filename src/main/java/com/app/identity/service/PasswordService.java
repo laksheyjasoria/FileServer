@@ -5,6 +5,7 @@ import java.util.Map;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.app.config.AppProperties;
 import com.app.core.exception.InvalidTokenException;
 import com.app.core.exception.UserNotFoundException;
 import com.app.core.security.jwt.JwtService;
@@ -21,50 +22,44 @@ public class PasswordService {
 	private final EmailService emailService;
 	private final EmailTemplateService templateService;
 	private final PasswordEncoder passwordEncoder;
-
-	// 🔥 configurable frontend URL
-	private final String resetBaseUrl = "http://localhost:3000/reset-password";
+	private final AppProperties appProperties;
 
 	public PasswordService(JwtService jwt, UserRepository repo, EmailService emailService,
-			EmailTemplateService templateService, PasswordEncoder passwordEncoder) {
+			EmailTemplateService templateService, PasswordEncoder passwordEncoder, AppProperties appProperties) {
 		this.jwt = jwt;
 		this.repo = repo;
 		this.emailService = emailService;
 		this.templateService = templateService;
 		this.passwordEncoder = passwordEncoder;
+		this.appProperties = appProperties;
 	}
 
-	// ================= SEND RESET LINK =================
 	public void sendResetLink(String email) {
-
 		User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
 
 		String token = jwt.generateResetToken(email);
 
+		String resetBaseUrl = appProperties.getFrontendUrl() + "/reset-password.html";
 		String link = resetBaseUrl + "?token=" + token;
 
-		String html = templateService.process("reset-password", Map.of("name", user.getName(), "link", link));
+		// Calculate expiry in minutes (from the validity property)
+		long validityMs = jwt.getResetTokenValidity(); // you'd need a getter in JwtService
+		long expiryMinutes = validityMs / 60000; // convert to minutes
 
+		Map<String, Object> params = Map.of("name", user.getName(), "link", link, "expiryMinutes", expiryMinutes,
+				"appUrl", appProperties.getFrontendUrl());
+
+		String html = templateService.process("email/reset-password", params);
 		emailService.sendHtml(user.getEmail(), "Reset Password", html);
 	}
 
-	// ================= RESET PASSWORD =================
 	public void resetPassword(String token, String newPassword) {
-
-		// 1. Validate token
 		if (!jwt.isResetTokenValid(token)) {
 			throw new InvalidTokenException();
 		}
-
-		// 2. Extract email
 		String email = jwt.extractEmail(token);
-
-		// 3. Fetch user
 		User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
-
-		// 4. Update password
 		user.setPassword(passwordEncoder.encode(newPassword));
-
 		repo.save(user);
 	}
 }
