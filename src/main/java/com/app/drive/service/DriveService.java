@@ -1,54 +1,138 @@
 package com.app.drive.service;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.app.core.exception.FileNotFoundException;
+import com.app.core.exception.InvalidCredentialsException;
 import com.app.master.entity.MasterFile;
 import com.app.master.repository.MasterFileRepository;
+import com.app.share.repository.SharedResourceRepository;
 
 @Service
 public class DriveService {
 
-    private final MasterFileRepository repo;
+	private final MasterFileRepository repo;
+	private final SharedResourceRepository shareRepo;
+	private final DeleteService deleteService; // 👈 changed from StorageFactory
 
-    public DriveService(MasterFileRepository repo) {
-        this.repo = repo;
-    }
+	public DriveService(MasterFileRepository repo, SharedResourceRepository shareRepo, DeleteService deleteService) {
+		this.repo = repo;
+		this.shareRepo = shareRepo;
+		this.deleteService = deleteService;
+	}
 
-    public List<MasterFile> list(String userId) {
-        return repo.findByUserId(userId);
-    }
+	// ---------- LISTING (active only) ----------
+	public List<MasterFile> list(String userId) {
+		return repo.findByUserId(userId);
+	}
 
-    public List<MasterFile> listRoot(String userId) {
-        List<MasterFile> files = repo.findByUserIdAndParentIdIsNull(userId);
-        for (MasterFile file : files) {
-            if ("FOLDER".equals(file.getDriveType())) {
-                Long count = repo.countByParentId(file.getId());
-                file.setChildrenCount(count.intValue()); // convert Long to int
-            }
-        }
-        return files;
-    }
+	public List<MasterFile> listRoot(String userId) {
+		List<MasterFile> files = repo.findByUserIdAndParentIdIsNullAndActiveTrue(userId);
+		for (MasterFile file : files) {
+			if ("FOLDER".equals(file.getDriveType())) {
+				Long count = repo.countByParentIdAndActiveTrue(file.getId());
+				file.setChildrenCount(count.intValue());
+			}
+		}
+		return files;
+	}
 
-    public List<MasterFile> listContents(String userId, String parentId) {
-        requireOwned(parentId, userId);
-        List<MasterFile> files = repo.findByUserIdAndParentId(userId, parentId);
-        for (MasterFile file : files) {
-            if ("FOLDER".equals(file.getDriveType())) {
-                Long count = repo.countByParentId(file.getId());
-                file.setChildrenCount(count.intValue());
-            }
-        }
-        return files;
-    }
+	public List<MasterFile> listContents(String userId, String parentId) {
+		requireOwned(parentId, userId);
+		List<MasterFile> files = repo.findByUserIdAndParentIdAndActiveTrue(userId, parentId);
+		for (MasterFile file : files) {
+			if ("FOLDER".equals(file.getDriveType())) {
+				Long count = repo.countByParentIdAndActiveTrue(file.getId());
+				file.setChildrenCount(count.intValue());
+			}
+		}
+		return files;
+	}
 
-    public MasterFile get(String userId, String id) {
-        return requireOwned(id, userId);
-    }
+	public MasterFile get(String userId, String id) {
+		return requireOwned(id, userId);
+	}
 
-    private MasterFile requireOwned(String id, String userId) {
-        return repo.findByIdAndUserId(id, userId)
-                .orElseThrow(com.app.core.exception.FileNotFoundException::new);
-    }
+	private MasterFile requireOwned(String id, String userId) {
+		return repo.findByIdAndUserIdAndActiveTrue(id, userId).orElseThrow(FileNotFoundException::new);
+	}
+
+	public void softDelete(String fileId, String userId) {
+		MasterFile file = repo.findById(fileId).orElseThrow(FileNotFoundException::new);
+		if (!file.getUserId().equals(userId)) {
+			throw new InvalidCredentialsException();
+		}
+		file.setActive(false);
+		file.setDeletedAt(LocalDateTime.now());
+		repo.save(file);
+	}
+
+	public List<MasterFile> listTrash(String userId) {
+		return repo.findByUserIdAndActiveFalseAndDeletedAtIsNotNull(userId);
+	}
+
+	public void restore(String fileId, String userId) {
+		MasterFile file = repo.findByIdAndUserIdAndActiveFalse(fileId, userId).orElseThrow(FileNotFoundException::new);
+		file.setActive(true);
+		file.setDeletedAt(null);
+		repo.save(file);
+	}
+
+	// ---------- PERMANENT DELETE ----------
+	@Transactional
+	public void permanentDelete(String fileId, String userId) {
+		MasterFile file = repo.findByIdAndUserIdAndActiveFalse(fileId, userId).orElseThrow(FileNotFoundException::new);
+
+		// 1. Delete all share tokens in the entire folder tree (bulk operation)
+		deleteSharesRecursively(fileId);
+
+		// 2. Delete the actual storage file (if it's a file, not a folder)
+		if ("FILE".equals(file.getDriveType()) && file.getFileId() != null) {
+			deleteService.delete(file.getFileId());
+		}
+
+		// 3. Delete the database record
+		repo.delete(file);
+	}
+
+	// ---------- EMPTY TRASH (bulk) ----------
+	@Transactional
+	public void emptyTrash(String userId) {
+		List<MasterFile> trashed = repo.findByUserIdAndActiveFalseAndDeletedAtIsNotNull(userId);
+
+		// Handle share cleanup and physical storage deletion
+		for (MasterFile file : trashed) {
+			// Bulk delete all share tokens in each folder tree
+			deleteSharesRecursively(file.getId());
+
+			// Delete physical storage for files
+			if ("FILE".equals(file.getDriveType()) && file.getFileId() != null) {
+				deleteService.delete(file.getFileId());
+			}
+		}
+
+		// Bulk delete all database records at once instead of one by one
+		repo.deleteAllInBatch(trashed);
+	}
+
+	// ---------- RECURSIVE BULK CLEANUP (UPDATED) ----------
+	private void deleteSharesRecursively(String folderId) {
+		// Get all descendant IDs in ONE database query (JPA Native CTE)
+		List<String> descendantIds = repo.findAllDescendantIds(folderId);
+
+		// Create a list including the root folder itself
+		List<String> allIds = new ArrayList<>();
+		allIds.add(folderId);
+		allIds.addAll(descendantIds);
+
+		// Delete all shares for the entire folder tree in ONE bulk DB call
+		if (!allIds.isEmpty()) {
+			shareRepo.deleteByFileIdIn(allIds);
+		}
+	}
 }

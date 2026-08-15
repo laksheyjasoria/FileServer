@@ -5,54 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shared by me - File Server</title>
     <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/toast.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>↗️</text></svg>">
 </head>
 <body>
 
-    <!-- STATIC HEADER -->
     <div class="header">
         <div class="logo">
             <span class="logo-icon">📁</span>
             <span class="logo-text">File Server</span>
         </div>
         <div class="search-bar">
-            <input type="text" placeholder="Search files..." id="searchInput">
+            <input type="text" placeholder="Search shares..." id="searchInput">
         </div>
         <div class="user-menu">
-            <span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
-            <div class="user-avatar" id="userAvatar" onclick="window.location.href='/profile.html'" style="cursor: pointer;">U</div>
+            <span id="userEmail" style="font-size:14px; color:#5f6368;"></span>
+            <div class="user-avatar" id="userAvatar">U</div>
         </div>
     </div>
 
     <div class="app-container">
-        <!-- STATIC SIDEBAR (updated with "Shared by me") -->
-        <div class="sidebar">
-            <div class="sidebar-item" data-view="my-drive">
-                <span class="icon">📁</span>
-                <span>My Drive</span>
-            </div>
-            <div class="sidebar-item" data-view="shared">
-                <span class="icon">👥</span>
-                <span>Shared with me</span>
-            </div>
-            <div class="sidebar-item active" data-view="shared-by-me">
-                <span class="icon">↗️</span>
-                <span>Shared by me</span>
-            </div>
-            <div class="sidebar-item" data-view="recent">
-                <span class="icon">🕐</span>
-                <span>Recent</span>
-            </div>
-            <div class="sidebar-item" data-view="profile">
-                <span class="icon">👤</span>
-                <span>My Profile</span>
-            </div>
-            <div class="sidebar-item" id="signOutBtn" style="margin-top:auto; color:#d93025;">
-                <span class="icon">↩</span>
-                <span>Sign Out</span>
-            </div>
-        </div>
+        <div class="sidebar"></div>
 
         <div class="main-content">
             <div class="toolbar">
@@ -60,20 +32,21 @@
                     <span class="breadcrumb-item">Shared by me</span>
                 </div>
             </div>
-
             <div id="fileContainer">
-                <div class="loading">Loading shared links...</div>
+                <div class="loading">Loading shares...</div>
             </div>
         </div>
     </div>
 
-    <div class="upload-queue" id="uploadQueue" style="display: none;"></div>
+    <div id="toast-container"></div>
+    <div id="modal-overlay"></div>
 
-    <script src="/js2/config.js"></script>
-    <script src="/js2/utils.js"></script>
-    <script src="/js2/api.js"></script>
-    <script src="/js2/app.js"></script>
-    <script src="/js2/sharedByMe.js"></script>
-    <script src="/js2/toast.js"></script>
+    <script src="/js/core/config.js"></script>
+    <script src="/js/core/utils.js"></script>
+    <script src="/js/core/api.js"></script>
+    <script src="/js/core/toast.js"></script>
+    <script src="/js/core/modal.js"></script>
+    <script src="/js/ui/navigation.js"></script>
+    <script src="/js/modules/sharedByMe.js"></script>
 </body>
 </html>

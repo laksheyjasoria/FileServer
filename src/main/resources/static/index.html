@@ -1,359 +1,279 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>File Server - Google Drive Clone</title>
-<link rel="stylesheet" href="/css/styles.css">
-<link rel="stylesheet" href="/css/toast.css">
-<link rel="icon"
-	href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>File Server – My Drive</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>" />
 </head>
 <body>
 
-	<!-- GLOBAL HEADER INJECTION POINT (Top Bar) -->
-	<div id="global-header"></div>
+    <!-- ===== HEADER ===== -->
+    <header class="header">
+        <div class="logo">
+            <span class="logo-icon">📁</span>
+            <span class="logo-text">File Server</span>
+        </div>
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search files and folders..." />
+        </div>
+        <div class="user-menu">
+            <span id="userEmail" class="user-email"></span>
+            <div class="user-avatar" id="userAvatar">U</div>
+        </div>
+    </header>
 
-	<!-- Selection Toolbar -->
-	<div class="selection-toolbar" id="selectionToolbar">
-		<input type="checkbox" id="selectAllCheckbox"
-			onchange="toggleSelectAll()"> <span class="selection-count"
-			id="selectionCount">0 items selected</span>
-		<div class="selection-actions">
-			<button class="icon-btn" onclick="shareSelected()" title="Share">Share</button>
-			<button class="icon-btn" onclick="deleteSelected()" title="Delete">🗑️</button>
-			<button class="icon-btn" onclick="moveSelected()" title="Move">📁</button>
-			<button class="icon-btn" onclick="copySelected()" title="Copy">📋</button>
-			<button class="icon-btn" onclick="downloadSelected()"
-				title="Download">⬇️</button>
-		</div>
-	</div>
+    <!-- ===== APP CONTAINER ===== -->
+    <div class="app-container">
 
-	<div class="app-container">
-		<!-- 👇 STATIC SIDEBAR -->
-		<div class="sidebar">
-			<div class="sidebar-item active" data-view="my-drive">
-				<span class="icon">📁</span> <span>My Drive</span>
-			</div>
-			<div class="sidebar-item" data-view="shared">
-				<span class="icon">👥</span> <span>Shared with me</span>
-			</div>
-			<div class="sidebar-item active" data-view="shared-by-me">
-				<span class="icon">↗️</span> <span>Shared by me</span>
-			</div>
-			<div class="sidebar-item" data-view="profile">
-				<span class="icon">👤</span> <span>My Profile</span>
-			</div>
-			<div class="sidebar-item" id="signOutBtn"
-				style="margin-top: auto; color: #d93025;">
-				<span class="icon">↩</span> <span>Sign Out</span>
-			</div>
-		</div>
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <!-- Dynamically built by navigation.js -->
+        </nav>
 
-		<div class="main-content">
-			<div class="toolbar">
-				<div class="breadcrumb" id="breadcrumb">
-					<span class="breadcrumb-item" onclick="navigateToParent()">My
-						Drive</span>
-				</div>
-				<div class="action-buttons">
-					<button class="btn btn-secondary" id="newFolderBtn">📁 New
-						Folder</button>
-					<button class="btn btn-primary" id="uploadBtn">📤 Upload
-						File</button>
-					<input type="file" id="fileInput" multiple style="display: none;">
-				</div>
-			</div>
+        <!-- Main Content -->
+        <main class="main-content">
 
-			<div id="fileContainer">
-				<div class="loading">Loading...</div>
-			</div>
-		</div>
-	</div>
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="breadcrumb" id="breadcrumb">
+                    <span class="breadcrumb-item" onclick="navigateToParent()">My Drive</span>
+                </div>
+                <div class="action-buttons">
+                    <input type="checkbox" id="selectAllCheckbox" title="Select All" />
+                    <button class="btn btn-secondary" id="newFolderBtn">📁 New Folder</button>
+                    <button class="btn btn-primary" id="uploadBtn">⬆ Upload</button>
+                    <input type="file" id="fileInput" multiple style="display:none;" />
+                </div>
+            </div>
 
-	<!-- Upload Queue -->
-	<div class="upload-queue" id="uploadQueue" style="display: none;">
-		<div class="upload-header">
-			<span>Uploads</span>
-			<button class="icon-btn" id="closeUploadQueueBtn" title="Close">✖️</button>
-		</div>
-		<div id="uploadList"></div>
-	</div>
+            <!-- Selection Toolbar -->
+            <div id="selectionToolbar" class="selection-toolbar">
+                <span id="selectionCount">0 items selected</span>
+                <button class="btn btn-secondary" onclick="downloadSelected()">⬇ Download</button>
+                <button class="btn btn-secondary" onclick="copySelected()">📋 Copy</button>
+                <button class="btn btn-secondary" onclick="moveSelected()">📁 Move</button>
+                <button class="btn btn-danger" onclick="deleteSelected()">🗑 Delete</button>
+            </div>
 
-	<!-- Create Folder Modal -->
-	<div class="modal" id="folderModal">
-		<div class="modal-content">
-			<div class="modal-header">New Folder</div>
-			<div class="modal-body">
-				<input type="text" id="folderName" placeholder="Folder name">
-				<div class="private-toggle">
-					<label> <input type="checkbox" id="isPrivate"
-						onchange="togglePasswordField()"> <span
-						style="margin-left: 8px;">🔒 Make this folder private</span>
-					</label>
-				</div>
-				<div id="passwordField" class="password-field">
-					<input type="password" id="folderPassword"
-						placeholder="Enter password"> <small>Password
-						required to access this folder (minimum 4 characters)</small>
-				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary"
-					onclick="closeModal('folderModal')">Cancel</button>
-				<button class="btn btn-primary" id="createFolderBtn">Create</button>
-			</div>
-		</div>
-	</div>
+            <!-- File Container -->
+            <div id="fileContainer">
+                <div class="loading">Loading...</div>
+            </div>
 
-	<!-- Move/Copy Modal -->
-	<div class="modal" id="moveModal">
-		<div class="modal-content">
-			<div class="modal-header" id="moveModalTitle">Move to</div>
-			<div class="modal-body">
-				<select id="destinationFolder"></select>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick="closeModal('moveModal')">Cancel</button>
-				<button class="btn btn-primary" onclick="executeMove()">Move</button>
-			</div>
-		</div>
-	</div>
+        </main>
+    </div>
 
-	<!-- Rename Modal -->
-	<div class="modal" id="renameModal">
-		<div class="modal-content">
-			<div class="modal-header">Rename</div>
-			<div class="modal-body">
-				<input type="text" id="newName" placeholder="New name">
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary"
-					onclick="closeModal('renameModal')">Cancel</button>
-				<button class="btn btn-primary" onclick="executeRename()">Rename</button>
-			</div>
-		</div>
-	</div>
+    <!-- ===== MODALS ===== -->
 
-	<!-- ================= SHARE MODAL ================= -->
-	<div class="modal" id="shareModal">
-		<div class="modal-content">
-			<div class="modal-header">Create Share Link</div>
-			<div class="modal-body">
-				<select id="shareType">
-					<option value="PUBLIC">Public - Anyone with link</option>
-					<option value="PROTECTED">Protected - Password required</option>
-					<option value="USER_ONLY">Users Only - Registered users
-						only</option>
-				</select>
-				<div id="passwordOption" style="display: none;">
-					<input type="password" id="sharePassword" placeholder="Password">
-				</div>
+    <!-- Create Folder Modal -->
+    <div id="folderModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📁 New Folder</h2>
+                <button class="modal-close" onclick="closeModal('folderModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Folder Name</label>
+                    <input type="text" id="folderName" placeholder="Enter folder name" />
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="isPrivate" onchange="togglePasswordField()" />
+                        Make private (password protected)
+                    </label>
+                </div>
+                <div class="form-group" id="passwordField" style="display:none;">
+                    <label>Password</label>
+                    <input type="text" id="folderPassword" placeholder="Enter password" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
+                <button class="btn btn-primary" id="createFolderBtn">Create</button>
+            </div>
+        </div>
+    </div>
 
-				<!-- 👇 EMAIL TAG SUGGESTION UI -->
-				<div id="usersOption" style="display: none;">
-					<style>
-.email-tag-input-container {
-	position: relative;
-	border: 1px solid #e0e0e0;
-	border-radius: 8px;
-	padding: 6px 8px;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	background: white;
-	min-height: 44px;
-	margin-bottom: 12px;
-	width: 100%;
-	box-sizing: border-box;
-}
+    <!-- Rename Modal -->
+    <div id="renameModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✏️ Rename</h2>
+                <button class="modal-close" onclick="closeModal('renameModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>New Name</label>
+                    <input type="text" id="newName" placeholder="Enter new name" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="executeRename()">Rename</button>
+            </div>
+        </div>
+    </div>
 
-.email-tag-input-container:focus-within {
-	border-color: #1a73e8;
-}
+    <!-- Move/Copy Modal -->
+    <div id="moveModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="moveModalTitle">Move to</h2>
+                <button class="modal-close" onclick="closeModal('moveModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Destination</label>
+                    <select id="destinationFolder">
+                        <option value="">Root</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('moveModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="executeMove()">Confirm</button>
+            </div>
+        </div>
+    </div>
 
-.email-tags-list {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-	width: 100%;
-	max-height: 80px;
-	overflow-y: auto;
-}
+    <!-- ===== SHARE MODAL (UPDATED UI) ===== -->
+    <div id="shareModal" class="modal-overlay">
+        <div class="modal-content share-modal">
+            <div class="modal-header">
+                <h2>📤 Create Share Link</h2>
+                <button class="modal-close" onclick="closeShareModal()">&times;</button>
+            </div>
 
-.email-tag {
-	display: flex;
-	align-items: center;
-	background: #f1f3f4;
-	border-radius: 16px;
-	padding: 2px 8px 2px 4px;
-	gap: 6px;
-	font-size: 13px;
-}
+            <div class="modal-body">
+                <div class="share-file-info">
+                    <span class="share-file-icon">📄</span>
+                    <span class="share-file-name" id="shareNameDisplay">file.txt</span>
+                </div>
 
-.tag-avatar {
-	width: 22px;
-	height: 22px;
-	border-radius: 50%;
-	object-fit: cover;
-}
+                <div class="form-group">
+                    <label>Who can access?</label>
+                    <select id="shareType" onchange="toggleShareOptions()">
+                        <option value="PUBLIC">🔓 Anyone with link</option>
+                        <option value="PROTECTED">🔒 Password protected</option>
+                        <option value="USER_ONLY">👤 Specific users only</option>
+                    </select>
+                </div>
 
-.tag-avatar.initials {
-	background: #1a73e8;
-	color: white;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-weight: bold;
-	font-size: 11px;
-}
+                <div id="sharePasswordGroup" class="form-group" style="display:none;">
+                    <label>Set Password</label>
+                    <input type="text" id="sharePassword" placeholder="Enter a password (min 4 characters)" />
+                    <div class="field-hint">Users will need this password to access</div>
+                </div>
 
-.tag-remove {
-	color: #5f6368;
-	cursor: pointer;
-	font-size: 15px;
-	margin-left: 2px;
-	padding: 0 2px;
-}
+                <div id="userSelectionGroup" style="display:none;">
+                    <div class="share-user-description">Users Only – Registered users only</div>
+                    <div class="form-group">
+                        <label>Selected Users</label>
+                        <div id="selectedUsersContainer" class="selected-users-container">
+                            <span class="empty-chip-text">No users selected</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Add users</label>
+                        <div class="user-search-container">
+                            <input type="text" id="userSearchInput" placeholder="Type email or name to search..." oninput="searchUsers(this.value)" />
+                            <div id="userSearchResults" class="user-search-results"></div>
+                        </div>
+                    </div>
+                </div>
 
-.tag-remove:hover {
-	color: #d93025;
-}
+                <div class="form-group">
+                    <label>Permission</label>
+                    <select id="sharePermission">
+                        <option value="VIEW_DOWNLOAD">👁️ View & Download</option>
+                        <option value="VIEW">👁️ View only</option>
+                        <option value="DOWNLOAD">⬇️ Download only</option>
+                    </select>
+                </div>
 
-.email-search-input {
-	border: none;
-	outline: none;
-	width: 100%;
-	padding: 4px 0;
-	font-size: 14px;
-	background: transparent;
-}
+                <div class="form-group">
+                    <label>Expiry (optional)</label>
+                    <input type="datetime-local" id="shareExpiry" />
+                    <div class="field-hint">Leave empty for no expiry</div>
+                </div>
 
-.email-suggestions-dropdown {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	width: 100%;
-	box-sizing: border-box;
-	z-index: 1000;
-	background: white;
-	border: 1px solid #e0e0e0;
-	border-radius: 8px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-	margin-top: 4px;
-	max-height: 250px;
-	overflow-y: auto;
-	display: none;
-}
+                <input type="hidden" id="shareFileId" />
+                <input type="hidden" id="shareFileName" />
+            </div>
 
-.suggestion-item {
-	display: flex;
-	align-items: center;
-	padding: 10px 12px;
-	cursor: pointer;
-	gap: 12px;
-	transition: background 0.2s;
-}
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeShareModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createShareLink()">Create Link</button>
+            </div>
+        </div>
+    </div>
 
-.suggestion-item:hover {
-	background: #f1f3f4;
-}
+    <!-- Share Link Modal -->
+    <div id="shareLinkModal" class="modal-overlay">
+        <div class="modal-content share-link-modal">
+            <div class="modal-header">
+                <h2>✅ Share Link Created</h2>
+                <button class="modal-close" onclick="closeShareLinkModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="share-link-info">
+                    <div class="share-link-detail">
+                        <span class="label">🔗 Link</span>
+                        <div class="share-link-container">
+                            <input type="text" id="shareLinkInput" readonly />
+                            <button class="btn btn-primary" onclick="copyShareLink()">📋 Copy</button>
+                        </div>
+                    </div>
+                    <div class="share-link-detail">
+                        <span class="label">⏱️ Expires</span>
+                        <span id="shareLinkExpiry">Never</span>
+                    </div>
+                    <div class="share-link-detail">
+                        <span class="label">🔐 Type</span>
+                        <span id="shareLinkType">Public</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeShareLinkModal()">Close</button>
+            </div>
+        </div>
+    </div>
 
-.suggestion-avatar {
-	width: 32px;
-	height: 32px;
-	border-radius: 50%;
-	object-fit: cover;
-}
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal-overlay">
+        <div class="modal-content upload-modal">
+            <div class="modal-header">
+                <h2>⬆ Upload Queue</h2>
+                <button class="modal-close" onclick="closeUploadModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="uploadList" class="upload-list">
+                    <!-- Upload items added dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeUploadModal()">Close</button>
+            </div>
+        </div>
+    </div>
 
-.suggestion-avatar.initials {
-	background: #1a73e8;
-	color: white;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-weight: bold;
-}
+    <!-- ===== TOAST CONTAINER ===== -->
+    <div id="toast-container"></div>
 
-.suggestion-details {
-	display: flex;
-	flex-direction: column;
-}
-
-.suggestion-name {
-	font-weight: 500;
-	font-size: 14px;
-}
-
-.suggestion-email {
-	font-size: 12px;
-	color: #5f6368;
-}
-
-.no-results {
-	padding: 12px;
-	text-align: center;
-	color: #5f6368;
-	font-size: 14px;
-}
-</style>
-
-					<div class="email-tag-input-container">
-						<div class="email-tags-list" id="emailTagsList"></div>
-						<!-- REMOVED onblur -->
-						<input type="text" class="email-search-input"
-							id="allowedUsersSearchInput"
-							placeholder="Type email or name to search..." autocomplete="off"
-							oninput="handleSearchInput(event)" />
-						<div class="email-suggestions-dropdown"
-							id="emailSuggestionsDropdown"></div>
-					</div>
-				</div>
-
-				<select id="sharePermission">
-					<option value="VIEW">View Only</option>
-					<option value="DOWNLOAD">Download Only</option>
-					<option value="VIEW_DOWNLOAD">View & Download</option>
-				</select> <input type="datetime-local" id="expiresAt"
-					placeholder="Expires (optional)">
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick="closeModal('shareModal')">Cancel</button>
-				<button class="btn btn-primary" onclick="createShareLink()">Create
-					Link</button>
-			</div>
-		</div>
-	</div>
-
-	<!-- Share Link Display Modal -->
-	<div class="modal" id="shareLinkModal">
-		<div class="modal-content">
-			<div class="modal-header">Share Link Created</div>
-			<div class="modal-body">
-				<input type="text" id="shareLink" readonly
-					style="width: 100%; padding: 10px; margin-bottom: 10px;">
-				<button class="btn btn-secondary" onclick="copyShareLink()"
-					style="width: 100%;">Copy Link</button>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-primary"
-					onclick="closeModal('shareLinkModal')">Done</button>
-			</div>
-		</div>
-	</div>
-
-	<!-- SCRIPTS -->
-	<script src="/js2/config.js"></script>
-	<script src="/js2/layout.js"></script>
-	<script src="/js2/navigation.js"></script>
-	<script src="/js2/utils.js"></script>
-	<script src="/js2/api.js"></script>
-	<script src="/js2/fileManager.js"></script>
-	<script src="/js2/folderManager.js"></script>
-	<script src="/js2/uploadManager.js"></script>
-	<script src="/js2/shareManager.js"></script>
-	<script src="/js2/contextMenu.js"></script>
-	<script src="/js2/app.js"></script>
-	<script src="/js2/toast.js"></script>
+    <!-- ===== SCRIPTS (using your file names) ===== -->
+    <script src="/js/core/config.js"></script>
+    <script src="/js/core/utils.js"></script>
+    <script src="/js/core/api.js"></script>
+    <script src="/js/core/toast.js"></script>
+    <script src="/js/core/modal.js"></script>
+    <script src="/js/ui/navigation.js"></script>
+    <script src="/js/modules/app.js"></script>           <!-- main manager -->
+    <script src="/js/ui/upload.js"></script>        <!-- upload queue -->
+    <script src="/js/modules/shareOperations.js"></script> <!-- share modal -->
+    <!-- fileRenderer.js, fileActions.js, folderOperations.js are used by app.js but no need to load separately if included -->
 </body>
 </html>

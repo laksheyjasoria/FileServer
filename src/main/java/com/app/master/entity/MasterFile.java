@@ -32,93 +32,57 @@ public class MasterFile {
     private String accessType;
 
     private LocalDateTime createdAt;
-    
+
     @Transient
     private int childrenCount;
+
+    @Column(nullable = false)
+    private boolean active = true;
+
+    private LocalDateTime deletedAt;
 
     @PrePersist
     public void prePersist() {
         createdAt = LocalDateTime.now();
     }
 
-    public String getId() {
-        return id;
-    }
+    // Getters and setters (already present)
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    public String getUserId() {
-        return userId;
-    }
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
 
-    public String getName() {
-        return name;
-    }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
-    public String getFileId() {
-        return fileId;
-    }
+    public String getFileId() { return fileId; }
+    public void setFileId(String fileId) { this.fileId = fileId; }
 
-    public Long getSize() {
-        return size;
-    }
+    public Long getSize() { return size; }
+    public void setSize(Long size) { this.size = size; }
 
-    public String getContentType() {
-        return contentType;
-    }
+    public String getContentType() { return contentType; }
+    public void setContentType(String contentType) { this.contentType = contentType; }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
+    public String getParentId() { return parentId; }
+    public void setParentId(String parentId) { this.parentId = parentId; }
 
-    public String getParentId() {
-        return parentId;
-    }
+    public String getDriveType() { return driveType; }
+    public void setDriveType(String driveType) { this.driveType = driveType; }
 
-    public String getDriveType() {
-        return driveType;
-    }
+    public String getAccessType() { return accessType; }
+    public void setAccessType(String accessType) { this.accessType = accessType; }
 
-    public String getAccessType() {
-        return accessType;
-    }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public void setUserId(String userId) {
-        this.userId = userId;
-    }
+    public int getChildrenCount() { return childrenCount; }
+    public void setChildrenCount(int childrenCount) { this.childrenCount = childrenCount; }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 
-    public void setFileId(String fileId) {
-        this.fileId = fileId;
-    }
-
-    public void setSize(Long size) {
-        this.size = size;
-    }
-
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
-    }
-
-    public void setParentId(String parentId) {
-        this.parentId = parentId;
-    }
-
-    public void setDriveType(String driveType) {
-        this.driveType = driveType;
-    }
-
-    public void setAccessType(String accessType) {
-        this.accessType = accessType;
-    }
-
-	public int getChildrenCount() {
-		return childrenCount;
-	}
-
-	public void setChildrenCount(int childrenCount) {
-		this.childrenCount = childrenCount;
-	}
-    
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 }

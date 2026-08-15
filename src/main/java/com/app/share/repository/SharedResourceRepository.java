@@ -12,6 +12,12 @@ public interface SharedResourceRepository extends JpaRepository<SharedResource, 
 	Optional<SharedResource> findByToken(String token);
 
 	List<SharedResource> findByPublicAccessFalseAndPasswordIsNull();
-	
+
 	List<SharedResource> findByCreatedBy(String createdBy);
+
+	void deleteByFileId(String fileId);
+
+	void deleteByToken(String token);
+
+	void deleteByFileIdIn(List<String> fileIds);
 }

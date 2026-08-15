@@ -3,40 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Viewer - File Server</title>
-    <!-- Common styles -->
+    <title>File Viewer</title>
     <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/toast.css">
-    <!-- Page-specific styles -->
-    <link rel="stylesheet" href="/css/viewer.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👁️</text></svg>">
 </head>
 <body>
+
     <div class="header">
-        <div class="file-info">
-            <div class="file-icon" id="fileIcon">📄</div>
-            <div class="file-details">
-                <div class="file-name" id="fileName">Loading...</div>
-                <div class="file-meta" id="fileMeta"></div>
-            </div>
+        <div class="logo">
+            <span class="logo-icon">👁️</span>
+            <span class="logo-text">File Viewer</span>
         </div>
-        <div class="action-buttons">
-            <button class="btn btn-secondary" onclick="closeViewer()">✖️ Close</button>
+        <div class="user-menu">
+            <span id="fileIcon" style="font-size:24px;"></span>
+            <span id="fileName" style="font-weight:500; margin:0 12px;">File</span>
+            <span id="fileMeta" style="font-size:13px; color:#5f6368;"></span>
             <button class="btn btn-primary" id="downloadBtn">⬇️ Download</button>
-        </div>
-    </div>
-    <div class="content-area">
-        <div class="viewer-container" id="viewerContainer">
-            <div class="loading">
-                <div class="loading-spinner"></div>
-                <div>Loading file...</div>
-            </div>
+            <button class="btn btn-secondary" onclick="closeViewer()">✖️ Close</button>
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="/js2/config.js"></script>
-    <script src="/js2/utils.js"></script>
-    <script src="/js2/viewer.js"></script>
-    <script src="/js2/toast.js"></script>
+    <div id="viewerContainer" class="viewer-container">
+        <div class="loading">Loading file...</div>
+    </div>
+
+    <div id="toast-container"></div>
+    <div id="modal-overlay"></div>
+
+    <script src="/js/core/config.js"></script>
+    <script src="/js/core/utils.js"></script>
+    <script src="/js/core/api.js"></script>
+    <script src="/js/core/toast.js"></script>
+    <script src="/js/core/modal.js"></script>
+    <script src="/js/modules/viewer.js"></script>
 </body>
 </html>

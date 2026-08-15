@@ -32,6 +32,10 @@ public class AuthOrchestrator {
     public String google(String idToken) {
         return service.googleLogin(idToken);
     }
+    
+    public String google(String idToken, boolean sync) {
+        return service.googleLogin(idToken, sync);
+    }
 
     public User updateProfile(String email, String name, String photoUrl) {
         return service.updateProfile(email, name, photoUrl);

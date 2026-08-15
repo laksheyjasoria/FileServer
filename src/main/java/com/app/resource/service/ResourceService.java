@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import com.app.drive.service.CopyService;
 import com.app.drive.service.CreateFolderService;
 import com.app.drive.service.DeleteService;
+import com.app.drive.service.DriveService;   // 👈 ADD this import
 import com.app.drive.service.MoveService;
 import com.app.drive.service.RenameService;
 import com.app.resource.dto.ResourceActionRequest;
@@ -22,19 +23,22 @@ public class ResourceService {
     private final RenameService renameService;
     private final CreateFolderService createFolderService;
     private final MasterFileRepository fileRepository;
+    private final DriveService driveService;   // 👈 NEW field
 
     public ResourceService(DeleteService deleteService,
             CopyService copyService,
             MoveService moveService,
             RenameService renameService,
             CreateFolderService createFolderService,
-            MasterFileRepository fileRepository) {
+            MasterFileRepository fileRepository,
+            DriveService driveService) {        // 👈 Add to constructor
         this.deleteService = deleteService;
         this.copyService = copyService;
         this.moveService = moveService;
         this.renameService = renameService;
         this.createFolderService = createFolderService;
         this.fileRepository = fileRepository;
+        this.driveService = driveService;
     }
 
     public void handle(ResourceActionRequest request, String userId) {
@@ -51,7 +55,8 @@ public class ResourceService {
         }
 
         if (request.getAction() == ResourceAction.DELETE) {
-            ids.forEach(deleteService::delete);
+            // 🔁 CHANGED: now uses soft delete (move to trash)
+            ids.forEach(id -> driveService.softDelete(id, userId));
             return;
         }
 
@@ -61,21 +66,17 @@ public class ResourceService {
         }
 
         if (request.getAction() == ResourceAction.MOVE) {
-            // destination contains destination folder id
             String dest = request.getDestination();
             ids.forEach(id -> moveService.move(id, dest));
             return;
         }
 
         if (request.getAction() == ResourceAction.RENAME) {
-            // name contains new name
-            String newName = request.getName();
-            ids.forEach(id -> renameService.rename(id, newName));
-            return;
+           System.out.println("can't rename all files at once");
+           return;
         }
 
         if (request.getAction() == ResourceAction.CREATE_FOLDER) {
-            // name contains folder name, destination contains parentId (optional)
             String name = request.getName();
             String parent = request.getDestination();
             if (name == null || name.isBlank()) {
@@ -91,5 +92,4 @@ public class ResourceService {
             throw new com.app.core.exception.FileNotFoundException();
         }
     }
-
 }

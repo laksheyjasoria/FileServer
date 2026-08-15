@@ -1,178 +1,94 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Master Drives - File Server</title>
-<link rel="stylesheet" href="/css/styles.css">
-<link rel="stylesheet" href="/css/toast.css">
-<link rel="icon"
-	href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>">
-<style>
-.admin-badge {
-	background: #e8f0fe;
-	color: #1a73e8;
-	padding: 4px 12px;
-	border-radius: 16px;
-	font-size: 12px;
-	margin-left: 12px;
-}
-
-.file-item .file-menu {
-	position: absolute;
-	top: 8px;
-	right: 8px;
-	cursor: pointer;
-	display: none;
-	background: white;
-	border-radius: 50%;
-	width: 28px;
-	height: 28px;
-	align-items: center;
-	justify-content: center;
-}
-
-.file-item:hover .file-menu {
-	display: flex;
-}
-
-.file-menu:hover {
-	background: #f1f3f4;
-}
-
-.dropdown-menu {
-	position: absolute;
-	background: white;
-	border: 1px solid #e0e0e0;
-	border-radius: 8px;
-	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-	z-index: 1000;
-	min-width: 150px;
-	display: none;
-}
-
-.dropdown-menu.show {
-	display: block;
-}
-
-.dropdown-item {
-	padding: 10px 16px;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	font-size: 14px;
-}
-
-.dropdown-item:hover {
-	background: #f1f3f4;
-}
-
-.breadcrumb-item {
-	cursor: pointer;
-	color: #5f6368;
-	transition: color 0.2s;
-}
-
-.breadcrumb-item:hover {
-	color: #1a73e8;
-}
-
-.breadcrumb-separator {
-	color: #9aa0a6;
-}
-
-/* Main app initially hidden until admin check passes */
-#mainApp {
-	display: none;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Drives - File Server</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>">
 </head>
 <body>
 
-	<!-- Main App (hidden until admin authenticated) -->
-	<div id="mainApp">
-		<div class="header">
-			<div class="logo">
-				<span class="logo-icon">🏢</span> <span class="logo-text">Master
-					Drive Management</span> <span class="admin-badge">MASTER</span>
-			</div>
-			<div class="user-menu">
-				<span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
-				<div class="user-avatar" id="userAvatar">A</div>
-			</div>
-		</div>
+    <div id="mainApp" style="display:none;">
+        <div class="header">
+            <div class="logo">
+                <span class="logo-icon">🏢</span>
+                <span class="logo-text">Master Drive Management</span>
+                <span class="admin-badge">MASTER</span>
+            </div>
+            <div class="search-bar">
+                <input type="text" placeholder="Search master drives..." id="searchInput" 
+                       autocomplete="new-password" name="search">
+            </div>
+            <div class="user-menu">
+                <span id="userEmail" style="font-size:14px; color:#5f6368;"></span>
+                <div class="user-avatar" id="userAvatar">M</div>
+            </div>
+        </div>
 
-		<div class="app-container">
-			<div class="sidebar">
-				<div class="sidebar-item active" data-view="master-drives">
-					<span class="icon">🏢</span> <span>Master Drives</span>
-				</div>
-				<div class="sidebar-item"
-					onclick="window.location.href='/logger.html'"
-					style="cursor: pointer;">
-					<span class="icon">📝</span> <span>Loggers</span>
-				</div>
-				<div class="sidebar-item"
-					onclick="window.location.href='/index.html'"
-					style="cursor: pointer;">
-					<span class="icon">👤</span> <span>My Drive</span>
-				</div>
-			</div>
+        <div class="app-container">
+            <div class="sidebar"></div>
+            <div class="main-content">
+                <div class="toolbar">
+                    <div class="breadcrumb" id="breadcrumb">
+                        <span class="breadcrumb-item" onclick="navigateToParent()">Master Drives</span>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" id="newFolderBtn">📁 New Folder</button>
+                    </div>
+                </div>
+                <div id="fileContainer">
+                    <div class="loading">Loading master drives...</div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-			<div class="main-content">
-				<div class="toolbar">
-					<div class="breadcrumb" id="breadcrumb">
-						<span class="breadcrumb-item" onclick="navigateToParent()">Master
-							Drives</span>
-					</div>
-					<div class="action-buttons">
-						<button class="btn btn-secondary" id="newFolderBtn">📁
-							New Folder</button>
-					</div>
-				</div>
+    <!-- ===== MODALS ===== -->
+    <!-- Create Folder Modal (no private option) -->
+    <div class="modal-overlay" id="folderModal">
+        <div class="modal-box">
+            <div class="modal-title">New Folder</div>
+            <div class="modal-body" style="text-align:left;">
+                <div class="form-group">
+                    <label>Folder Name</label>
+                    <input type="text" id="folderName" placeholder="Enter folder name">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
+                <button class="modal-btn modal-btn-primary" id="createFolderBtn">Create</button>
+            </div>
+        </div>
+    </div>
 
-				<div id="fileContainer">
-					<div class="loading">Loading master drives...</div>
-				</div>
-			</div>
-		</div>
-	</div>
+    <!-- Rename Modal -->
+    <div class="modal-overlay" id="renameModal">
+        <div class="modal-box">
+            <div class="modal-title">Rename</div>
+            <div class="modal-body" style="text-align:left;">
+                <div class="form-group">
+                    <label>New Name</label>
+                    <input type="text" id="newName" placeholder="Enter new name">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
+                <button class="modal-btn modal-btn-primary" onclick="executeRename()">Save</button>
+            </div>
+        </div>
+    </div>
 
-	<!-- Modals -->
-	<div class="modal" id="folderModal">
-		<div class="modal-content">
-			<div class="modal-header">New Folder</div>
-			<div class="modal-body">
-				<input type="text" id="folderName" placeholder="Folder name">
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary"
-					onclick="closeModal('folderModal')">Cancel</button>
-				<button class="btn btn-primary" id="createFolderBtn">Create</button>
-			</div>
-		</div>
-	</div>
+    <div id="toast-container"></div>
+    <div id="modal-overlay"></div>
 
-	<div class="modal" id="renameModal">
-		<div class="modal-content">
-			<div class="modal-header">Rename</div>
-			<div class="modal-body">
-				<input type="text" id="newName" placeholder="New name">
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary"
-					onclick="closeModal('renameModal')">Cancel</button>
-				<button class="btn btn-primary" onclick="executeRename()">Rename</button>
-			</div>
-		</div>
-	</div>
-
-	<!-- Scripts -->
-	<script src="/js2/config.js"></script>
-	<script src="/js2/utils.js"></script>
-	<script src="/js2/api.js"></script>
-	<script src="/js2/admin.js"></script>
-	<script src="/js2/toast.js"></script>
+    <script src="/js/core/config.js"></script>
+    <script src="/js/core/utils.js"></script>
+    <script src="/js/core/api.js"></script>
+    <script src="/js/core/toast.js"></script>
+    <script src="/js/core/modal.js"></script>
+    <script src="/js/ui/navigation.js"></script>
+    <script src="/js/ui/contextMenu.js"></script>
+    <script src="/js/modules/admin.js"></script>
 </body>
 </html>

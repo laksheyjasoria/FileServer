@@ -3,39 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shared File - File Server</title>
+    <title>File Viewer</title>
     <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/share2.css">
-    <link rel="stylesheet" href="/css/toast.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👁️</text></svg>">
 </head>
 <body>
-    <div class="container" id="container">
-        <div class="header">
-            <div class="header-icon">🔗</div>
-            <h1>Shared File / Folder</h1>
-            <p>You have been invited to view this content</p>
+
+    <div class="header">
+        <div class="logo">
+            <span class="logo-icon">👁️</span>
+            <span class="logo-text">File Viewer</span>
         </div>
-        <div class="content">
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <div>Loading share information...</div>
-            </div>
-            <div id="contentArea" style="display: none;"></div>
-            <div id="viewerArea" style="display: none;"></div>
+        <div class="search-bar">
+            <input type="text" placeholder="..." id="searchInput" style="opacity:0.6; pointer-events:none;">
         </div>
-        <div class="footer">Powered by File Server</div>
+        <div class="user-menu">
+            <span id="userEmail" style="font-size:14px; color:#5f6368;"></span>
+            <div class="user-avatar" id="userAvatar">U</div>
+        </div>
     </div>
 
-    <!-- Download Loading Overlay -->
-    <div id="downloadOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 9999; align-items: center; justify-content: center; flex-direction: column;">
-        <div class="spinner" style="width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #1a73e8; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-        <p style="color: white; margin-top: 20px; font-size: 18px; font-weight: 500;">Preparing your download...</p>
+    <div id="viewerContainer" class="viewer-container">
+        <div class="loading">Loading file...</div>
     </div>
 
-    <!-- Scripts -->
-    <script src="/js2/config.js"></script>
-    <script src="/js2/utils.js"></script>
-    <script src="/js2/share2.js"></script>
-    <script src="/js2/toast.js"></script>
+    <div id="toast-container"></div>
+    <div id="modal-overlay"></div>
+
+    <script src="/js/core/config.js"></script>
+    <script src="/js/core/utils.js"></script>
+    <script src="/js/core/api.js"></script>
+    <script src="/js/core/toast.js"></script>
+    <script src="/js/core/modal.js"></script>
+    <script src="/js/modules/viewer.js"></script>
 </body>
 </html>

@@ -1,127 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Profile - File Server</title>
-<!-- Load Global CSS -->
-<link rel="stylesheet" href="/css/styles.css">
-<!-- Load Profile Specific CSS -->
-<link rel="stylesheet" href="/css/profile.css">
-<link rel="stylesheet" href="/css/toast.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - File Server</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👤</text></svg>">
 </head>
 <body>
 
-	<!-- Hardcoded Header -->
-	<div class="header">
-		<div class="logo">
-			<span class="logo-icon">📁</span> <span class="logo-text">File
-				Server</span>
-		</div>
-		<div class="search-bar">
-			<input type="text" placeholder="Search files..." id="searchInput">
-		</div>
-		<div class="user-menu">
-			<span id="userEmail" style="font-size: 14px; color: #5f6368;"></span>
-			<div class="user-avatar" id="userAvatar">U</div>
-		</div>
-	</div>
+    <div class="header">
+        <div class="logo">
+            <span class="logo-icon">📁</span>
+            <span class="logo-text">File Server</span>
+        </div>
+        <div class="search-bar">
+            <input type="text" placeholder="Search..." id="searchInput" style="opacity:0.6; pointer-events:none;">
+        </div>
+        <div class="user-menu">
+            <span id="userEmail" style="font-size:14px; color:#5f6368;"></span>
+            <div class="user-avatar" id="userAvatar">U</div>
+        </div>
+    </div>
 
-	<!-- Main Container -->
-	<div class="app-container">
-		<!-- Hardcoded Sidebar -->
-		<div class="sidebar">
-			<div class="sidebar-item" data-view="my-drive">
-				<span class="icon">📁</span><span>My Drive</span>
-			</div>
-			<div class="sidebar-item" data-view="shared">
-				<span class="icon">👥</span><span>Shared with me</span>
-			</div>
-			<div class="sidebar-item active" data-view="shared-by-me">
-                <span class="icon">↗️</span>
-                <span>Shared by me</span>
+    <div class="app-container">
+        <div class="sidebar"></div>
+
+        <div class="main-content">
+            <div class="toolbar">
+                <div class="breadcrumb"><span class="breadcrumb-item">Profile</span></div>
             </div>
-			<div class="sidebar-item active" data-view="profile">
-				<span class="icon">👤</span><span>My Profile</span>
-			</div>
-			<div class="sidebar-item" id="signOutBtn"
-				style="margin-top: auto; color: #d93025;">
-				<span class="icon">↩</span><span>Sign Out</span>
-			</div>
-		</div>
 
-		<div class="main-content">
-			<div class="toolbar">
-				<div class="breadcrumb" id="breadcrumb">
-					<span class="breadcrumb-item">Profile</span>
-				</div>
-			</div>
+            <div class="profile-container">
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <div class="profile-avatar-wrapper" id="photoPreview">
+                            <div class="loading" style="width:120px; height:120px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#e9ecef; color:#666; font-size:12px;">Loading...</div>
+                        </div>
+                        <div class="profile-email" id="userEmailDisplay">Loading...</div>
+                        <div style="display:flex; gap:10px; margin-top:4px;">
+                            <label for="photoFile" class="upload-photo-btn">📷 Change Photo</label>
+                            <input id="photoFile" type="file" accept="image/*" style="display:none;" onchange="uploadPhoto()">
+                        </div>
+                    </div>
 
-			<div class="profile-container">
-				<div class="profile-card">
-					<!-- Profile Header -->
-					<div class="profile-header">
-						<div class="profile-avatar-wrapper">
-							<div id="photoPreview">
-								<div id="profileLoadingIndicator"
-									style="width: 120px; height: 120px; border-radius: 50%; background: #e9ecef; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">Loading...</div>
-							</div>
-						</div>
-						<div class="profile-email" id="userEmailDisplay">Loading...</div>
-						<div
-							style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
-							<label for="photoFile" class="upload-photo-btn"
-								style="cursor: pointer;">📷 Change Photo</label> <input
-								id="photoFile" type="file" accept="image/*"
-								style="display: none;" onchange="uploadPhoto()" />
-						</div>
-					</div>
+                    <div class="profile-body">
+                        <div class="section-title">👤 Personal Information</div>
+                        <div class="form-group">
+                            <label for="name">Full Name</label>
+                            <input id="name" type="text" placeholder="Enter your full name">
+                        </div>
+                        <hr class="divider">
+                        <div class="section-title">🔒 Security</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="oldPassword">Current Password</label>
+                                <input id="oldPassword" type="password" placeholder="Enter current password">
+                            </div>
+                            <div class="form-group">
+                                <label for="newPassword">New Password</label>
+                                <input id="newPassword" type="password" placeholder="Enter new password">
+                            </div>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn-profile btn-primary" onclick="saveProfile()">💾 Save Changes</button>
+                            <button class="btn-profile btn-secondary" onclick="changePassword()">🔑 Update Password</button>
+                            <button class="btn-profile btn-secondary" id="syncGoogleBtn" style="display:none; background:#4285f4; color:#fff;" onclick="syncWithGoogle()">🔄 Sync with Google</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-					<!-- Profile Body -->
-					<div class="profile-body">
-						<div class="section-title">👤 Personal Information</div>
-						<div class="form-group">
-							<label for="name">Full Name</label> <input id="name" type="text"
-								placeholder="Enter your full name" />
-						</div>
-						<hr class="divider" />
-						<div class="section-title">🔒 Security</div>
-						<div class="form-row">
-							<div class="form-group">
-								<label for="oldPassword">Current Password</label> <input
-									id="oldPassword" type="password"
-									placeholder="Enter current password" />
-							</div>
-							<div class="form-group">
-								<label for="newPassword">New Password</label> <input
-									id="newPassword" type="password"
-									placeholder="Enter new password" />
-							</div>
-						</div>
-						<div class="action-buttons">
-							<button class="btn-profile btn-primary" onclick="saveProfile()">💾
-								Save Changes</button>
-							<button class="btn-profile btn-secondary"
-								onclick="changePassword()">🔑 Update Password</button>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
+    <div id="toast-container"></div>
+    <div id="modal-overlay"></div>
 
-	<!-- Toast Notification -->
-	<div id="toast"></div>
-
-	<!-- Hidden Upload Queue (Kept for compatibility) -->
-	<div class="upload-queue" id="uploadQueue" style="display: none;"></div>
-
-	<!-- Load Global Config & Utilities -->
-	<script src="/js2/config.js"></script>
-	<script src="/js2/utils.js"></script>
-	<script src="/js2/navigation.js"></script>
-	<!-- Load Profile Specific JS -->
-	<script src="/js2/profile.js"></script>
-	<script src="/js2/toast.js"></script>
+    <script src="/js/core/config.js"></script>
+    <script src="/js/core/utils.js"></script>
+    <script src="/js/core/api.js"></script>
+    <script src="/js/core/toast.js"></script>
+    <script src="/js/core/modal.js"></script>
+    <script src="/js/ui/navigation.js"></script>
+    <script src="/js/modules/profile.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="/js/modules/googleAuth.js"></script>
 </body>
 </html>

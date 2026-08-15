@@ -1,13 +1,14 @@
 package com.app.identity.service;
 
-import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,6 +28,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Service
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
     private final UserRepository repo;
     private final JwtService jwt;
     private final BCryptPasswordEncoder encoder;
@@ -42,22 +45,19 @@ public class AuthService {
         this.fileStorageUtils = fileStorageUtils;
     }
 
-    // --- EXISTING REGISTER (Without File) ---
+    // ================================
+    // REGISTER
+    // ================================
+
     public User register(User user) {
         if (repo.findByEmail(user.getEmail()).isPresent()) {
             throw new UserAlreadyExistsException();
         }
         user.setPassword(encoder.encode(user.getPassword()));
-        if (user.getProvider() == null) {
-            user.setProvider(AuthProvider.LOCAL);
-        }
-        if (user.getRole() == null) {
-            user.setRole(Role.USER);
-        }
+        if (user.getProvider() == null) user.setProvider(AuthProvider.LOCAL);
+        if (user.getRole() == null) user.setRole(Role.USER);
         user.setEnabled(true);
-        if (user.getCreatedAt() == null) {
-            user.setCreatedAt(LocalDateTime.now());
-        }
+        if (user.getCreatedAt() == null) user.setCreatedAt(LocalDateTime.now());
         return repo.save(user);
     }
 
@@ -77,8 +77,7 @@ public class AuthService {
         return jwt.generateAccessToken(user.getEmail(), user.getRole().name());
     }
 
-    // --- NEW REGISTER (With Optional File) ---
-    public String register(String email, String password, String name, MultipartFile file) throws IOException {
+    public String register(String email, String password, String name, MultipartFile file) throws java.io.IOException {
         if (repo.findByEmail(email).isPresent()) {
             throw new UserAlreadyExistsException();
         }
@@ -94,7 +93,6 @@ public class AuthService {
         User savedUser = repo.save(user);
 
         if (file != null && !file.isEmpty()) {
-            // Use Utility to generate unique name, then upload via Telegram
             String uniqueFilename = fileStorageUtils.generateUniqueFileName(savedUser.getId(), file.getOriginalFilename());
             String fileId = storageFactory.get().upload(file.getBytes(), uniqueFilename);
             savedUser.setPhotoUrl(fileId);
@@ -104,7 +102,10 @@ public class AuthService {
         return jwt.generateAccessToken(savedUser.getEmail(), savedUser.getRole().name());
     }
 
-    // --- LOGIN ---
+    // ================================
+    // LOGIN
+    // ================================
+
     public String login(String email, String password) {
         User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
         if (user.getProvider() != AuthProvider.LOCAL) {
@@ -116,8 +117,16 @@ public class AuthService {
         return jwt.generateAccessToken(user.getEmail(), user.getRole().name());
     }
 
-    // --- GOOGLE LOGIN ---
+    // ================================
+    // GOOGLE LOGIN (with sync)
+    // ================================
+    
     public String googleLogin(String idToken) {
+    	return googleLogin(idToken,false);
+    }
+
+    public String googleLogin(String idToken, boolean sync) {
+        log.info("Google login attempt, sync={}", sync);
         try {
             URL url = new URL("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -125,71 +134,178 @@ public class AuthService {
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
 
-            int code = conn.getResponseCode();
-            if (code != 200) {
-                throw new com.app.core.exception.InvalidCredentialsException();
+            if (conn.getResponseCode() != 200) {
+                log.warn("Google token verification failed with status: {}", conn.getResponseCode());
+                throw new InvalidCredentialsException();
             }
 
-            InputStream is = conn.getInputStream();
             ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> tokenInfo = mapper.readValue(is, Map.class);
+            Map<String, Object> tokenInfo = mapper.readValue(conn.getInputStream(), Map.class);
 
             String email = (String) tokenInfo.get("email");
             Boolean emailVerified = tokenInfo.get("email_verified") == null ? Boolean.FALSE
                     : Boolean.valueOf(tokenInfo.get("email_verified").toString());
             String name = (String) tokenInfo.get("name");
-            String picture = (String) tokenInfo.get("picture");
+            String googlePictureUrl = (String) tokenInfo.get("picture");
+
+            log.info("Google token info: email={}, verified={}, name={}, pictureUrl={}",
+                    email, emailVerified, name, googlePictureUrl);
 
             if (email == null || !emailVerified) {
-                throw new com.app.core.exception.InvalidCredentialsException();
+                log.warn("Email not verified or missing: email={}, verified={}", email, emailVerified);
+                throw new InvalidCredentialsException();
             }
 
             User user = repo.findByEmail(email).orElse(null);
+            boolean isNewUser = (user == null);
 
-            if (user == null) {
-                User u = new User();
-                u.setEmail(email);
-                u.setName(name != null ? name : email);
-                u.setPhotoUrl(picture);
-                u.setProvider(AuthProvider.GOOGLE);
-                u.setRole(Role.USER);
-                u.setEnabled(true);
-                u.setCreatedAt(LocalDateTime.now());
-                repo.save(u);
-                return jwt.generateAccessToken(u.getEmail(), u.getRole().name());
+            if (isNewUser) {
+                log.info("Creating new user with email: {}", email);
+                user = new User();
+                user.setEmail(email);
+                user.setName(name != null ? name : email);
+                user.setProvider(AuthProvider.GOOGLE);
+                user.setRole(Role.USER);
+                user.setEnabled(true);
+                user.setCreatedAt(LocalDateTime.now());
+
+                String fileId = downloadAndUploadGooglePicture(googlePictureUrl, email);
+                user.setPhotoUrl(fileId);
+                log.info("New user created, photo fileId: {}", fileId);
+                repo.save(user);
             } else {
-                if (user.getProvider() == null || user.getProvider() == AuthProvider.LOCAL) {
-                    // keep existing provider
-                }
+                log.info("Existing user found: email={}, current photoUrl={}, sync={}",
+                        email, user.getPhotoUrl(), sync);
+
                 boolean changed = false;
-                if (picture != null && !picture.equals(user.getPhotoUrl())) {
-                    user.setPhotoUrl(picture);
-                    changed = true;
+
+                if (sync) {
+                    log.info("Sync mode: forcing update from Google");
+                    String fileId = downloadAndUploadGooglePicture(googlePictureUrl, email);
+                    if (fileId != null) {
+                        user.setPhotoUrl(fileId);
+                        changed = true;
+                        log.info("Updated photoUrl to Telegram fileId: {}", fileId);
+                    } else {
+                        log.warn("Failed to download/upload Google picture for sync");
+                    }
+                    if (name != null && !name.equals(user.getName())) {
+                        user.setName(name);
+                        changed = true;
+                        log.info("Updated name to: {}", name);
+                    }
+                    if (changed) {
+                        repo.save(user);
+                        log.info("User updated successfully (sync mode)");
+                    }
+                } else {
+                    // Normal login
+                    boolean changedNormal = false;
+                    if (name != null && !name.equals(user.getName())) {
+                        user.setName(name);
+                        changedNormal = true;
+                        log.info("Updated name to: {}", name);
+                    }
+
+                    String currentPhoto = user.getPhotoUrl();
+                    if (currentPhoto == null || currentPhoto.isBlank() || currentPhoto.startsWith("http")) {
+                        log.info("Photo URL is null, empty, or external ({}). Migrating to Telegram.", currentPhoto);
+                        String fileId = downloadAndUploadGooglePicture(googlePictureUrl, email);
+                        if (fileId != null) {
+                            user.setPhotoUrl(fileId);
+                            changedNormal = true;
+                            log.info("Migrated photoUrl to Telegram fileId: {}", fileId);
+                        } else {
+                            log.warn("Migration failed – could not download/upload Google picture");
+                        }
+                    } else {
+                        log.info("Photo URL already a Telegram fileId: {}", currentPhoto);
+                    }
+
+                    if (changedNormal) {
+                        repo.save(user);
+                        log.info("User updated successfully (normal login)");
+                    }
                 }
-                if (name != null && !name.equals(user.getName())) {
-                    user.setName(name);
-                    changed = true;
-                }
-                if (changed) repo.save(user);
-                return jwt.generateAccessToken(user.getEmail(), user.getRole().name());
             }
+
+            String token = jwt.generateAccessToken(user.getEmail(), user.getRole().name());
+            log.info("Google login successful for email: {}", email);
+            return token;
+
         } catch (Exception e) {
-            throw new com.app.core.exception.InvalidCredentialsException();
+            log.error("Google login failed: {}", e.getMessage(), e);
+            throw new InvalidCredentialsException();
         }
     }
 
-    // --- UPDATE PROFILE ---
+    // ================================
+    // HELPER: Download Google Picture
+    // ================================
+
+    private String downloadAndUploadGooglePicture(String pictureUrl, String email) {
+        log.info("Attempting to download Google picture from URL: {}", pictureUrl);
+        if (pictureUrl == null || pictureUrl.isBlank()) {
+            log.warn("Google picture URL is null or empty");
+            return null;
+        }
+        try {
+            URL url = new URL(pictureUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+
+            int responseCode = conn.getResponseCode();
+            log.info("Download response code: {}", responseCode);
+            if (responseCode != 200) {
+                log.warn("Failed to download Google picture, status: {}", responseCode);
+                return null;
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            try (InputStream in = conn.getInputStream()) {
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, bytesRead);
+                }
+            }
+            byte[] imageBytes = out.toByteArray();
+            if (imageBytes.length == 0) {
+                log.warn("Downloaded image is empty (0 bytes)");
+                return null;
+            }
+            log.info("Downloaded {} bytes from Google", imageBytes.length);
+
+            String filename = "profile_" + email + "_" + System.currentTimeMillis() + ".jpg";
+            log.info("Uploading to Telegram with filename: {}", filename);
+            String fileId = storageFactory.get().upload(imageBytes, filename);
+            log.info("Upload successful, Telegram fileId: {}", fileId);
+            return fileId;
+
+        } catch (Exception e) {
+            log.error("Error downloading/uploading Google picture: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    // ================================
+    // UPDATE PROFILE
+    // ================================
+
     public User updateProfile(String email, String name, String photoUrl) {
-        User user = repo.findByEmail(email).orElseThrow(com.app.core.exception.UserNotFoundException::new);
-        if (name != null && !name.isBlank())
-            user.setName(name);
-        if (photoUrl != null)
-            user.setPhotoUrl(photoUrl);
+        User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
+        if (name != null && !name.isBlank()) user.setName(name);
+        if (photoUrl != null) user.setPhotoUrl(photoUrl);
         return repo.save(user);
     }
 
-    // --- UPLOAD PROFILE PHOTO (To Telegram) ---
-    public String uploadProfilePhoto(String email, MultipartFile file) throws IOException {
+    // ================================
+    // UPLOAD PROFILE PHOTO (manual)
+    // ================================
+
+    public String uploadProfilePhoto(String email, MultipartFile file) throws java.io.IOException {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Please select an image");
         }
@@ -198,9 +314,7 @@ public class AuthService {
             throw new IllegalArgumentException("Only image files are allowed");
         }
 
-        User user = repo.findByEmail(email).orElseThrow(com.app.core.exception.UserNotFoundException::new);
-
-        // Generate unique name via Utils, then upload to Telegram
+        User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
         String uniqueFilename = fileStorageUtils.generateUniqueFileName(user.getId(), file.getOriginalFilename());
         String fileId = storageFactory.get().upload(file.getBytes(), uniqueFilename);
 
@@ -210,13 +324,24 @@ public class AuthService {
         return fileId;
     }
 
-    // --- CHANGE PASSWORD ---
+    // ================================
+    // CHANGE PASSWORD
+    // ================================
+
     public void changePassword(String email, String oldPassword, String newPassword) {
-        User user = repo.findByEmail(email).orElseThrow(com.app.core.exception.UserNotFoundException::new);
+        User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
         if (!encoder.matches(oldPassword, user.getPassword())) {
-            throw new com.app.core.exception.InvalidCredentialsException();
+            throw new InvalidCredentialsException();
         }
         user.setPassword(encoder.encode(newPassword));
         repo.save(user);
+    }
+
+    // ================================
+    // GET USER BY EMAIL
+    // ================================
+
+    public User getUserByEmail(String email) {
+        return repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
     }
 }
