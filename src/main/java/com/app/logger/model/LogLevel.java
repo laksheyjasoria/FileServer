@@ -1,5 +1,5 @@
 package com.app.logger.model;
 
 public enum LogLevel {
-	INFO, WARN, ERROR
+    INFO, WARN, ERROR, DEBUG
 }

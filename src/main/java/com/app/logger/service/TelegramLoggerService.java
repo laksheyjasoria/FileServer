@@ -1,170 +1,3 @@
-//// package com.app.logger.service;
-//
-//// import java.util.HashMap;
-//// import java.util.Map;
-//
-//// import org.slf4j.Logger;
-//// import org.slf4j.LoggerFactory;
-//// import org.springframework.stereotype.Service;
-//// import org.springframework.web.client.RestTemplate;
-//
-//// import com.app.config.TelegramLoggerProperties;
-//
-//// @Service
-//// public class TelegramLoggerService {
-//
-//// 	private final TelegramLoggerProperties props;
-//// 	private final RestTemplate rest = new RestTemplate();
-//
-//// 	public TelegramLoggerService(
-//// 			TelegramLoggerProperties props) {
-//
-//// 		this.props = props;
-//// 	}
-//
-//// 	public void send(String message) {
-//
-//// 		if (!props.isEnabled()) {
-//// 			return;
-//// 		}
-//
-//// 		if (props.getBotToken() == null || props.getBotToken().isBlank() || props.getChatId() == null
-//// 				|| props.getChatId().isBlank()) {
-//// 			return;
-//// 		}
-//
-//// 		log.info("Telegram logger resolved: botTokenPrefix={}, chatId={}",
-//// 				props.getBotToken().substring(0, Math.min(8, props.getBotToken().length())),
-//// 				props.getChatId());
-//
-//// 		try {
-//
-//// 			String url = "https://api.telegram.org/bot"
-//// 					+ props.getBotToken()
-//// 					+ "/sendMessage";
-//
-//// 			Map<String, Object> body = new HashMap<>();
-//
-//// 			body.put("chat_id",
-//// 					props.getChatId());
-//
-//// 			body.put("text",
-//// 					message);
-//
-//// 			body.put("parse_mode",
-//// 					"HTML");
-//
-//// 			rest.postForObject(
-//// 					url,
-//// 					body,
-//// 					String.class);
-//
-//// 		} catch (Exception ignored) {
-//// 		}
-//// 	}
-//// }
-//
-//package com.app.logger.service;
-//
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
-//import org.springframework.http.HttpEntity;
-//import org.springframework.http.HttpHeaders;
-//import org.springframework.http.MediaType;
-//import org.springframework.stereotype.Service;
-//import org.springframework.web.client.RestTemplate;
-//
-//import com.app.config.TelegramLoggerProperties;
-//
-//@Service
-//public class TelegramLoggerService {
-//
-//	private static final Logger log = LoggerFactory.getLogger(TelegramLoggerService.class);
-//
-//	private final TelegramLoggerProperties props;
-//	private final RestTemplate restTemplate;
-//
-////	public TelegramLoggerService(TelegramLoggerProperties props) {
-////		this.props = props;
-////		this.restTemplate = new RestTemplate();
-////	}
-//	
-//	public TelegramLoggerService(TelegramLoggerProperties props) {
-//	    this.props = props;
-//	    this.restTemplate = new RestTemplate();
-//
-//	    String token = props.getBotToken();
-//
-//	    System.out.printf(
-//	        "TELEGRAM CONFIG -> enabled={}, tokenLength={}, tokenPrefix={}, chatId={}",
-//	        props.isEnabled(),
-//	        token == null ? 0 : token.length(),
-//	        token == null ? "NULL"
-//	                : token.substring(0, Math.min(10, token.length())),
-//	        props.getChatId()
-//	    );
-//	}
-//
-//	public void send(String message) {
-//
-//		if (props == null) {
-//			log.warn("TelegramLoggerProperties is null.");
-//			return;
-//		}
-//
-//		if (!props.isEnabled()) {
-//			log.debug("Telegram logger is disabled.");
-//			return;
-//		}
-//
-//		if (props.getBotToken() == null || props.getBotToken().isBlank()) {
-//			log.error("Telegram logger bot token is missing.");
-//			return;
-//		}
-//
-//		if (props.getChatId() == null || props.getChatId().isBlank()) {
-//			log.error("Telegram logger chat id is missing.");
-//			return;
-//		}
-//		
-//		System.out.printf(
-//			    "TELEGRAM URL = https://api.telegram.org/bot{}...",
-//			    props.getBotToken() == null
-//			        ? "NULL"
-//			        : props.getBotToken().substring(
-//			            0,
-//			            Math.min(10, props.getBotToken().length())
-//			        )
-//			);
-//
-//		System.out.printf("TELEGRAM CHAT ID = {}", props.getChatId());
-//
-//		try {
-//
-//			String url = "https://api.telegram.org/bot"
-//					+ props.getBotToken()
-//					+ "/sendMessage";
-//
-//			HttpHeaders headers = new HttpHeaders();
-//			headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-//
-//			String payload = "chat_id=" + props.getChatId()
-//					+ "&text=" + message
-//					+ "&parse_mode=HTML";
-//
-//			HttpEntity<String> request = new HttpEntity<>(payload, headers);
-//
-//			restTemplate.postForEntity(url, request, String.class);
-//
-//			log.debug("Telegram log sent successfully.");
-//
-//		} catch (Exception ex) {
-//
-//			log.error("Failed to send Telegram log.", ex);
-//		}
-//	}
-//}
-
 package com.app.logger.service;
 
 import org.slf4j.Logger;
@@ -217,15 +50,15 @@ public class TelegramLoggerService {
 		connectionManager.register(CONNECTION_NAME, props.getBotToken(), props.getChatId());
 	}
 
-	public void send(String message) {
+	public boolean send(String message) {
 
 		if (props == null || !props.isEnabled()) {
 
-			return;
+			return true;
 		}
 
 		if (message == null || message.isBlank()) {
-			return;
+			return true;
 		}
 
 		TelegramConnection connection = connectionManager.getConnection(CONNECTION_NAME);
@@ -237,7 +70,7 @@ public class TelegramLoggerService {
 			 *
 			 * ConnectionManager will retry automatically.
 			 */
-			return;
+			return false;
 		}
 
 		try {
@@ -245,6 +78,7 @@ public class TelegramLoggerService {
 			telegramClient.sendMessage(connection, message);
 
 			log.debug("Telegram log sent successfully.");
+			return true;
 
 		} catch (Exception ex) {
 
@@ -260,7 +94,9 @@ public class TelegramLoggerService {
 			 * create a logging loop.
 			 */
 			System.err.println("Telegram logger send failed. " + "Connection marked unavailable.");
+			return false;
 		}
+
 	}
 
 	public boolean isConnected() {

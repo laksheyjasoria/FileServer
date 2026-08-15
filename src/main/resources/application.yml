@@ -61,6 +61,7 @@ app:
       info: true
       warn: true
       error: true
+      debug: false
 
   security:
     master:

@@ -1,73 +1,51 @@
 package com.app.logger;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.app.logger.core.InternalLoggerService;
 
+/**
+ * Per‑class logger – just delegates to the common InternalLoggerService.
+ * No level checks here – all checks are centralised.
+ */
 public class AppLogger {
 
-	private final Logger logger;
-	private final InternalLoggerService internal;
-	private final String service;
+    private final String loggerName;
+    private final InternalLoggerService internalLogger;
 
-	public AppLogger(
-			String applicationName,
-			Class<?> clazz,
-			InternalLoggerService internal) {
+    public AppLogger(String loggerName, InternalLoggerService internalLogger) {
+        this.loggerName = loggerName;
+        this.internalLogger = internalLogger;
+    }
 
-		this.logger = LoggerFactory.getLogger(applicationName);
-		this.internal = internal;
-		this.service = clazz.getSimpleName();
-	}
+    public void info(String message) {
+        internalLogger.info(loggerName, message);
+    }
+    public void warn(String message) {
+        internalLogger.warn(loggerName, message);
+    }
+    public void error(String message) {
+        internalLogger.error(loggerName, message);
+    }
+    public void error(String message, Throwable throwable) {
+        internalLogger.error(loggerName, message, throwable);
+    }
+    public void debug(String message) {
+        internalLogger.debug(loggerName, message);
+    }
 
-	public void info(String msg, Object... args) {
-
-		String f = format(msg, args);
-
-		logger.info("service={} msg={}", service, f);
-
-		if (internal != null) {
-			internal.info("service=" + service + " msg=" + f);
-		}
-	}
-
-	public void warn(String msg, Object... args) {
-
-		String f = format(msg, args);
-
-		logger.warn("service={} msg={}", service, f);
-
-		if (internal != null) {
-			internal.warn("service=" + service + " msg=" + f);
-		}
-	}
-
-	public void error(String msg, Object... args) {
-
-		String f = format(msg, args);
-
-		logger.error("service={} msg={}", service, f);
-
-		if (internal != null) {
-			internal.error("service=" + service + " msg=" + f, null);
-		}
-	}
-
-	public void error(String msg, Throwable ex, Object... args) {
-
-		String f = format(msg, args);
-
-		logger.error("service={} msg={}", service, f, ex);
-
-		if (internal != null) {
-			internal.error("service=" + service + " msg=" + f, ex);
-		}
-	}
-
-	private String format(String msg, Object... args) {
-		return org.slf4j.helpers.MessageFormatter
-				.arrayFormat(msg, args)
-				.getMessage();
-	}
+    // Formatted overloads (optional)
+    public void info(String format, Object... args) {
+        info(String.format(format, args));
+    }
+    public void warn(String format, Object... args) {
+        warn(String.format(format, args));
+    }
+    public void error(String format, Object... args) {
+        error(String.format(format, args));
+    }
+    public void debug(String format, Object... args) {
+        debug(String.format(format, args));
+    }
+    public void error(String format, Throwable t, Object... args) {
+        error(String.format(format, args), t);
+    }
 }

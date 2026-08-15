@@ -9,41 +9,53 @@ import jakarta.persistence.Id;
 @Entity
 public class LoggerEntity {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
-	private String id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
 
-	@Column(unique = true)
-	private String name;
+    @Column(unique = true)
+    private String name;
 
-	private boolean infoEnabled = true;
-	private boolean warnEnabled = true;
+    private boolean infoEnabled = true;
+    private boolean warnEnabled = true;
+    
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean debugEnabled = false;
 
-	public String getId() {
-		return id;
-	}
+    // Getters and Setters
+    public String getId() {
+        return id;
+    }
 
-	public String getName() {
-		return name;
-	}
+    public String getName() {
+        return name;
+    }
 
-	public boolean isInfoEnabled() {
-		return infoEnabled;
-	}
+    public boolean isInfoEnabled() {
+        return infoEnabled;
+    }
 
-	public boolean isWarnEnabled() {
-		return warnEnabled;
-	}
+    public boolean isWarnEnabled() {
+        return warnEnabled;
+    }
 
-	public void setName(String name) {
-		this.name = name;
-	}
+    public boolean isDebugEnabled() {
+        return debugEnabled;
+    }
 
-	public void setInfoEnabled(boolean infoEnabled) {
-		this.infoEnabled = infoEnabled;
-	}
+    public void setName(String name) {
+        this.name = name;
+    }
 
-	public void setWarnEnabled(boolean warnEnabled) {
-		this.warnEnabled = warnEnabled;
-	}
+    public void setInfoEnabled(boolean infoEnabled) {
+        this.infoEnabled = infoEnabled;
+    }
+
+    public void setWarnEnabled(boolean warnEnabled) {
+        this.warnEnabled = warnEnabled;
+    }
+
+    public void setDebugEnabled(boolean debugEnabled) {
+        this.debugEnabled = debugEnabled;
+    }
 }

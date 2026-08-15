@@ -2,29 +2,23 @@ package com.app.logger.factory;
 
 import org.springframework.stereotype.Component;
 
-import com.app.config.AppProperties;
 import com.app.logger.AppLogger;
 import com.app.logger.core.InternalLoggerService;
 
 @Component
 public class AppLoggerFactory {
 
-	private final InternalLoggerService internal;
-	private final AppProperties appProperties;
+	private final InternalLoggerService internalLogger;
 
-	public AppLoggerFactory(
-			InternalLoggerService internal,
-			AppProperties appProperties) {
-
-		this.internal = internal;
-		this.appProperties = appProperties;
+	public AppLoggerFactory(InternalLoggerService internalLogger) {
+		this.internalLogger = internalLogger;
 	}
 
 	public AppLogger getLogger(Class<?> clazz) {
+		return new AppLogger(clazz.getSimpleName(), internalLogger);
+	}
 
-		return new AppLogger(
-				appProperties.getName(),
-				clazz,
-				internal);
+	public AppLogger getLogger(String name) {
+		return new AppLogger(name, internalLogger);
 	}
 }
