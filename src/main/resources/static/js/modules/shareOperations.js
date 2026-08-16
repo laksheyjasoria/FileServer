@@ -375,17 +375,51 @@ async function createShareLink() {
 
 function copyShareLink() {
     const input = document.getElementById('shareLinkInput');
-    input.select();
-    input.setSelectionRange(0, 99999);
-    try {
-        document.execCommand('copy');
-        safeToast('Share link copied to clipboard!', 'success');
-    } catch (err) {
-        navigator.clipboard.writeText(input.value).then(() => {
-            safeToast('Share link copied to clipboard!', 'success');
-        }).catch(() => {
-            safeToast('Failed to copy link. Please select and copy manually.', 'error');
-        });
+    const text = input.value;
+
+    // Function to clear selection
+    function clearSelection() {
+        input.blur();                         // removes focus
+        input.setSelectionRange(0, 0);        // clears selection
+        document.getSelection().removeAllRanges(); // extra safety
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                safeToast('Share link copied to clipboard!', 'success');
+                clearSelection();
+            })
+            .catch(() => fallbackCopy(text));
+    } else {
+        fallbackCopy(text);
+    }
+
+    function fallbackCopy(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        try {
+            const success = document.execCommand('copy');
+            if (success) {
+                safeToast('Share link copied to clipboard!', 'success');
+            } else {
+                safeToast('Copy failed. Please select and copy manually.', 'error');
+            }
+        } catch (err) {
+            safeToast('Copy failed. Please select and copy manually.', 'error');
+        }
+
+        document.body.removeChild(textarea);
+        // The temporary textarea is removed, so no selection remains.
+        // For the original input, we still clear it if it was focused.
+        clearSelection();
     }
 }
 

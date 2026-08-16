@@ -9,15 +9,15 @@ import com.app.logger.factory.AppLoggerFactory;
 @Component
 public class SystemHealthJob {
 
-    private final AppLogger log;
+	private final AppLogger log;
 
-    public SystemHealthJob(AppLoggerFactory loggerFactory) {
-        this.log = loggerFactory.getLogger(SystemHealthJob.class);
-    }
+	public SystemHealthJob(AppLoggerFactory loggerFactory) {
+		this.log = loggerFactory.getLogger(SystemHealthJob.class);
+	}
 
-    @Scheduled(fixedDelay = 600000)
-    public void healthCheck() {
+	@Scheduled(fixedDelay = 600000)
+	public void healthCheck() {
 
-        log.info("System health check completed");
-    }
+		log.info("System health check completed");
+	}
 }
