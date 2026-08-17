@@ -469,7 +469,7 @@ function closeModalById(modalId) {
 }
 
 // ======================================================
-//  RENAME (extension preservation)
+//  RENAME (extension preservation + duplicate check)
 // ======================================================
 
 function showRenameModal(id, currentName, type) {
@@ -500,25 +500,39 @@ async function executeRename() {
         safeToast('Please enter a new name', 'warning');
         return;
     }
+
+    let fullNewName = newName;
     if (contextMenuItem.type === 'FILE' && contextMenuItem.extension) {
         if (!newName.endsWith(contextMenuItem.extension)) {
-            newName = newName + contextMenuItem.extension;
+            fullNewName = newName + contextMenuItem.extension;
         }
     }
-    const parentId = contextMenuItem.parentId !== undefined ? contextMenuItem.parentId : currentFolderId;
-    try {
-        await checkDuplicateName(newName, parentId);
-    } catch (error) {
-        safeToast(error.message, 'warning');
+
+    // If the name hasn't changed, close modal and show info
+    if (fullNewName === contextMenuItem.name) {
+        closeModalById('renameModal');
+        safeToast('No changes made', 'info');
         return;
     }
+
+    const parentId = contextMenuItem.parentId !== undefined ? contextMenuItem.parentId : currentFolderId;
+
+    // ✅ Use checkDuplicateName with excludeId
+    try {
+        await checkDuplicateName(fullNewName, parentId, contextMenuItem.id);
+    } catch (error) {
+        safeToast(error.message, 'warning');
+        return; // keep modal open
+    }
+
+    // Proceed with rename
     try {
         const response = await apiCall('/resources/action', {
             method: 'POST',
             body: JSON.stringify({
                 ids: [contextMenuItem.id],
                 action: 'RENAME',
-                name: newName
+                name: fullNewName
             })
         });
         if (!response.ok) {

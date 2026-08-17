@@ -77,16 +77,19 @@ async function apiCall(endpoint, options = {}) {
     }
 }
 
-// ------------------------------------------------------------
+// ============================================================
 // Public functions using apiCall
-// ------------------------------------------------------------
+// ============================================================
 
+/**
+ * Get files for a folder (root if no folderId)
+ * Always uses skipDedupe: true to ensure fresh data.
+ */
 async function getFilesForFolder(folderId, options = {}) {
     try {
-        // Always use skipDedupe: true for file listings to ensure fresh data
         const endpoint = folderId ? `/drive/${folderId}/contents` : '/drive/root';
         const response = await apiCall(endpoint, { ...options, skipDedupe: true });
-        if (!response) return []; // fallback – should not happen with skipDedupe
+        if (!response) return [];
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const items = await response.json();
         return items.map(item => ({
@@ -105,6 +108,9 @@ async function getFilesForFolder(folderId, options = {}) {
     }
 }
 
+/**
+ * Build breadcrumb path from folderId to root
+ */
 async function getBreadcrumbPath(folderId) {
     if (!folderId) return [];
     const path = [];
@@ -113,7 +119,7 @@ async function getBreadcrumbPath(folderId) {
     while (currentId && !visited.has(currentId)) {
         visited.add(currentId);
         try {
-            const response = await apiCall(`/drive/${currentId}`);
+            const response = await apiCall(`/drive/${currentId}`, { skipDedupe: true });
             if (!response.ok) break;
             const item = await response.json();
             path.unshift({ id: item.id, name: item.name });
@@ -126,10 +132,20 @@ async function getBreadcrumbPath(folderId) {
     return path;
 }
 
-async function checkDuplicateName(name, parentId) {
+/**
+ * Check if a name already exists in a folder.
+ * @param {string} name – the name to check
+ * @param {string} parentId – the folder id
+ * @param {string|null} excludeId – if provided, ignore this item (useful for rename)
+ * @returns {Promise<boolean>} – true if name is available, throws if duplicate
+ */
+async function checkDuplicateName(name, parentId, excludeId = null) {
     try {
         const items = await getFilesForFolder(parentId);
-        const exists = items.some(item => item.name.toLowerCase() === name.toLowerCase());
+        const exists = items.some(item =>
+            item.name.toLowerCase() === name.toLowerCase() &&
+            (excludeId ? item.id !== excludeId : true)
+        );
         if (exists) {
             throw new Error(`An item with name "${name}" already exists in this location`);
         }
@@ -139,37 +155,17 @@ async function checkDuplicateName(name, parentId) {
             throw error;
         }
         console.error('Error checking duplicate:', error);
-        return true;
+        return true; // fallback: allow if we can't verify
     }
 }
 
-// api.js – add this function
+// ============================================================
+// Trash functions
+// ============================================================
 
-async function getTrashItems(options = {}) {
-    try {
-        // Call the trash endpoint (adjust if your backend uses a different path)
-        const response = await apiCall('/drive/trash', { ...options, skipDedupe: true });
-        if (!response) return [];
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const items = await response.json();
-        return items.map(item => ({
-            ...item,
-            fileSize: item.size || item.fileSize || 0,
-            fileType: item.contentType || item.fileType || '',
-            driveType: item.driveType || (item.fileId ? 'FILE' : 'FOLDER'),
-            accessType: item.accessType || 'PUBLIC',
-            parentId: item.parentId || null,
-            childrenCount: item.childrenCount || 0,
-            hasChildren: item.childrenCount > 0
-        }));
-    } catch (error) {
-        console.error('Error fetching trash:', error);
-        return [];
-    }
-}
-
-// Add these to your api.js (if not already present)
-
+/**
+ * Get all trash items for the current user
+ */
 async function getTrashItems(options = {}) {
     try {
         const response = await apiCall('/drive/trash', { ...options, skipDedupe: true });
@@ -193,6 +189,9 @@ async function getTrashItems(options = {}) {
     }
 }
 
+/**
+ * Restore an item from trash
+ */
 async function restoreFromTrash(itemId) {
     const response = await apiCall(`/drive/trash/${itemId}/restore`, {
         method: 'POST'
@@ -204,6 +203,9 @@ async function restoreFromTrash(itemId) {
     return true; // success, no body expected
 }
 
+/**
+ * Permanently delete an item from trash
+ */
 async function permanentDeleteItem(itemId) {
     const response = await apiCall(`/drive/trash/${itemId}`, {
         method: 'DELETE'
@@ -215,6 +217,9 @@ async function permanentDeleteItem(itemId) {
     return true;
 }
 
+/**
+ * Empty all trash
+ */
 async function emptyTrashApi() {
     const response = await apiCall('/drive/trash/empty', {
         method: 'DELETE'
@@ -226,17 +231,16 @@ async function emptyTrashApi() {
     return true;
 }
 
-// Expose them
-window.getTrashItems = getTrashItems;
-window.restoreFromTrash = restoreFromTrash;
-window.permanentDeleteItem = permanentDeleteItem;
-window.emptyTrashApi = emptyTrashApi;
-
-// ------------------------------------------------------------
-// Global exports (for use in inline event handlers)
-// ------------------------------------------------------------
+// ============================================================
+// Global exports (for use in inline event handlers and other scripts)
+// ============================================================
 window.apiCall = apiCall;
 window.getFilesForFolder = getFilesForFolder;
 window.getBreadcrumbPath = getBreadcrumbPath;
 window.checkDuplicateName = checkDuplicateName;
 window.getTrashItems = getTrashItems;
+window.restoreFromTrash = restoreFromTrash;
+window.permanentDeleteItem = permanentDeleteItem;
+window.emptyTrashApi = emptyTrashApi;
+
+console.log('✅ api.js loaded');
