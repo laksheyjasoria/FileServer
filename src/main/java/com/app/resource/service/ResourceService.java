@@ -2,12 +2,14 @@ package com.app.resource.service;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.app.drive.service.CopyService;
 import com.app.drive.service.CreateFolderService;
 import com.app.drive.service.DeleteService;
-import com.app.drive.service.DriveService;   // 👈 ADD this import
+import com.app.drive.service.DriveService;
 import com.app.drive.service.MoveService;
 import com.app.drive.service.RenameService;
 import com.app.resource.dto.ResourceActionRequest;
@@ -17,21 +19,23 @@ import com.app.master.repository.MasterFileRepository;
 @Service
 public class ResourceService {
 
+    private static final Logger log = LoggerFactory.getLogger(ResourceService.class);
+
     private final DeleteService deleteService;
     private final CopyService copyService;
     private final MoveService moveService;
     private final RenameService renameService;
     private final CreateFolderService createFolderService;
     private final MasterFileRepository fileRepository;
-    private final DriveService driveService;   // 👈 NEW field
+    private final DriveService driveService;
 
     public ResourceService(DeleteService deleteService,
-            CopyService copyService,
-            MoveService moveService,
-            RenameService renameService,
-            CreateFolderService createFolderService,
-            MasterFileRepository fileRepository,
-            DriveService driveService) {        // 👈 Add to constructor
+                           CopyService copyService,
+                           MoveService moveService,
+                           RenameService renameService,
+                           CreateFolderService createFolderService,
+                           MasterFileRepository fileRepository,
+                           DriveService driveService) {
         this.deleteService = deleteService;
         this.copyService = copyService;
         this.moveService = moveService;
@@ -54,36 +58,44 @@ public class ResourceService {
             requireOwned(request.getDestination(), userId);
         }
 
-        if (request.getAction() == ResourceAction.DELETE) {
-            // 🔁 CHANGED: now uses soft delete (move to trash)
-            ids.forEach(id -> driveService.softDelete(id, userId));
-            return;
-        }
+        switch (request.getAction()) {
+            case DELETE:
+                ids.forEach(id -> driveService.softDelete(id, userId));
+                return;
 
-        if (request.getAction() == ResourceAction.COPY) {
-            ids.forEach(id -> copyService.copy(id, request.getDestination()));
-            return;
-        }
+            case COPY:
+                ids.forEach(id -> copyService.copy(id, request.getDestination()));
+                return;
 
-        if (request.getAction() == ResourceAction.MOVE) {
-            String dest = request.getDestination();
-            ids.forEach(id -> moveService.move(id, dest));
-            return;
-        }
+            case MOVE:
+                String dest = request.getDestination();
+                ids.forEach(id -> moveService.move(id, dest));
+                return;
 
-        if (request.getAction() == ResourceAction.RENAME) {
-           System.out.println("can't rename all files at once");
-           return;
-        }
+            case RENAME:
+                if (ids.size() != 1) {
+                    log.warn("Rename action received with {} items. Rename only supports a single item.", ids.size());
+                    throw new IllegalArgumentException("Rename operation only supports one item at a time.");
+                }
+                String newName = request.getName();
+                if (newName == null || newName.isBlank()) {
+                    throw new IllegalArgumentException("New name is required for rename action.");
+                }
+                String id = ids.get(0);
+                renameService.rename(id, newName);
+                return;
 
-        if (request.getAction() == ResourceAction.CREATE_FOLDER) {
-            String name = request.getName();
-            String parent = request.getDestination();
-            if (name == null || name.isBlank()) {
-                throw new IllegalArgumentException("Folder name is required");
-            }
-            createFolderService.create(userId, name.trim(), parent);
-            return;
+            case CREATE_FOLDER:
+                String name = request.getName();
+                String parent = request.getDestination();
+                if (name == null || name.isBlank()) {
+                    throw new IllegalArgumentException("Folder name is required");
+                }
+                createFolderService.create(userId, name.trim(), parent);
+                return;
+
+            default:
+                throw new IllegalArgumentException("Unsupported action: " + request.getAction());
         }
     }
 
