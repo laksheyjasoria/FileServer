@@ -62,44 +62,64 @@ public class DriveService {
 		return repo.findByIdAndUserIdAndActiveTrue(id, userId).orElseThrow(FileNotFoundException::new);
 	}
 
+	// ============================================================
+	// SOFT DELETE (move to trash) – OPTIMIZED
+	// ============================================================
 	@Transactional
 	public void softDelete(String fileId, String userId) {
+
 		MasterFile file = repo.findByIdAndUserId(fileId, userId).orElseThrow(() -> {
 			return new FileNotFoundException();
 		});
+
+		// If it's a folder, get all descendants and bulk soft-delete them
+		if ("FOLDER".equals(file.getDriveType()) || "ROOT".equals(file.getDriveType())) {
+			List<String> descendantIds = repo.findAllDescendantIds(fileId);
+			if (!descendantIds.isEmpty()) {
+				repo.softDeleteAllByIds(descendantIds);
+			}
+		}
+
+		// Soft delete the item itself
 		file.setActive(false);
 		file.setDeletedAt(LocalDateTime.now());
 		repo.save(file);
 	}
 
-	public List<MasterFile> listTrash(String userId) {
-		return repo.findByUserIdAndActiveFalseAndDeletedAtIsNotNull(userId);
-	}
-
+	// ============================================================
+	// RESTORE – OPTIMIZED
+	// ============================================================
+	@Transactional
 	public void restore(String fileId, String userId) {
-		MasterFile file = repo.findByIdAndUserIdAndActiveFalse(fileId, userId).orElseThrow(FileNotFoundException::new);
+
+		MasterFile file = repo.findByIdAndUserIdAndActiveFalse(fileId, userId).orElseThrow(() -> {
+			return new FileNotFoundException();
+		});
+
+		// If it's a folder, get all descendants and bulk restore them
+		if ("FOLDER".equals(file.getDriveType()) || "ROOT".equals(file.getDriveType())) {
+			List<String> descendantIds = repo.findAllDescendantIds(fileId);
+			if (!descendantIds.isEmpty()) {
+				repo.restoreAllByIds(descendantIds);
+			}
+		}
+
+		// Restore the item itself
 		file.setActive(true);
 		file.setDeletedAt(null);
 		repo.save(file);
 	}
 
-	// ---------- PERMANENT DELETE ----------
-//	@Transactional
-//	public void permanentDelete(String fileId, String userId) {
-//		MasterFile file = repo.findByIdAndUserIdAndActiveFalse(fileId, userId).orElseThrow(FileNotFoundException::new);
-//
-//		// 1. Delete all share tokens in the entire folder tree (bulk operation)
-//		deleteSharesRecursively(fileId);
-//
-//		// 2. Delete the actual storage file (if it's a file, not a folder)
-//		if ("FILE".equals(file.getDriveType()) && file.getFileId() != null) {
-//			deleteService.delete(file.getFileId());
-//		}
-//
-//		// 3. Delete the database record
-//		repo.delete(file);
-//	}
+	// ============================================================
+	// LIST TRASH
+	// ============================================================
+	public List<MasterFile> listTrash(String userId) {
+		return repo.findByUserIdAndActiveFalseAndDeletedAtIsNotNull(userId);
+	}
 
+	// ============================================================
+	// PERMANENT DELETE
+	// ============================================================
 	@Transactional
 	public void permanentDelete(String fileId, String userId) {
 
@@ -109,61 +129,76 @@ public class DriveService {
 		}
 
 		MasterFile file = anyFile.get();
-		// 2. Check ownership
+
 		if (!file.getUserId().equals(userId)) {
 			throw new SecurityException("Access denied");
 		}
 
-		// 3. Check if it's actually in trash (active == false)
 		if (file.isActive()) {
 			throw new IllegalStateException("File is not in trash. Please delete it first.");
 		}
 
-		// 4. Proceed with permanent deletion Delete shares
-		deleteSharesRecursively(fileId);
+		// 1. Delete shares for the entire folder tree (if folder)
+		// For a single file, delete its share directly.
+		if ("FOLDER".equals(file.getDriveType()) || "ROOT".equals(file.getDriveType())) {
+			deleteSharesRecursively(fileId);
+		} else {
+			shareRepo.deleteByFileId(fileId);
+		}
 
-		// Delete storage (if file)
+		// 2. Delete physical storage (if it's a file)
 		if ("FILE".equals(file.getDriveType()) && file.getFileId() != null) {
 			deleteService.delete(fileId);
 		}
 
-		// Hard delete
+		// 3. Hard delete the root item and all descendants (if folder)
+		if ("FOLDER".equals(file.getDriveType()) || "ROOT".equals(file.getDriveType())) {
+			List<String> descendantIds = repo.findAllDescendantIds(fileId);
+			if (!descendantIds.isEmpty()) {
+				repo.deleteAllById(descendantIds);
+			}
+		}
+
+		// Finally, delete the root item
 		repo.delete(file);
 	}
 
-	// ---------- EMPTY TRASH (bulk) ----------
+	// ---------- RECURSIVE SHARE DELETION (for folders) ----------
+	private void deleteSharesRecursively(String folderId) {
+		List<String> descendantIds = repo.findAllDescendantIds(folderId);
+		List<String> allIds = new ArrayList<>();
+		allIds.add(folderId);
+		allIds.addAll(descendantIds);
+		if (!allIds.isEmpty()) {
+			shareRepo.deleteByFileIdIn(allIds);
+		}
+	}
+
+	// ============================================================
+	// EMPTY TRASH
+	// ============================================================
 	@Transactional
 	public void emptyTrash(String userId) {
 		List<MasterFile> trashed = repo.findByUserIdAndActiveFalseAndDeletedAtIsNotNull(userId);
+		if (trashed.isEmpty()) {
+			return;
+		}
 
-		// Handle share cleanup and physical storage deletion
 		for (MasterFile file : trashed) {
-			// Bulk delete all share tokens in each folder tree
-			deleteSharesRecursively(file.getId());
+			// Delete shares
+			if ("FOLDER".equals(file.getDriveType()) || "ROOT".equals(file.getDriveType())) {
+				deleteSharesRecursively(file.getId());
+			} else {
+				shareRepo.deleteByFileId(file.getId());
+			}
 
-			// Delete physical storage for files
+			// Delete storage (if file)
 			if ("FILE".equals(file.getDriveType()) && file.getFileId() != null) {
 				deleteService.delete(file.getId());
 			}
 		}
 
-		// Bulk delete all database records at once instead of one by one
+		// Bulk delete all records
 		repo.deleteAllInBatch(trashed);
-	}
-
-	// ---------- RECURSIVE BULK CLEANUP (UPDATED) ----------
-	private void deleteSharesRecursively(String folderId) {
-		// Get all descendant IDs in ONE database query (JPA Native CTE)
-		List<String> descendantIds = repo.findAllDescendantIds(folderId);
-
-		// Create a list including the root folder itself
-		List<String> allIds = new ArrayList<>();
-		allIds.add(folderId);
-		allIds.addAll(descendantIds);
-
-		// Delete all shares for the entire folder tree in ONE bulk DB call
-		if (!allIds.isEmpty()) {
-			shareRepo.deleteByFileIdIn(allIds);
-		}
 	}
 }
