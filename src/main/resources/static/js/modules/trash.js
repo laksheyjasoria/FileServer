@@ -1,4 +1,10 @@
-// trash.js – Complete updated version (with showConfirm)
+// trash.js – Complete updated version (with parent restore confirmation)
+
+// ============================
+// GLOBALS
+// ============================
+let allTrashItems = [];
+let currentTrashFolderId = null; // null = root of trash
 
 // ============================
 // INIT
@@ -48,15 +54,8 @@ async function loadTrash() {
 
     try {
         const files = await getTrashItems({ skipDedupe: true });
-
-        if (!files || files.length === 0) {
-            showEmptyState(container, 'Trash is empty', 'Items deleted from your drive will appear here');
-            allFiles = [];
-            return;
-        }
-
-        allFiles = files;
-        renderFiles(files);
+        allTrashItems = files;
+        renderTrashItems();
         updateBreadcrumb();
     } catch (error) {
         console.error('Error loading trash:', error);
@@ -67,24 +66,40 @@ async function loadTrash() {
 // ============================
 // RENDER FUNCTIONS
 // ============================
-function renderFiles(files) {
+function renderTrashItems() {
     const container = document.getElementById('trashContainer');
     if (!container) return;
 
-    if (!files || files.length === 0) {
-        showEmptyState(container, 'Trash is empty', 'Items deleted from your drive will appear here');
+    // Filter items based on current folder
+    const items = allTrashItems.filter(item => {
+        const parentId = item.parentId || null;
+        if (currentTrashFolderId === null) {
+            return parentId === null;
+        }
+        return parentId === currentTrashFolderId;
+    });
+
+    if (!items || items.length === 0) {
+        showEmptyState(container, 'This folder is empty', 'Items deleted from your drive will appear here');
         return;
     }
 
-    const folders = files.filter(f => f.driveType === 'FOLDER' || f.driveType === 'ROOT');
-    const fileItems = files.filter(f => f.driveType === 'FILE');
+    // Compute hasChildren for each item
+    const hasChildrenMap = new Map();
+    allTrashItems.forEach(item => {
+        const children = allTrashItems.filter(other => other.parentId === item.id);
+        hasChildrenMap.set(item.id, children.length > 0);
+    });
+
+    const folders = items.filter(f => f.driveType === 'FOLDER' || f.driveType === 'ROOT');
+    const fileItems = items.filter(f => f.driveType === 'FILE');
 
     let html = '<div class="file-grid">';
 
     folders.forEach(item => {
         const isSelected = selectedItems.has(item.id);
         const icon = '📁';
-        const info = item.hasChildren ? 'Contains items' : 'Empty';
+        const info = hasChildrenMap.get(item.id) ? 'Contains items' : 'Empty';
         html += createFileItemHTML(item, isSelected, icon, info, true);
     });
 
@@ -108,7 +123,9 @@ function createFileItemHTML(item, isSelected, icon, info, isFolder) {
     const isProtected = item.accessType === 'PROTECTED';
     const lockIcon = isProtected ? '🔒 ' : '';
 
-    const doubleClickAction = `restoreItem(decodeURIComponent('${safeId}'))`;
+    const doubleClickAction = isFolder
+        ? `openTrashFolder(decodeURIComponent('${safeId}'))`
+        : `restoreItem(decodeURIComponent('${safeId}'))`;
 
     let deletedInfo = '';
     if (item.deletedAt) {
@@ -137,6 +154,56 @@ function createFileItemHTML(item, isSelected, icon, info, isFolder) {
 }
 
 // ============================
+// TRASH NAVIGATION
+// ============================
+function openTrashFolder(folderId) {
+    console.log('📂 Opening trash folder:', folderId);
+    const folder = allTrashItems.find(f => f.id === folderId);
+    if (!folder) {
+        safeToast('Folder not found', 'error');
+        return;
+    }
+    currentTrashFolderId = folderId;
+    renderTrashItems();
+    updateBreadcrumb();
+}
+
+function navigateToTrashRoot() {
+    currentTrashFolderId = null;
+    renderTrashItems();
+    updateBreadcrumb();
+}
+
+function updateBreadcrumb() {
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (!breadcrumb) return;
+
+    if (currentTrashFolderId === null) {
+        breadcrumb.innerHTML = '<span class="breadcrumb-item" onclick="navigateToTrashRoot()">🗑️ Trash</span>';
+        return;
+    }
+
+    // Build breadcrumb path
+    const path = [];
+    let currentId = currentTrashFolderId;
+    const visited = new Set();
+    while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
+        const item = allTrashItems.find(f => f.id === currentId);
+        if (!item) break;
+        path.unshift({ id: item.id, name: item.name });
+        currentId = item.parentId || null;
+    }
+
+    let html = '<span class="breadcrumb-item" onclick="navigateToTrashRoot()">🗑️ Trash</span>';
+    for (const p of path) {
+        html += '<span class="breadcrumb-separator">/</span>';
+        html += `<span class="breadcrumb-item" onclick="openTrashFolder('${p.id}')">${escapeHtml(p.name)}</span>`;
+    }
+    breadcrumb.innerHTML = html;
+}
+
+// ============================
 // SELECTION
 // ============================
 function handleItemClick(event, id, isFolder) {
@@ -147,7 +214,7 @@ function handleItemClick(event, id, isFolder) {
         if (!selectedItems.has(id)) {
             selectedItems.clear();
             selectedItems.add(id);
-            renderFiles(allFiles);
+            renderTrashItems();
         }
     } else {
         toggleSelectItem(event, id, !selectedItems.has(id));
@@ -158,22 +225,29 @@ function toggleSelectItem(event, id, checked) {
     event.stopPropagation();
     if (checked) selectedItems.add(id);
     else selectedItems.delete(id);
-    renderFiles(allFiles);
+    renderTrashItems();
 }
 
 function toggleSelectAll() {
     const selectAll = document.getElementById('selectAllCheckbox');
     if (!selectAll) return;
     const checked = selectAll.checked;
-    if (checked) allFiles.forEach(f => selectedItems.add(f.id));
-    else selectedItems.clear();
-    renderFiles(allFiles);
+    const visibleItems = allTrashItems.filter(item => {
+        const parentId = item.parentId || null;
+        if (currentTrashFolderId === null) return parentId === null;
+        return parentId === currentTrashFolderId;
+    });
+    if (checked) {
+        visibleItems.forEach(f => selectedItems.add(f.id));
+    } else {
+        visibleItems.forEach(f => selectedItems.delete(f.id));
+    }
+    renderTrashItems();
 }
 
 function updateSelectionToolbar() {
     const toolbar = document.getElementById('selectionToolbar');
     if (!toolbar) return;
-
     const count = selectedItems.size;
     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
     if (count > 0) {
@@ -181,27 +255,182 @@ function updateSelectionToolbar() {
         const countEl = document.getElementById('selectionCount');
         if (countEl) countEl.innerText = `${count} item${count > 1 ? 's' : ''} selected`;
         if (selectAllCheckbox) {
-            selectAllCheckbox.checked = count === allFiles.length;
-            selectAllCheckbox.indeterminate = count > 0 && count < allFiles.length;
+            const visibleItems = allTrashItems.filter(item => {
+                const parentId = item.parentId || null;
+                if (currentTrashFolderId === null) return parentId === null;
+                return parentId === currentTrashFolderId;
+            });
+            selectAllCheckbox.checked = count === visibleItems.length;
+            selectAllCheckbox.indeterminate = count > 0 && count < visibleItems.length;
         }
     } else {
         toolbar.classList.remove('show');
     }
 }
 
-// ============================
-// BREADCRUMB
-// ============================
-function updateBreadcrumb() {
-    const breadcrumb = document.getElementById('breadcrumb');
-    if (breadcrumb) {
-        breadcrumb.innerHTML = `<span class="breadcrumb-item">🗑️ Trash</span>`;
+// ============================================================
+// HELPERS FOR PARENT IN TRASH
+// ============================================================
+function getParentInTrash(item) {
+    if (!item || !item.parentId) return null;
+    return allTrashItems.find(f => f.id === item.parentId) || null;
+}
+
+// ============================================================
+// RESTORE (single item) – with parent folder confirmation
+// ============================================================
+async function restoreItem(id) {
+    const item = allTrashItems.find(f => f.id === id);
+    if (!item) {
+        safeToast('Item not found', 'error');
+        return;
+    }
+
+    // Check if parent is in trash
+    const parentInTrash = getParentInTrash(item);
+    if (parentInTrash) {
+        const confirmed = await showConfirm(
+            `This item is inside a deleted folder "${parentInTrash.name}". To restore it, the parent folder must be restored first. Would you like to restore the parent folder as well?`,
+            'Restore with Parent',
+            'Restore Both',
+            'Cancel',
+            'primary'
+        );
+        if (!confirmed) return;
+        // Restore the parent folder (will also restore descendants)
+        try {
+            await restoreFromTrash(parentInTrash.id);
+            await loadTrash();
+            safeToast(`Folder "${parentInTrash.name}" and its contents restored successfully`, 'success');
+        } catch (error) {
+            safeToast(error.message || 'Restore failed', 'error');
+        }
+        return;
+    }
+
+    // Normal restore
+    try {
+        await restoreFromTrash(id);
+        selectedItems.delete(id);
+        await loadTrash();
+        safeToast('Item restored successfully', 'success');
+    } catch (error) {
+        safeToast(error.message || 'Restore failed', 'error');
     }
 }
 
-// ============================
-// CONTEXT MENU
-// ============================
+// ============================================================
+// RESTORE SELECTED – with parent folder confirmation
+// ============================================================
+async function restoreSelected() {
+    if (selectedItems.size === 0) {
+        safeToast('No items selected', 'warning');
+        return;
+    }
+
+    const selectedIds = Array.from(selectedItems);
+    const selectedItemsObj = selectedIds
+        .map(id => allTrashItems.find(f => f.id === id))
+        .filter(Boolean);
+
+    // Check if any selected item has a parent in trash
+    const itemsWithParentInTrash = selectedItemsObj.filter(item => getParentInTrash(item) !== null);
+
+    if (itemsWithParentInTrash.length > 0) {
+        const parentNames = [...new Set(itemsWithParentInTrash.map(item => getParentInTrash(item).name))];
+        const message =
+            `Some items are inside deleted folders (${parentNames.join(', ')}). To restore them, the parent folders must be restored first. Would you like to restore all parent folders as well?`;
+        const confirmed = await showConfirm(message, 'Restore with Parents', 'Restore All', 'Cancel', 'primary');
+        if (!confirmed) return;
+
+        const parentIds = [...new Set(itemsWithParentInTrash.map(item => getParentInTrash(item).id))];
+        try {
+            for (const parentId of parentIds) {
+                await restoreFromTrash(parentId);
+            }
+            await loadTrash();
+            safeToast(`Restored ${parentIds.length} folder(s) and their contents`, 'success');
+            selectedItems.clear();
+        } catch (error) {
+            safeToast(error.message || 'Restore failed', 'error');
+        }
+        return;
+    }
+
+    // Normal restore for all selected
+    const confirmed = await showConfirm(
+        `Restore ${selectedItems.size} item(s) from trash?`,
+        'Restore Items',
+        'Restore',
+        'Cancel'
+    );
+    if (!confirmed) return;
+
+    let successCount = 0, failCount = 0;
+    for (const id of selectedIds) {
+        try {
+            await restoreFromTrash(id);
+            successCount++;
+        } catch (error) {
+            failCount++;
+        }
+    }
+    selectedItems.clear();
+    await loadTrash();
+    safeToast(`Restored ${successCount} item(s)${failCount > 0 ? `, ${failCount} failed` : ''}`, 'success');
+}
+
+// ============================================================
+// PERMANENT DELETE
+// ============================================================
+async function deletePermanently(id) {
+    const confirmed = await showConfirm(
+        'Permanently delete this item? This cannot be undone.',
+        'Delete Permanently',
+        'Delete',
+        'Cancel',
+        'danger'
+    );
+    if (!confirmed) return;
+    try {
+        await permanentDeleteItem(id);
+        selectedItems.delete(id);
+        await loadTrash();
+        safeToast('Item permanently deleted', 'success');
+    } catch (error) {
+        safeToast(error.message || 'Delete failed', 'error');
+    }
+}
+
+// ============================================================
+// EMPTY TRASH
+// ============================================================
+async function emptyTrash() {
+    if (allTrashItems.length === 0) {
+        safeToast('Trash is already empty', 'info');
+        return;
+    }
+    const confirmed = await showConfirm(
+        'Permanently delete ALL items in trash? This cannot be undone.',
+        'Empty Trash',
+        'Empty',
+        'Cancel',
+        'danger'
+    );
+    if (!confirmed) return;
+    try {
+        await emptyTrashApi();
+        selectedItems.clear();
+        await loadTrash();
+        safeToast('Trash emptied successfully', 'success');
+    } catch (error) {
+        safeToast(error.message || 'Empty trash failed', 'error');
+    }
+}
+
+// ============================================================
+// CONTEXT MENU, DOWNLOAD, UTILITY
+// ============================================================
 function showTrashContextMenu(event, id, name, type, fileType, isProtected) {
     event.stopPropagation();
     const existingMenu = document.querySelector('.dropdown-menu');
@@ -236,104 +465,6 @@ function showTrashContextMenu(event, id, name, type, fileType, isProtected) {
     setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
 }
 
-// ======================================================
-// TRASH OPERATIONS – with showConfirm
-// ======================================================
-
-// ---- Restore single item ----
-async function restoreItem(id) {
-    try {
-        await restoreFromTrash(id);
-        selectedItems.delete(id);
-        await loadTrash();
-        safeToast('Item restored successfully', 'success');
-    } catch (error) {
-        safeToast(error.message || 'Restore failed', 'error');
-    }
-}
-
-// ---- Delete permanently (single) ----
-async function deletePermanently(id) {
-    const confirmed = await showConfirm(
-        'Permanently delete this item? This cannot be undone.',
-        'Delete Permanently',
-        'Delete',
-        'Cancel',
-        'danger'
-    );
-    if (!confirmed) return;
-
-    try {
-        await permanentDeleteItem(id);
-        selectedItems.delete(id);
-        await loadTrash();
-        safeToast('Item permanently deleted', 'success');
-    } catch (error) {
-        safeToast(error.message || 'Delete failed', 'error');
-    }
-}
-
-// ---- Restore selected ----
-async function restoreSelected() {
-    if (selectedItems.size === 0) {
-        safeToast('No items selected', 'warning');
-        return;
-    }
-
-    const confirmed = await showConfirm(
-        `Restore ${selectedItems.size} item(s) from trash?`,
-        'Restore Items',
-        'Restore',
-        'Cancel'
-    );
-    if (!confirmed) return;
-
-    const ids = Array.from(selectedItems);
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const id of ids) {
-        try {
-            await restoreFromTrash(id);
-            successCount++;
-        } catch (error) {
-            console.error(`Failed to restore ${id}:`, error);
-            failCount++;
-        }
-    }
-
-    selectedItems.clear();
-    await loadTrash();
-    safeToast(`Restored ${successCount} item(s)${failCount > 0 ? `, ${failCount} failed` : ''}`, 'success');
-}
-
-// ---- Empty trash ----
-async function emptyTrash() {
-    if (allFiles.length === 0) {
-        safeToast('Trash is already empty', 'info');
-        return;
-    }
-
-    const confirmed = await showConfirm(
-        'Permanently delete ALL items in trash? This cannot be undone.',
-        'Empty Trash',
-        'Empty',
-        'Cancel',
-        'danger'
-    );
-    if (!confirmed) return;
-
-    try {
-        await emptyTrashApi();
-        selectedItems.clear();
-        await loadTrash();
-        safeToast('Trash emptied successfully', 'success');
-    } catch (error) {
-        safeToast(error.message || 'Empty trash failed', 'error');
-    }
-}
-
-// ---- Download (unchanged) ----
 async function downloadFile(fileId, filename) {
     try {
         const response = await apiCall(`/download/${fileId}`);
@@ -352,9 +483,38 @@ async function downloadFile(fileId, filename) {
     }
 }
 
-// ============================
-// EXPOSE GLOBAL FUNCTIONS
-// ============================
+// ============================================================
+// UTILITY HELPERS
+// ============================================================
+function showLoading(container, show) {
+    if (show) container.innerHTML = '<div class="loading">Loading trash...</div>';
+}
+function showEmptyState(container, message = 'This folder is empty', subtitle = '') {
+    const subtitleHtml = subtitle ? `<div style="font-size:12px;margin-top:8px;">${subtitle}</div>` : '';
+    container.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-state-icon">🗑️</div>
+            <div>${message}</div>
+            ${subtitleHtml}
+        </div>
+    `;
+}
+function showError(container, message) {
+    container.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-state-icon">❌</div>
+            <div>${message}</div>
+        </div>
+    `;
+}
+function safeToast(message, type = 'info', duration = 3000) {
+    if (typeof showToast === 'function') showToast(message, type, duration);
+    else alert(message);
+}
+
+// ============================================================
+// EXPOSE GLOBALLY
+// ============================================================
 window.restoreItem = restoreItem;
 window.deletePermanently = deletePermanently;
 window.restoreSelected = restoreSelected;
@@ -364,5 +524,7 @@ window.handleItemClick = handleItemClick;
 window.toggleSelectItem = toggleSelectItem;
 window.toggleSelectAll = toggleSelectAll;
 window.loadTrash = loadTrash;
+window.openTrashFolder = openTrashFolder;
+window.navigateToTrashRoot = navigateToTrashRoot;
 
-console.log('✅ trash.js loaded (with showConfirm)');
+console.log('✅ trash.js loaded (with parent restore confirmation)');
