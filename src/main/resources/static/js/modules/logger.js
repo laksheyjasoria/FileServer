@@ -1,4 +1,4 @@
-// logger.js – Logger Management (Admin only)
+// logger.js – Logger Management (Admin only) with debug support
 
 let currentLoggers = [];
 let filteredLoggers = [];
@@ -101,15 +101,30 @@ function renderLoggers(loggers) {
         container.innerHTML = `<div class="empty-state">No loggers configured.</div>`;
         return;
     }
-    let html = `<table class="logger-table"><thead><tr><th>Name</th><th>Info</th><th>Warn</th><th>Actions</th></tr></thead><tbody>`;
+    let html = `
+        <table class="logger-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Info</th>
+                    <th>Warn</th>
+                    <th>Debug</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
     loggers.forEach(logger => {
-        const infoOn = logger.infoEnabled || false;
-        const warnOn = logger.warnEnabled || false;
+        // Ensure boolean values (fallback to false if undefined)
+        const infoOn = !!logger.infoEnabled;
+        const warnOn = !!logger.warnEnabled;
+        const debugOn = !!logger.debugEnabled;
         html += `
             <tr>
                 <td><strong>${escapeHtml(logger.name)}</strong></td>
                 <td><button class="toggle-btn ${infoOn ? 'on' : 'off'}" onclick="toggleLogger('${logger.id}','info',${!infoOn})">${infoOn ? 'ON' : 'OFF'}</button></td>
                 <td><button class="toggle-btn ${warnOn ? 'on' : 'off'}" onclick="toggleLogger('${logger.id}','warn',${!warnOn})">${warnOn ? 'ON' : 'OFF'}</button></td>
+                <td><button class="toggle-btn ${debugOn ? 'on' : 'off'}" onclick="toggleLogger('${logger.id}','debug',${!debugOn})">${debugOn ? 'ON' : 'OFF'}</button></td>
                 <td><button class="delete-btn" onclick="deleteLogger('${logger.id}')" title="Delete">🗑️</button></td>
             </tr>
         `;
@@ -128,8 +143,10 @@ function showCreateModal() {
     document.getElementById('loggerNameInput').value = '';
     document.getElementById('infoToggle').checked = true;
     document.getElementById('warnToggle').checked = true;
+    document.getElementById('debugToggle').checked = false; // default off
     document.getElementById('createModal').classList.add('active');
 }
+
 function hideCreateModal() {
     document.getElementById('createModal').classList.remove('active');
 }
@@ -142,6 +159,7 @@ async function createLogger() {
     }
     const infoEnabled = document.getElementById('infoToggle').checked;
     const warnEnabled = document.getElementById('warnToggle').checked;
+    const debugEnabled = document.getElementById('debugToggle').checked;
 
     try {
         const createRes = await loggerApiCall(`/logger/create?name=${encodeURIComponent(name)}`, { method: 'POST' });
@@ -151,7 +169,11 @@ async function createLogger() {
             return;
         }
         const loggerId = await createRes.text();
-        const updateRes = await loggerApiCall(`/logger/${loggerId}?info=${infoEnabled}&warn=${warnEnabled}`, { method: 'PUT' });
+        // Update all toggles in one call
+        const updateRes = await loggerApiCall(
+            `/logger/${loggerId}?info=${infoEnabled}&warn=${warnEnabled}&debug=${debugEnabled}`,
+            { method: 'PUT' }
+        );
         if (!updateRes.ok) {
             safeToast('Logger created but failed to set toggles', 'warning');
         }
@@ -168,10 +190,12 @@ async function createLogger() {
 async function toggleLogger(id, type, newValue) {
     const logger = currentLoggers.find(l => l.id === id);
     if (!logger) return;
+    // Build new values preserving others
     const info = (type === 'info') ? newValue : logger.infoEnabled;
     const warn = (type === 'warn') ? newValue : logger.warnEnabled;
+    const debug = (type === 'debug') ? newValue : logger.debugEnabled;
     try {
-        const res = await loggerApiCall(`/logger/${id}?info=${info}&warn=${warn}`, { method: 'PUT' });
+        const res = await loggerApiCall(`/logger/${id}?info=${info}&warn=${warn}&debug=${debug}`, { method: 'PUT' });
         if (res.ok) {
             safeToast(`Updated ${type} to ${newValue ? 'ON' : 'OFF'}`, 'info');
             await loadLoggers();

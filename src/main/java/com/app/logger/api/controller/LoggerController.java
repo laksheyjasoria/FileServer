@@ -39,12 +39,13 @@ public class LoggerController {
 
 	// 🔐 MASTER KEY REQUIRED
 	@PutMapping("/{id}")
-	public void update(@PathVariable String id, @RequestParam boolean warn, @RequestParam boolean info, @RequestParam boolean debug) {
-	    LoggerEntity logger = loggerService.get(id);
-	    logger.setInfoEnabled(info);
-	    logger.setWarnEnabled(warn);
-	    logger.setWarnEnabled(debug);
-	    loggerService.save(logger); // use save method to update
+	public void update(@PathVariable String id, @RequestParam boolean info, @RequestParam boolean warn,
+			@RequestParam boolean debug) {
+		LoggerEntity logger = loggerService.get(id);
+		logger.setInfoEnabled(info);
+		logger.setWarnEnabled(warn);
+		logger.setDebugEnabled(debug);
+		loggerService.save(logger); // use save method to update
 	}
 
 	// 🔐 MASTER KEY REQUIRED
