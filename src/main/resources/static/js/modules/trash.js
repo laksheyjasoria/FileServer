@@ -1,4 +1,4 @@
-// trash.js – Complete updated version (robust for missing UI elements)
+// trash.js – Complete updated version (with showConfirm)
 
 // ============================
 // INIT
@@ -44,7 +44,6 @@ async function loadTrash() {
         body.appendChild(container);
     }
 
-    // Use global showLoading from utils
     showLoading(container, true);
 
     try {
@@ -173,7 +172,7 @@ function toggleSelectAll() {
 
 function updateSelectionToolbar() {
     const toolbar = document.getElementById('selectionToolbar');
-    if (!toolbar) return; // silently skip if missing
+    if (!toolbar) return;
 
     const count = selectedItems.size;
     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
@@ -237,9 +236,11 @@ function showTrashContextMenu(event, id, name, type, fileType, isProtected) {
     setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
 }
 
-// ============================
-// TRASH OPERATIONS
-// ============================
+// ======================================================
+// TRASH OPERATIONS – with showConfirm
+// ======================================================
+
+// ---- Restore single item ----
 async function restoreItem(id) {
     try {
         await restoreFromTrash(id);
@@ -251,8 +252,17 @@ async function restoreItem(id) {
     }
 }
 
+// ---- Delete permanently (single) ----
 async function deletePermanently(id) {
-    if (!confirm('Permanently delete this item? This cannot be undone.')) return;
+    const confirmed = await showConfirm(
+        'Permanently delete this item? This cannot be undone.',
+        'Delete Permanently',
+        'Delete',
+        'Cancel',
+        'danger'
+    );
+    if (!confirmed) return;
+
     try {
         await permanentDeleteItem(id);
         selectedItems.delete(id);
@@ -263,12 +273,20 @@ async function deletePermanently(id) {
     }
 }
 
+// ---- Restore selected ----
 async function restoreSelected() {
     if (selectedItems.size === 0) {
         safeToast('No items selected', 'warning');
         return;
     }
-    if (!confirm(`Restore ${selectedItems.size} item(s)?`)) return;
+
+    const confirmed = await showConfirm(
+        `Restore ${selectedItems.size} item(s) from trash?`,
+        'Restore Items',
+        'Restore',
+        'Cancel'
+    );
+    if (!confirmed) return;
 
     const ids = Array.from(selectedItems);
     let successCount = 0;
@@ -289,12 +307,21 @@ async function restoreSelected() {
     safeToast(`Restored ${successCount} item(s)${failCount > 0 ? `, ${failCount} failed` : ''}`, 'success');
 }
 
+// ---- Empty trash ----
 async function emptyTrash() {
     if (allFiles.length === 0) {
         safeToast('Trash is already empty', 'info');
         return;
     }
-    if (!confirm('Permanently delete ALL items in trash? This cannot be undone.')) return;
+
+    const confirmed = await showConfirm(
+        'Permanently delete ALL items in trash? This cannot be undone.',
+        'Empty Trash',
+        'Empty',
+        'Cancel',
+        'danger'
+    );
+    if (!confirmed) return;
 
     try {
         await emptyTrashApi();
@@ -306,6 +333,7 @@ async function emptyTrash() {
     }
 }
 
+// ---- Download (unchanged) ----
 async function downloadFile(fileId, filename) {
     try {
         const response = await apiCall(`/download/${fileId}`);
@@ -336,3 +364,5 @@ window.handleItemClick = handleItemClick;
 window.toggleSelectItem = toggleSelectItem;
 window.toggleSelectAll = toggleSelectAll;
 window.loadTrash = loadTrash;
+
+console.log('✅ trash.js loaded (with showConfirm)');
