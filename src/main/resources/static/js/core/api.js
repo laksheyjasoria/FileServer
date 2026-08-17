@@ -83,13 +83,10 @@ async function apiCall(endpoint, options = {}) {
 
 async function getFilesForFolder(folderId, options = {}) {
     try {
+        // Always use skipDedupe: true for file listings to ensure fresh data
         const endpoint = folderId ? `/drive/${folderId}/contents` : '/drive/root';
-        // Pass options (with skipDedupe) through to apiCall
-        const response = await apiCall(endpoint, options);
-        if (!response) {
-            // If the request was deduped and returned undefined, return empty array or handle
-            return [];
-        }
+        const response = await apiCall(endpoint, { ...options, skipDedupe: true });
+        if (!response) return []; // fallback – should not happen with skipDedupe
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const items = await response.json();
         return items.map(item => ({

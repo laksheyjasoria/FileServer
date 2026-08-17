@@ -1,19 +1,22 @@
-// upload.js – Upload queue (uses globals from config.js)
-
-// Globals already defined in config.js:
-// uploadQueue, activeUploads, currentFolderId
+// upload.js – Upload queue with progress modal
 
 // ============================
 // UI: Show/Hide Upload Modal
 // ============================
 function showUploadModal() {
     const modal = document.getElementById('uploadModal');
-    if (modal) modal.classList.add('active');
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+    }
 }
 
 function hideUploadModal() {
     const modal = document.getElementById('uploadModal');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
 }
 
 // ============================
@@ -21,9 +24,14 @@ function hideUploadModal() {
 // ============================
 function addToUploadQueue(files) {
     if (!files || files.length === 0) return;
+
     showUploadModal();
+
     const listContainer = document.getElementById('uploadList');
-    if (!listContainer) return;
+    if (!listContainer) {
+        console.error('uploadList container not found');
+        return;
+    }
 
     for (const file of files) {
         const uploadId = Date.now() + '-' + Math.random().toString(36).substr(2, 6);
@@ -64,7 +72,6 @@ async function startUpload(uploadId) {
     const uploadItem = activeUploads.get(uploadId);
     if (!uploadItem || uploadItem.status === 'cancelled') return;
 
-    // Use the global currentFolderId (from config.js)
     const folderId = currentFolderId;
 
     // Optional duplicate check
@@ -72,11 +79,13 @@ async function startUpload(uploadId) {
         const files = await getFilesForFolder(folderId);
         const exists = files.some(item => item.name.toLowerCase() === uploadItem.file.name.toLowerCase());
         if (exists) {
-            alert(`File "${uploadItem.file.name}" already exists. Upload cancelled.`);
+            safeToast(`File "${uploadItem.file.name}" already exists. Upload cancelled.`, 'warning');
             cancelUpload(uploadId);
             return;
         }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+        // ignore
+    }
 
     uploadItem.status = 'uploading';
     updateUploadStatus(uploadId, 'Uploading...', false);
@@ -109,11 +118,18 @@ async function startUpload(uploadId) {
             updateUploadStatus(uploadId, 'Completed ✅', true);
             const cancelBtn = document.querySelector(`#upload-${uploadId} .cancel-upload`);
             if (cancelBtn) cancelBtn.remove();
+            safeToast(`Uploaded: ${uploadItem.file.name}`, 'success');
         } else {
             uploadItem.status = 'failed';
             let message = 'Upload failed';
-            try { const err = JSON.parse(xhr.responseText); message = err.message || message; } catch (_) {}
+            try {
+                const err = JSON.parse(xhr.responseText);
+                message = err.message || message;
+            } catch (_) {
+                message = xhr.responseText || message;
+            }
             updateUploadStatus(uploadId, `${message} (HTTP ${xhr.status})`, true);
+            safeToast(`Upload failed: ${uploadItem.file.name}`, 'error');
         }
         checkAllUploadsComplete();
     };
@@ -121,10 +137,13 @@ async function startUpload(uploadId) {
     xhr.onerror = () => {
         uploadItem.status = 'failed';
         updateUploadStatus(uploadId, 'Network error ❌', true);
+        safeToast(`Network error uploading: ${uploadItem.file.name}`, 'error');
         checkAllUploadsComplete();
     };
 
-    xhr.onabort = () => { /* cancelled */ };
+    xhr.onabort = () => {
+        // cancelled – do nothing
+    };
 
     const token = localStorage.getItem('jwtToken');
     xhr.open('POST', `${API_URL}/upload`);
@@ -154,17 +173,23 @@ function cancelUpload(uploadId) {
         updateUploadStatus(uploadId, 'Cancelled ✖️', true);
         const cancelBtn = document.querySelector(`#upload-${uploadId} .cancel-upload`);
         if (cancelBtn) cancelBtn.remove();
+        safeToast(`Upload cancelled: ${uploadItem.file.name}`, 'info');
     }
+
     setTimeout(() => {
         const itemDiv = document.getElementById(`upload-${uploadId}`);
         if (itemDiv) {
             itemDiv.style.opacity = '0.5';
-            setTimeout(() => { if (itemDiv.parentNode) itemDiv.remove(); }, 2000);
+            setTimeout(() => {
+                if (itemDiv.parentNode) itemDiv.remove();
+            }, 2000);
         }
     }, 1000);
+
     const index = uploadQueue.findIndex(u => u.id === uploadId);
     if (index !== -1) uploadQueue.splice(index, 1);
     activeUploads.delete(uploadId);
+
     checkAllUploadsComplete();
 }
 
@@ -190,8 +215,10 @@ function closeUploadModal() {
     const active = Array.from(activeUploads.values()).filter(
         item => item.status === 'pending' || item.status === 'uploading'
     );
-    if (active.length > 0 && !confirm('Uploads in progress. Close anyway?')) return;
-    active.forEach(item => cancelUpload(item.id));
+    if (active.length > 0) {
+        if (!confirm('Uploads in progress. Close anyway?')) return;
+        active.forEach(item => cancelUpload(item.id));
+    }
     hideUploadModal();
     const list = document.getElementById('uploadList');
     if (list) list.innerHTML = '';
@@ -207,10 +234,3 @@ window.showUploadModal = showUploadModal;
 window.hideUploadModal = hideUploadModal;
 
 console.log('✅ upload.js loaded');
-
-function addToUploadQueue(files) {
-    console.log('Upload called with', files);
-    alert('Upload function called!');
-}
-
-window.addToUploadQueue = addToUploadQueue;

@@ -1,22 +1,24 @@
-// app.js – Main file manager (uses globals from config.js)
+// app.js – Main file manager (final)
 
-// Globals are already defined in config.js:
-// currentFolderId, allFiles, selectedItems, etc.
+// Globals from config.js
+// currentFolderId, allFiles, selectedItems, jwtToken, etc.
 
 // ============================
 // INIT
 // ============================
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('✅ DOMContentLoaded fired');
     if (!jwtToken) {
         window.location.href = '/login.html';
         return;
     }
-
     setupEventListeners();
     await loadUserInfo();
     await loadFiles();
     setupSidebarNavigation();
     setupSearch();
+    setupModalOverlayListeners();
+    patchCloseModal();
 });
 
 function setupEventListeners() {
@@ -30,6 +32,7 @@ function setupEventListeners() {
     if (uploadBtn) uploadBtn.addEventListener('click', () => fileInput.click());
     if (fileInput) fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
+            console.log('File input changed, calling addToUploadQueue');
             addToUploadQueue(e.target.files);
             e.target.value = '';
         }
@@ -50,35 +53,76 @@ function setupSearch() {
 }
 
 // ============================
+// MODAL CLOSE PATCH (for Cancel buttons)
+// ============================
+function patchCloseModal() {
+    const originalCloseModal = window.closeModal;
+    window.closeModal = function(modalId) {
+        if (modalId === 'renameModal' || modalId === 'moveModal' || modalId === 'folderModal' || modalId === 'shareModal' || modalId === 'shareLinkModal') {
+            closeModalById(modalId);
+        } else {
+            if (typeof originalCloseModal === 'function') {
+                originalCloseModal(modalId);
+            }
+        }
+    };
+}
+
+function setupModalOverlayListeners() {
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) {
+                const id = this.id;
+                if (id === 'renameModal' || id === 'moveModal' || id === 'folderModal' ||
+                    id === 'shareModal' || id === 'shareLinkModal' || id === 'uploadModal') {
+                    closeModalById(id);
+                }
+            }
+        });
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const activeModals = document.querySelectorAll('.modal-overlay.active');
+            activeModals.forEach(modal => closeModalById(modal.id));
+        }
+    });
+}
+
+// ============================
 // LOAD FILES
 // ============================
 async function loadFiles() {
+    console.log('🔍 loadFiles called, currentFolderId:', currentFolderId);
     const container = document.getElementById('fileContainer');
+    if (!container) {
+        console.error('fileContainer not found');
+        return;
+    }
     showLoading(container, true);
-
     try {
         const files = await getFilesForFolder(currentFolderId);
+        console.log('📦 loadFiles response:', files);
         allFiles = files;
         renderFiles(files);
         updateBreadcrumb();
     } catch (error) {
-        console.error('Error loading files:', error);
+        console.error('❌ Error loading files:', error);
         showError(container);
+        safeToast('Failed to load files: ' + error.message, 'error');
     }
 }
 
 function renderFiles(files) {
     const container = document.getElementById('fileContainer');
+    if (!container) return;
     if (!files || files.length === 0) {
         showEmptyState(container);
         return;
     }
-
     const folders = files.filter(f => f.driveType === 'FOLDER' || f.driveType === 'ROOT');
     const fileItems = files.filter(f => f.driveType === 'FILE');
 
     let html = '<div class="file-grid">';
-
     folders.forEach(item => {
         const isSelected = selectedItems.has(item.id);
         const icon = '📁';
@@ -147,11 +191,34 @@ function renderFiles(files) {
     html += '</div>';
     container.innerHTML = html;
     updateSelectionToolbar();
-
-    // Force container to expand
     container.style.height = 'auto';
     container.style.minHeight = '400px';
     container.style.overflow = 'visible';
+}
+
+// ============================
+// EMPTY / ERROR / LOADING
+// ============================
+function showLoading(container, show) {
+    if (show) container.innerHTML = '<div class="loading">Loading...</div>';
+}
+function showEmptyState(container, message = 'This folder is empty') {
+    container.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-state-icon">📁</div>
+            <div>${message}</div>
+            <div style="font-size:12px; margin-top:8px;">Click "Upload File" or "New Folder" to add items</div>
+        </div>
+    `;
+}
+function showError(container, message = 'Error loading files') {
+    container.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-state-icon">❌</div>
+            <div>${message}</div>
+            <div style="font-size:12px; margin-top:8px;">Please try refreshing the page</div>
+        </div>
+    `;
 }
 
 // ============================
@@ -161,23 +228,19 @@ function openFolder(folderId, folderName, isProtected) {
     if (isProtected) {
         const password = prompt(`Folder "${folderName}" is password protected. Enter password:`);
         if (!password) return;
-        // (Implement password check if needed)
     }
     navigateToFolder(folderId);
 }
-
 function navigateToFolder(folderId) {
-    currentFolderId = folderId; // global
+    currentFolderId = folderId;
     selectedItems.clear();
     loadFiles();
 }
-
 function navigateToParent() {
-    currentFolderId = null; // global
+    currentFolderId = null;
     selectedItems.clear();
     loadFiles();
 }
-
 async function updateBreadcrumb() {
     const breadcrumb = document.getElementById('breadcrumb');
     if (!currentFolderId) {
@@ -212,21 +275,18 @@ function handleItemClick(event, id, isFolder) {
         toggleSelectItem(event, id, !selectedItems.has(id));
     }
 }
-
 function toggleSelectItem(event, id, checked) {
     event.stopPropagation();
     if (checked) selectedItems.add(id);
     else selectedItems.delete(id);
     renderFiles(allFiles);
 }
-
 function toggleSelectAll() {
     const selectAll = document.getElementById('selectAllCheckbox').checked;
     if (selectAll) allFiles.forEach(f => selectedItems.add(f.id));
     else selectedItems.clear();
     renderFiles(allFiles);
 }
-
 function updateSelectionToolbar() {
     const toolbar = document.getElementById('selectionToolbar');
     const count = selectedItems.size;
@@ -248,9 +308,8 @@ function updateSelectionToolbar() {
 // ============================
 function showCreateFolderModal() {
     resetFolderModal();
-    showModal('folderModal');
+    openModalById('folderModal');
 }
-
 function togglePasswordField() {
     const isPrivate = document.getElementById('isPrivate').checked;
     const passwordField = document.getElementById('passwordField');
@@ -264,32 +323,30 @@ function togglePasswordField() {
         passwordInput.value = '';
     }
 }
-
 function resetFolderModal() {
     document.getElementById('folderName').value = '';
     document.getElementById('isPrivate').checked = false;
     document.getElementById('passwordField').style.display = 'none';
     document.getElementById('folderPassword').value = '';
 }
-
 async function createFolder() {
     const name = document.getElementById('folderName').value.trim();
     if (!name) {
-        alert('Please enter a folder name');
+        safeToast('Please enter a folder name', 'warning');
         return;
     }
     const isPrivate = document.getElementById('isPrivate').checked;
     const password = document.getElementById('folderPassword').value;
 
     if (isPrivate && (!password || password.length < 4)) {
-        alert('Please enter a password (minimum 4 characters) for private folder');
+        safeToast('Please enter a password (minimum 4 characters) for private folder', 'warning');
         return;
     }
 
     try {
         await checkDuplicateName(name, currentFolderId);
     } catch (error) {
-        alert(error.message);
+        safeToast(error.message, 'warning');
         return;
     }
 
@@ -313,13 +370,13 @@ async function createFolder() {
             const text = await response.text();
             throw new Error(text || 'Failed to create folder');
         }
-        alert(`Folder "${name}" created successfully.`);
-        closeModal('folderModal');
+        safeToast(`Folder "${name}" created successfully.`, 'success');
+        closeModalById('folderModal');
         resetFolderModal();
         await loadFiles();
     } catch (error) {
         console.error('Error creating folder:', error);
-        alert('Failed to create folder: ' + error.message);
+        safeToast('Failed to create folder: ' + error.message, 'error');
     } finally {
         createBtn.textContent = originalText;
         createBtn.disabled = false;
@@ -353,7 +410,7 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
         items = [
             ...(isViewable ? [{ icon: '👁️', label: 'View', action: () => viewFile(id, name) }] : []),
             { icon: '⬇️', label: 'Download', action: () => downloadFile(id, name) },
-            { icon: '✏️', label: 'Rename', action: () => showRenameModal(id, name) },
+            { icon: '✏️', label: 'Rename', action: () => showRenameModal(id, name, type) },
             { icon: '📋', label: 'Copy', action: () => copyItem(id) },
             { icon: '📁', label: 'Move', action: () => moveItem(id) },
             { icon: '🔗', label: 'Share', action: () => showShareModal(id, name) },
@@ -362,7 +419,7 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
     } else {
         items = [
             { icon: '📂', label: 'Open', action: () => openFolder(id, name, isProtected) },
-            { icon: '✏️', label: 'Rename', action: () => showRenameModal(id, name) },
+            { icon: '✏️', label: 'Rename', action: () => showRenameModal(id, name, type) },
             { icon: '📁', label: 'Move', action: () => moveItem(id) },
             { icon: '🔗', label: 'Share', action: () => showShareModal(id, name) },
             { icon: '🗑️', label: 'Delete', action: () => deleteItem(id) }
@@ -387,22 +444,72 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
     }, 0);
 }
 
-// ============================
-// FILE OPERATIONS
-// ============================
-function showRenameModal(id, currentName) {
-    contextMenuItem = { id, name: currentName };
-    document.getElementById('newName').value = currentName;
-    showModal('renameModal');
+// ======================================================
+//  MODAL HELPERS (pure class-based, no inline styles)
+// ======================================================
+
+function openModalById(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) {
+        console.error(`❌ Modal with id "${modalId}" not found!`);
+        return;
+    }
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    console.log(`✅ Modal "${modalId}" opened.`);
+}
+
+function closeModalById(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+        console.log(`✅ Modal "${modalId}" closed.`);
+    }
+}
+
+// ======================================================
+//  RENAME (extension preservation)
+// ======================================================
+
+function showRenameModal(id, currentName, type) {
+    console.log('🔍 showRenameModal called with id:', id, 'name:', currentName, 'type:', type);
+    contextMenuItem = { id, name: currentName, type: type, parentId: contextMenuItem ? contextMenuItem.parentId : currentFolderId };
+
+    let displayName = currentName;
+    let extension = '';
+    if (type === 'FILE' && currentName.includes('.')) {
+        const lastDotIndex = currentName.lastIndexOf('.');
+        displayName = currentName.substring(0, lastDotIndex);
+        extension = currentName.substring(lastDotIndex);
+        contextMenuItem.extension = extension;
+    } else {
+        contextMenuItem.extension = '';
+    }
+
+    const input = document.getElementById('newName');
+    if (input) {
+        input.value = displayName;
+    }
+    openModalById('renameModal');
 }
 
 async function executeRename() {
-    const newName = document.getElementById('newName').value.trim();
-    if (!newName) return;
+    let newName = document.getElementById('newName').value.trim();
+    if (!newName) {
+        safeToast('Please enter a new name', 'warning');
+        return;
+    }
+    if (contextMenuItem.type === 'FILE' && contextMenuItem.extension) {
+        if (!newName.endsWith(contextMenuItem.extension)) {
+            newName = newName + contextMenuItem.extension;
+        }
+    }
+    const parentId = contextMenuItem.parentId !== undefined ? contextMenuItem.parentId : currentFolderId;
     try {
-        await checkDuplicateName(newName, contextMenuItem.parentId || currentFolderId);
+        await checkDuplicateName(newName, parentId);
     } catch (error) {
-        alert(error.message);
+        safeToast(error.message, 'warning');
         return;
     }
     try {
@@ -414,105 +521,70 @@ async function executeRename() {
                 name: newName
             })
         });
-        if (!response.ok) throw new Error('Rename failed');
-        closeModal('renameModal');
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Rename failed');
+        }
+        closeModalById('renameModal');
+        await new Promise(resolve => setTimeout(resolve, 300));
         await loadFiles();
+        safeToast('Renamed successfully', 'success');
     } catch (error) {
-        alert('Failed to rename: ' + error.message);
+        console.error('❌ Rename error:', error);
+        safeToast('Failed to rename: ' + error.message, 'error');
     }
 }
 
-async function deleteItem(id) {
-    const item = allFiles.find(f => f.id === id);
-    if (!item) { alert('Item not found'); return; }
-    if (!confirm(`Are you sure you want to delete "${item.name}"?`)) return;
-    try {
-        const response = await apiCall('/resources/action', {
-            method: 'POST',
-            body: JSON.stringify({ ids: [id], action: 'DELETE' })
-        });
-        if (!response.ok) throw new Error('Delete failed');
-        selectedItems.delete(id);
-        await loadFiles();
-        safeToast(`"${item.name}" deleted successfully`, 'success');
-    } catch (error) {
-        safeToast('Failed to delete: ' + error.message, 'error');
-    }
-}
-
-async function deleteSelected() {
-    if (selectedItems.size === 0) return;
-    const itemsToDelete = Array.from(selectedItems).map(id => allFiles.find(f => f.id === id)).filter(item => item != null);
-    if (!confirm(`Delete ${itemsToDelete.length} item(s)?`)) return;
-    try {
-        const response = await apiCall('/resources/action', {
-            method: 'POST',
-            body: JSON.stringify({ ids: Array.from(selectedItems), action: 'DELETE' })
-        });
-        if (!response.ok) throw new Error('Bulk delete failed');
-        selectedItems.clear();
-        await loadFiles();
-        safeToast(`Deleted ${itemsToDelete.length} item(s)`, 'success');
-    } catch (error) {
-        safeToast('Failed to delete: ' + error.message, 'error');
-    }
-}
-
-async function downloadFile(fileId, filename) {
-    try {
-        const response = await apiCall(`/download/${fileId}`);
-        if (!response.ok) throw new Error('Download failed');
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-    } catch (error) {
-        safeToast('Download failed: ' + error.message, 'error');
-    }
-}
-
-function viewFile(fileId, filename) {
-    window.open(`/viewer.html?id=${fileId}&token=${jwtToken}`, '_blank');
-}
+// ======================================================
+//  MOVE / COPY
+// ======================================================
 
 async function copyItem(id) {
     pendingAction = 'copy';
     pendingItems = [{ id, password: null }];
     await selectDestination();
 }
-
 async function moveItem(id) {
     pendingAction = 'move';
     pendingItems = [{ id, password: null }];
     await selectDestination();
 }
-
 async function copySelected() {
+    if (selectedItems.size === 0) {
+        safeToast('No items selected', 'warning');
+        return;
+    }
     pendingAction = 'copy';
     pendingItems = Array.from(selectedItems).map(id => ({ id, password: null }));
     await selectDestination();
 }
-
 async function moveSelected() {
+    if (selectedItems.size === 0) {
+        safeToast('No items selected', 'warning');
+        return;
+    }
     pendingAction = 'move';
     pendingItems = Array.from(selectedItems).map(id => ({ id, password: null }));
     await selectDestination();
 }
 
 async function selectDestination() {
+    console.log('🔍 selectDestination called, pendingAction:', pendingAction);
     const folders = allFiles.filter(f => (f.driveType === 'FOLDER' || f.driveType === 'ROOT') && !pendingItems.map(p => p.id).includes(f.id));
     const select = document.getElementById('destinationFolder');
+    if (!select) {
+        console.error('❌ destinationFolder select not found');
+        return;
+    }
     select.innerHTML = '<option value="">Root</option>';
     folders.forEach(f => {
         select.innerHTML += `<option value="${f.id}">${escapeHtml(f.name)}</option>`;
     });
-    document.getElementById('moveModalTitle').innerText = pendingAction === 'copy' ? 'Copy to' : 'Move to';
-    showModal('moveModal');
+    const titleEl = document.getElementById('moveModalTitle');
+    if (titleEl) {
+        titleEl.innerText = pendingAction === 'copy' ? 'Copy to' : 'Move to';
+    }
+    openModalById('moveModal');
 }
 
 async function executeMove() {
@@ -536,8 +608,9 @@ async function executeMove() {
         }
     }
     const action = pendingAction;
-    closeModal('moveModal');
+    closeModalById('moveModal');
     if (action === 'move') selectedItems.clear();
+    await new Promise(resolve => setTimeout(resolve, 300));
     await loadFiles();
     pendingItems = [];
     pendingAction = null;
@@ -548,9 +621,104 @@ async function executeMove() {
     }
 }
 
-// ============================
-// USER INFO
-// ============================
+// ======================================================
+//  DOWNLOAD
+// ======================================================
+
+async function downloadFile(fileId, filename) {
+    safeToast('Preparing download...', 'info', 1500);
+    try {
+        const response = await apiCall(`/download/${fileId}`);
+        if (!response.ok) throw new Error('Download failed');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        safeToast('Download started', 'success', 2000);
+    } catch (error) {
+        safeToast('Download failed: ' + error.message, 'error');
+    }
+}
+
+function viewFile(fileId, filename) {
+    window.open(`/viewer.html?id=${fileId}&token=${jwtToken}`, '_blank');
+}
+
+// ======================================================
+//  DELETE
+// ======================================================
+
+async function deleteItem(id) {
+    const item = allFiles.find(f => f.id === id);
+    if (!item) {
+        safeToast('Item not found', 'error');
+        return;
+    }
+    const confirmed = await showConfirm(
+        `Are you sure you want to delete "${item.name}"?`,
+        'Delete Item',
+        'Delete',
+        'Cancel',
+        'danger'
+    );
+    if (!confirmed) return;
+    try {
+        const response = await apiCall('/resources/action', {
+            method: 'POST',
+            body: JSON.stringify({ ids: [id], action: 'DELETE' })
+        });
+        if (!response.ok) throw new Error('Delete failed');
+        selectedItems.delete(id);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await loadFiles();
+        safeToast(`"${item.name}" deleted successfully`, 'success');
+    } catch (error) {
+        safeToast('Failed to delete: ' + error.message, 'error');
+    }
+}
+async function deleteSelected() {
+    if (selectedItems.size === 0) return;
+    const itemsToDelete = Array.from(selectedItems).map(id => allFiles.find(f => f.id === id)).filter(item => item != null);
+    const confirmed = await showConfirm(
+        `Delete ${itemsToDelete.length} item(s)?`,
+        'Delete Items',
+        'Delete',
+        'Cancel',
+        'danger'
+    );
+    if (!confirmed) return;
+    try {
+        const response = await apiCall('/resources/action', {
+            method: 'POST',
+            body: JSON.stringify({ ids: Array.from(selectedItems), action: 'DELETE' })
+        });
+        if (!response.ok) throw new Error('Bulk delete failed');
+        selectedItems.clear();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await loadFiles();
+        safeToast(`Deleted ${itemsToDelete.length} item(s)`, 'success');
+    } catch (error) {
+        safeToast('Failed to delete: ' + error.message, 'error');
+    }
+}
+
+// ======================================================
+//  SHARE (placeholder)
+// ======================================================
+
+function showShareModal(id, name) {
+    safeToast('Share functionality is under development.', 'info');
+}
+
+// ======================================================
+//  USER INFO
+// ======================================================
+
 async function loadUserInfo() {
     try {
         const user = getUserFromToken();
@@ -582,9 +750,9 @@ async function loadUserInfo() {
     }
 }
 
-// ============================
-// EXPOSE GLOBALLY
-// ============================
+// ======================================================
+//  EXPOSE GLOBALLY
+// ======================================================
 window.loadFiles = loadFiles;
 window.renderFiles = renderFiles;
 window.openFolder = openFolder;
@@ -612,3 +780,7 @@ window.selectDestination = selectDestination;
 window.executeMove = executeMove;
 window.updateSelectionToolbar = updateSelectionToolbar;
 window.loadUserInfo = loadUserInfo;
+window.openModalById = openModalById;
+window.closeModalById = closeModalById;
+
+console.log('✅ app.js loaded (final)');
