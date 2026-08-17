@@ -355,7 +355,7 @@ a {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    z-index: 9999;
+    z-index: 999999 !important;
     max-width: 420px;
     width: 100%;
     pointer-events: none;
