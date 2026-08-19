@@ -1,4 +1,4 @@
-// trash.js – Complete updated version (with parent restore confirmation)
+// trash.js – Complete updated version (shows all trashed items at root)
 
 // ============================
 // GLOBALS
@@ -70,11 +70,11 @@ function renderTrashItems() {
     const container = document.getElementById('trashContainer');
     if (!container) return;
 
-    // Filter items based on current folder
+    // ✅ FIX: At root, show ALL trashed items (not just parentId === null)
     const items = allTrashItems.filter(item => {
         const parentId = item.parentId || null;
         if (currentTrashFolderId === null) {
-            return parentId === null;
+            return true; // show everything
         }
         return parentId === currentTrashFolderId;
     });
@@ -84,7 +84,7 @@ function renderTrashItems() {
         return;
     }
 
-    // Compute hasChildren for each item
+    // Compute hasChildren for each item (checks if any other trashed item has this as parent)
     const hasChildrenMap = new Map();
     allTrashItems.forEach(item => {
         const children = allTrashItems.filter(other => other.parentId === item.id);
@@ -154,10 +154,9 @@ function createFileItemHTML(item, isSelected, icon, info, isFolder) {
 }
 
 // ============================
-// TRASH NAVIGATION
+// TRASH NAVIGATION (folders openable)
 // ============================
 function openTrashFolder(folderId) {
-    console.log('📂 Opening trash folder:', folderId);
     const folder = allTrashItems.find(f => f.id === folderId);
     if (!folder) {
         safeToast('Folder not found', 'error');
@@ -204,7 +203,7 @@ function updateBreadcrumb() {
 }
 
 // ============================
-// SELECTION
+// SELECTION (uses global selectedItems)
 // ============================
 function handleItemClick(event, id, isFolder) {
     if (event.target.type === 'checkbox' || event.target.classList.contains('file-menu')) {
@@ -232,9 +231,10 @@ function toggleSelectAll() {
     const selectAll = document.getElementById('selectAllCheckbox');
     if (!selectAll) return;
     const checked = selectAll.checked;
+    // Get current visible items (based on current folder)
     const visibleItems = allTrashItems.filter(item => {
         const parentId = item.parentId || null;
-        if (currentTrashFolderId === null) return parentId === null;
+        if (currentTrashFolderId === null) return true;
         return parentId === currentTrashFolderId;
     });
     if (checked) {
@@ -257,7 +257,7 @@ function updateSelectionToolbar() {
         if (selectAllCheckbox) {
             const visibleItems = allTrashItems.filter(item => {
                 const parentId = item.parentId || null;
-                if (currentTrashFolderId === null) return parentId === null;
+                if (currentTrashFolderId === null) return true;
                 return parentId === currentTrashFolderId;
             });
             selectAllCheckbox.checked = count === visibleItems.length;
@@ -268,17 +268,9 @@ function updateSelectionToolbar() {
     }
 }
 
-// ============================================================
-// HELPERS FOR PARENT IN TRASH
-// ============================================================
-function getParentInTrash(item) {
-    if (!item || !item.parentId) return null;
-    return allTrashItems.find(f => f.id === item.parentId) || null;
-}
-
-// ============================================================
-// RESTORE (single item) – with parent folder confirmation
-// ============================================================
+// ============================
+// TRASH OPERATIONS
+// ============================
 async function restoreItem(id) {
     const item = allTrashItems.find(f => f.id === id);
     if (!item) {
@@ -287,7 +279,7 @@ async function restoreItem(id) {
     }
 
     // Check if parent is in trash
-    const parentInTrash = getParentInTrash(item);
+    const parentInTrash = item.parentId ? allTrashItems.find(f => f.id === item.parentId) : null;
     if (parentInTrash) {
         const confirmed = await showConfirm(
             `This item is inside a deleted folder "${parentInTrash.name}". To restore it, the parent folder must be restored first. Would you like to restore the parent folder as well?`,
@@ -297,7 +289,6 @@ async function restoreItem(id) {
             'primary'
         );
         if (!confirmed) return;
-        // Restore the parent folder (will also restore descendants)
         try {
             await restoreFromTrash(parentInTrash.id);
             await loadTrash();
@@ -308,7 +299,6 @@ async function restoreItem(id) {
         return;
     }
 
-    // Normal restore
     try {
         await restoreFromTrash(id);
         selectedItems.delete(id);
@@ -319,9 +309,25 @@ async function restoreItem(id) {
     }
 }
 
-// ============================================================
-// RESTORE SELECTED – with parent folder confirmation
-// ============================================================
+async function deletePermanently(id) {
+    const confirmed = await showConfirm(
+        'Permanently delete this item? This cannot be undone.',
+        'Delete Permanently',
+        'Delete',
+        'Cancel',
+        'danger'
+    );
+    if (!confirmed) return;
+    try {
+        await permanentDeleteItem(id);
+        selectedItems.delete(id);
+        await loadTrash();
+        safeToast('Item permanently deleted', 'success');
+    } catch (error) {
+        safeToast(error.message || 'Delete failed', 'error');
+    }
+}
+
 async function restoreSelected() {
     if (selectedItems.size === 0) {
         safeToast('No items selected', 'warning');
@@ -334,16 +340,19 @@ async function restoreSelected() {
         .filter(Boolean);
 
     // Check if any selected item has a parent in trash
-    const itemsWithParentInTrash = selectedItemsObj.filter(item => getParentInTrash(item) !== null);
+    const itemsWithParentInTrash = selectedItemsObj.filter(item => item.parentId && allTrashItems.find(f => f.id === item.parentId));
 
     if (itemsWithParentInTrash.length > 0) {
-        const parentNames = [...new Set(itemsWithParentInTrash.map(item => getParentInTrash(item).name))];
+        const parentNames = [...new Set(itemsWithParentInTrash.map(item => {
+            const parent = allTrashItems.find(f => f.id === item.parentId);
+            return parent ? parent.name : 'unknown';
+        }))];
         const message =
             `Some items are inside deleted folders (${parentNames.join(', ')}). To restore them, the parent folders must be restored first. Would you like to restore all parent folders as well?`;
         const confirmed = await showConfirm(message, 'Restore with Parents', 'Restore All', 'Cancel', 'primary');
         if (!confirmed) return;
 
-        const parentIds = [...new Set(itemsWithParentInTrash.map(item => getParentInTrash(item).id))];
+        const parentIds = [...new Set(itemsWithParentInTrash.map(item => item.parentId))];
         try {
             for (const parentId of parentIds) {
                 await restoreFromTrash(parentId);
@@ -357,7 +366,6 @@ async function restoreSelected() {
         return;
     }
 
-    // Normal restore for all selected
     const confirmed = await showConfirm(
         `Restore ${selectedItems.size} item(s) from trash?`,
         'Restore Items',
@@ -380,31 +388,6 @@ async function restoreSelected() {
     safeToast(`Restored ${successCount} item(s)${failCount > 0 ? `, ${failCount} failed` : ''}`, 'success');
 }
 
-// ============================================================
-// PERMANENT DELETE
-// ============================================================
-async function deletePermanently(id) {
-    const confirmed = await showConfirm(
-        'Permanently delete this item? This cannot be undone.',
-        'Delete Permanently',
-        'Delete',
-        'Cancel',
-        'danger'
-    );
-    if (!confirmed) return;
-    try {
-        await permanentDeleteItem(id);
-        selectedItems.delete(id);
-        await loadTrash();
-        safeToast('Item permanently deleted', 'success');
-    } catch (error) {
-        safeToast(error.message || 'Delete failed', 'error');
-    }
-}
-
-// ============================================================
-// EMPTY TRASH
-// ============================================================
 async function emptyTrash() {
     if (allTrashItems.length === 0) {
         safeToast('Trash is already empty', 'info');
@@ -428,9 +411,9 @@ async function emptyTrash() {
     }
 }
 
-// ============================================================
-// CONTEXT MENU, DOWNLOAD, UTILITY
-// ============================================================
+// ============================
+// CONTEXT MENU
+// ============================
 function showTrashContextMenu(event, id, name, type, fileType, isProtected) {
     event.stopPropagation();
     const existingMenu = document.querySelector('.dropdown-menu');
@@ -483,9 +466,9 @@ async function downloadFile(fileId, filename) {
     }
 }
 
-// ============================================================
+// ============================
 // UTILITY HELPERS
-// ============================================================
+// ============================
 function showLoading(container, show) {
     if (show) container.innerHTML = '<div class="loading">Loading trash...</div>';
 }
@@ -512,9 +495,9 @@ function safeToast(message, type = 'info', duration = 3000) {
     else alert(message);
 }
 
-// ============================================================
+// ============================
 // EXPOSE GLOBALLY
-// ============================================================
+// ============================
 window.restoreItem = restoreItem;
 window.deletePermanently = deletePermanently;
 window.restoreSelected = restoreSelected;
@@ -527,4 +510,4 @@ window.loadTrash = loadTrash;
 window.openTrashFolder = openTrashFolder;
 window.navigateToTrashRoot = navigateToTrashRoot;
 
-console.log('✅ trash.js loaded (with parent restore confirmation)');
+console.log('✅ trash.js loaded (all trashed items visible at root)');
