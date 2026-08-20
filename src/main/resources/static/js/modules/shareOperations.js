@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', function(e) {
         const resultsContainer = document.getElementById('userSearchResults');
         const searchInput = document.getElementById('userSearchInput');
-        
+
         if (!resultsContainer || !searchInput) return;
 
         // If click is NOT inside the input and NOT inside the results
@@ -62,10 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
         wrapper.style.position = 'relative';
         wrapper.style.width = '100%';
         wrapper.style.display = 'block';
-        
+
         parent.insertBefore(wrapper, searchInput);
         wrapper.appendChild(searchInput);
-        
+
         const clearBtn = document.createElement('span');
         clearBtn.id = 'searchClearBtn';
         clearBtn.innerHTML = '&times;';
@@ -115,7 +115,7 @@ function showShareModal(id, name) {
     toggleShareOptions();
     selectedUsers = [];
     renderSelectedUsers();
-    
+
     const input = document.getElementById('userSearchInput');
     if (input) {
         input.value = '';
@@ -188,7 +188,7 @@ async function searchUsers(query) {
 
 function renderSearchResults(users) {
     const resultsContainer = document.getElementById('userSearchResults');
-    
+
     if (!users || users.length === 0) {
         resultsContainer.innerHTML = `
             <div class="user-search-result" style="cursor: default; justify-content: center; align-items: center; pointer-events: none; background-color: #f9f9f9;">
@@ -211,9 +211,9 @@ function renderSearchResults(users) {
 
         // 2. Filter out the currently logged-in user (themselves!)
         if (currentUserEmail && currentUserEmail.toLowerCase().trim() === user.email.toLowerCase().trim()) {
-            return; 
+            return;
         }
-        
+
         const displayName = user.name ? `${user.name} (${user.email})` : user.email;
         html += `
             <div class="user-search-result" onclick="selectUser('${user.email}', '${escapeHtml(user.email)}', '${escapeHtml(user.name || '')}')">
@@ -234,21 +234,21 @@ function renderSearchResults(users) {
 // ============================
 function selectUser(id, email, name) {
     clearTimeout(shareTimer);
-    
+
     if (selectedUsers.some(u => u.email.toLowerCase().trim() === email.toLowerCase().trim())) return;
-    
+
     selectedUsers.push({ id, email, name });
     renderSelectedUsers();
 
     const input = document.getElementById('userSearchInput');
     const clearBtn = document.getElementById('searchClearBtn');
-    
+
     if (input) {
         input.value = '';
         if (clearBtn) clearBtn.style.display = 'none';
         input.focus();
     }
-    
+
     // [FIX 4]: When selected, immediately clear and hide the list
     closeAndClearSearchResults();
 }
@@ -256,7 +256,7 @@ function selectUser(id, email, name) {
 function removeUser(email) {
     selectedUsers = selectedUsers.filter(u => u.email.toLowerCase().trim() !== email.toLowerCase().trim());
     renderSelectedUsers();
-    
+
     const input = document.getElementById('userSearchInput');
     if (input && input.value.trim().length > 0) {
         searchUsers(input.value);
@@ -354,12 +354,13 @@ async function createShareLink() {
         }
         const result = await response.json();
 
-        const shareUrl = result.shareUrl || `${window.location.origin}/share/${result.token}`;
+        const shareUrl = result.url || `${window.location.origin}/share2.html?token=
+		/${result.token}`;
         document.getElementById('shareLinkInput').value = shareUrl;
         document.getElementById('shareLinkExpiry').textContent = expiry ? new Date(expiry).toLocaleDateString() : 'Never';
         document.getElementById('shareLinkType').textContent = shareType === 'PUBLIC' ? 'Public' :
-                                                              shareType === 'PROTECTED' ? 'Password Protected' :
-                                                              'User Only';
+            shareType === 'PROTECTED' ? 'Password Protected' :
+                'User Only';
 
         closeShareModal();
         document.getElementById('shareLinkModal').classList.add('active');

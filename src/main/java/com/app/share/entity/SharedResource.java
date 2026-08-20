@@ -59,7 +59,19 @@ public class SharedResource {
 		createdAt = LocalDateTime.now();
 	}
 
-	// Existing Getters and Setters ...
+	private LocalDateTime deletedAt; // null = active, non‑null = removed
+
+	public LocalDateTime getDeletedAt() {
+		return deletedAt;
+	}
+
+	public void setDeletedAt(LocalDateTime deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+	
+	public boolean isDeleted() {
+	    return deletedAt != null;
+	}
 
 	public String getId() {
 		return id;

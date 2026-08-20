@@ -9,7 +9,24 @@ let selectedSharedItems = new Set();
 let sharedCurrentFolderId = null;
 let navHistory = [];
 
+// ===== ENSURE REQUIRED DOM ELEMENTS EXIST =====
+function ensureElement(id, className = '', defaultContent = '') {
+    let el = document.getElementById(id);
+    if (!el) {
+        el = document.createElement('div');
+        el.id = id;
+        if (className) el.className = className;
+        if (defaultContent) el.innerHTML = defaultContent;
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    ensureElement('loading', 'loading', '<div class="spinner"></div><div>Loading...</div>');
+    ensureElement('contentArea', 'content-area');
+    ensureElement('viewerArea', 'viewer-area');
+
     loadUserInfoIntoUI();
     setupSidebarNavigation();
     if (!token) {
@@ -19,33 +36,89 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// ===== ERROR / EXPIRED DISPLAY =====
+// ===== SPECIALISED ERROR DISPLAYS =====
 function showError(message) {
-    document.getElementById('loading').style.display = 'none';
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'none';
     const contentArea = document.getElementById('contentArea');
-    contentArea.style.display = 'block';
-    contentArea.innerHTML = `
-        <div class="error-message" style="display:block; text-align:center;">
-            <div style="font-size:48px; margin-bottom:16px;">🔗</div>
-            <h3>Link Not Found</h3>
-            <p>${escapeHtml(message)}</p>
-        </div>
-    `;
-    // No toast for link not found.
+    if (contentArea) {
+        contentArea.style.display = 'block';
+        contentArea.innerHTML = `
+            <div class="error-message" style="display:block; text-align:center;">
+                <div style="font-size:48px; margin-bottom:16px;">🔗</div>
+                <h3>Link Not Found</h3>
+                <p>${escapeHtml(message)}</p>
+            </div>
+        `;
+    }
+}
+
+function showShareNotFound() {
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'none';
+    const contentArea = document.getElementById('contentArea');
+    if (contentArea) {
+        contentArea.style.display = 'block';
+        contentArea.innerHTML = `
+            <div class="error-message" style="display:block; text-align:center;">
+                <div style="font-size:48px; margin-bottom:16px;">❓</div>
+                <h3>Share Never Existed</h3>
+                <p>The share link you are trying to access was never created or has been permanently removed.</p>
+                <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please check the link or contact the owner.</p>
+            </div>
+        `;
+    }
+}
+
+function showShareRemoved() {
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'none';
+    const contentArea = document.getElementById('contentArea');
+    if (contentArea) {
+        contentArea.style.display = 'block';
+        contentArea.innerHTML = `
+            <div class="error-message" style="display:block; text-align:center;">
+                <div style="font-size:48px; margin-bottom:16px;">🚫</div>
+                <h3>Share Removed by Sharer</h3>
+                <p>This share link has been removed by the person who shared it and is no longer available.</p>
+                <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the file owner for a new link.</p>
+            </div>
+        `;
+    }
 }
 
 function showExpired(message = "This share link has expired or is no longer available.") {
-    document.getElementById('loading').style.display = 'none';
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'none';
     const contentArea = document.getElementById('contentArea');
-    contentArea.style.display = 'block';
-    contentArea.innerHTML = `
-        <div class="expired-message">
-            <div class="expired-icon">⏰</div>
-            <h3>Link Not Found</h3>
-            <p>${escapeHtml(message)}</p>
-            <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the file owner for a new link.</p>
-        </div>
-    `;
+    if (contentArea) {
+        contentArea.style.display = 'block';
+        contentArea.innerHTML = `
+            <div class="expired-message">
+                <div class="expired-icon">⏰</div>
+                <h3>Link Expired</h3>
+                <p>${escapeHtml(message)}</p>
+                <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the file owner for a new link.</p>
+            </div>
+        `;
+    }
+}
+
+function showFileRemoved() {
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'none';
+    const contentArea = document.getElementById('contentArea');
+    if (contentArea) {
+        contentArea.style.display = 'block';
+        contentArea.innerHTML = `
+            <div class="error-message" style="display:block; text-align:center;">
+                <div style="font-size:48px; margin-bottom:16px;">🗑️</div>
+                <h3>File Removed</h3>
+                <p>The file(s) that were shared have been deleted by the owner.</p>
+                <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the owner for a new link.</p>
+            </div>
+        `;
+    }
 }
 
 // ===== LOAD SHARE INFO =====
@@ -55,16 +128,54 @@ async function loadShareInfo() {
         const jwtToken = localStorage.getItem('jwtToken');
         if (jwtToken) headers['Authorization'] = 'Bearer ' + jwtToken;
         const response = await fetch(`${API_URL}/share/${token}`, { headers });
-        if (response.status === 401 || response.status === 404 || response.status === 410) {
-            isExpired = true;
-            showExpired();
+
+        if (response.status === 404) {
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                showError('Share not found.');
+                return;
+            }
+            if (errorData.error === 'SHARE_NOT_FOUND') {
+                showShareNotFound();
+            } else {
+                showError('Share not found.');
+            }
             return;
         }
+
+        if (response.status === 410) {
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                showExpired('This share is no longer available.');
+                return;
+            }
+            if (errorData.error === 'SHARE_REMOVED') {
+                showShareRemoved();
+            } else if (errorData.error === 'SHARE_EXPIRED') {
+                showExpired('This share link has expired.');
+            } else if (errorData.error === 'SHARE_FILE_REMOVED') {
+                showFileRemoved();
+            } else {
+                showExpired('This share is no longer available.');
+            }
+            return;
+        }
+
+        if (response.status === 401) {
+            showError('You need to be logged in to access this share.');
+            return;
+        }
+
         if (!response.ok) throw new Error('Failed to load share information');
+
         currentShare = await response.json();
         if (currentShare.expiresAt && new Date(currentShare.expiresAt) < new Date()) {
             isExpired = true;
-            showExpired();
+            showExpired('This share link has expired.');
             return;
         }
         await displayShareInfo(currentShare);
@@ -76,8 +187,10 @@ async function loadShareInfo() {
 
 // ===== DISPLAY SHARE INFO =====
 async function displayShareInfo(share) {
-    document.getElementById('loading').style.display = 'none';
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'none';
     const contentArea = document.getElementById('contentArea');
+    if (!contentArea) return;
     contentArea.style.display = 'block';
 
     const isExpiredStatus = share.expiresAt && new Date(share.expiresAt) < new Date();
@@ -90,7 +203,7 @@ async function displayShareInfo(share) {
             <div class="file-icon">${getFileIcon(share.driveName)}</div>
             <div class="file-details">
                 <div class="file-name">${escapeHtml(share.driveName)}</div>
-                <div class="file-meta">Shared via ${share.shareType} link • ${share.viewCount} views</div>
+                <div class="file-meta">Shared via ${share.shareType} link • ${share.viewCount || 0} views</div>
             </div>
         </div>
         <div class="${shareInfoClass}">
@@ -112,7 +225,6 @@ async function displayShareInfo(share) {
         return;
     }
 
-    // FILE share
     const permission = share.permission;
     const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
     const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
@@ -165,10 +277,27 @@ async function displayShareInfo(share) {
 // ===== FOLDER NAVIGATION =====
 async function loadCurrentFolder() {
     const contentArea = document.getElementById('contentArea');
+    if (!contentArea) return;
     const folderId = sharedCurrentFolderId;
     const endpoint = folderId ? `/share/${token}/folder/${folderId}/contents` : `/share/${token}/contents`;
     const permission = currentShare ? currentShare.permission : null;
     const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+
+    // 👇 Build note if some files are missing
+    let missingNote = '';
+    if (currentShare && currentShare.driveType === 'MULTI' &&
+        currentShare.totalFileCount !== undefined && currentShare.activeFileCount !== undefined &&
+        currentShare.activeFileCount < currentShare.totalFileCount) {
+        missingNote = `
+            <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 16px; margin-bottom: 16px; border-radius: 4px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">⚠️</span>
+                <span style="color: #856404;">
+                    <strong>Note:</strong> ${currentShare.totalFileCount - currentShare.activeFileCount} file(s) in this share have been removed by the owner.
+                    Only the remaining ${currentShare.activeFileCount} file(s) are shown below.
+                </span>
+            </div>
+        `;
+    }
 
     contentArea.innerHTML = `
         <div class="folder-toolbar">
@@ -181,6 +310,7 @@ async function loadCurrentFolder() {
                 ${canDownload ? `<button class="btn btn-primary" onclick="downloadSelectedShared()">⬇️ Download Selected</button>` : ''}
             </div>
         </div>
+        ${missingNote}
         <div id="folderGrid" class="folder-grid"></div>
     `;
 
@@ -195,13 +325,15 @@ async function loadCurrentFolder() {
         const items = await response.json();
         renderFolderGrid(items);
     } catch (error) {
-        document.getElementById('folderGrid').innerHTML = `<p style="color:red; padding:20px;">❌ ${error.message}</p>`;
+        const grid = document.getElementById('folderGrid');
+        if (grid) grid.innerHTML = `<p style="color:red; padding:20px;">❌ ${error.message}</p>`;
         safeToast('Failed to load folder contents: ' + error.message, 'error');
     }
 }
 
 function renderBreadcrumb() {
     const container = document.getElementById('folderBreadcrumb');
+    if (!container) return;
     if (!sharedCurrentFolderId) {
         container.innerHTML = `<strong>${escapeHtml(currentShare.driveName)}</strong>`;
         return;
@@ -229,6 +361,7 @@ async function navigateToFolder(folderId, folderName) {
 
 function renderFolderGrid(items) {
     const grid = document.getElementById('folderGrid');
+    if (!grid) return;
     if (!items || items.length === 0) {
         grid.innerHTML = '<p style="color:#5f6368; text-align:center; padding:20px;">This folder is empty.</p>';
         return;
@@ -314,6 +447,7 @@ async function downloadSelectedShared() {
 async function loadRootFileContent() {
     const viewerArea = document.getElementById('viewerArea');
     const contentArea = document.getElementById('contentArea');
+    if (!viewerArea || !contentArea) return;
     viewerArea.style.display = 'block';
     viewerArea.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading file...</div></div>';
     const buttons = document.querySelectorAll('.action-buttons .btn');
@@ -345,6 +479,7 @@ async function downloadRootFile() { downloadFile(); }
 async function viewSharedFile(fileId, fileName) {
     const viewerArea = document.getElementById('viewerArea');
     const contentArea = document.getElementById('contentArea');
+    if (!viewerArea || !contentArea) return;
     viewerArea.style.display = 'block';
     viewerArea.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading file...</div></div>';
     const buttons = document.querySelectorAll('.action-buttons .btn');
@@ -374,6 +509,7 @@ async function viewSharedFile(fileId, fileName) {
 
 function displayFileInViewer(fileUrl, contentType, filename, ext) {
     const viewerArea = document.getElementById('viewerArea');
+    if (!viewerArea) return;
     const permission = currentShare ? currentShare.permission : null;
     const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
 
@@ -430,14 +566,17 @@ async function accessWithPassword() {
     const password = document.getElementById('password').value;
     if (!password) { safeToast('Please enter password', 'warning'); return; }
     const button = document.querySelector('#contentArea .btn-primary');
-    button.disabled = true;
-    button.textContent = 'Verifying...';
+    if (button) {
+        button.disabled = true;
+        button.textContent = 'Verifying...';
+    }
     currentPassword = password;
     try {
         const response = await fetch(`${API_URL}/share/${token}?password=${encodeURIComponent(password)}`);
         if (response.status === 403) throw new Error('Invalid password');
         if (!response.ok) throw new Error('Access denied');
         const contentArea = document.getElementById('contentArea');
+        if (!contentArea) return;
         const permission = currentShare ? currentShare.permission : null;
         const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
         const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
@@ -457,8 +596,10 @@ async function accessWithPassword() {
         safeToast('Access granted.', 'success');
     } catch (error) {
         safeToast('Invalid password. Please try again.', 'error');
-        button.disabled = false;
-        button.textContent = 'Access File';
+        if (button) {
+            button.disabled = false;
+            button.textContent = 'Access File';
+        }
     }
 }
 
