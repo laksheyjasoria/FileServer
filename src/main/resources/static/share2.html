@@ -1,35 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Viewer</title>
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👁️</text></svg>">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>File Viewer – Shared</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👁️</text></svg>" />
 </head>
 <body>
 
-    <div class="header">
+    <!-- ===== HEADER (same as main app) ===== -->
+    <header class="header">
         <div class="logo">
-            <span class="logo-icon">👁️</span>
-            <span class="logo-text">File Viewer</span>
+            <span class="logo-icon">📁</span>
+            <span class="logo-text">File Server</span>
         </div>
         <div class="search-bar">
-            <input type="text" placeholder="..." id="searchInput" style="opacity:0.6; pointer-events:none;">
+            <input type="text" id="searchInput" placeholder="Search (disabled for shared view)" disabled />
         </div>
         <div class="user-menu">
-            <span id="userEmail" style="font-size:14px; color:#5f6368;"></span>
+            <span id="userEmail" class="user-email"></span>
             <div class="user-avatar" id="userAvatar">U</div>
         </div>
+    </header>
+
+    <!-- ===== APP CONTAINER (no sidebar) ===== -->
+    <div class="app-container">
+        <main class="main-content" id="shareMainContent">
+
+            <!-- Loading (auto‑hidden) -->
+            <div id="loading" class="loading" style="display:flex;">
+                <div class="spinner"></div>
+                <div>Loading share...</div>
+            </div>
+
+            <!-- Dynamic content area (replaces fileContainer) -->
+            <div id="contentArea" style="display:none;"></div>
+
+            <!-- Viewer area (for file previews) -->
+            <div id="viewerArea" class="viewer-area" style="display:none;"></div>
+
+        </main>
     </div>
 
-    <div id="viewerContainer" class="viewer-container">
-        <!-- The script will inject loading, contentArea, viewerArea if missing -->
-    </div>
-
+    <!-- ===== TOAST & MODAL CONTAINERS ===== -->
     <div id="toast-container"></div>
     <div id="modal-overlay"></div>
 
+    <!-- ===== SCRIPTS ===== -->
     <script src="/js/core/config.js"></script>
     <script src="/js/core/utils.js"></script>
     <script src="/js/core/api.js"></script>

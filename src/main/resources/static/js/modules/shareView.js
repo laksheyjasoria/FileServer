@@ -24,19 +24,40 @@ function ensureElement(id, className = '', defaultContent = '') {
 
 document.addEventListener('DOMContentLoaded', () => {
     ensureElement('loading', 'loading', '<div class="spinner"></div><div>Loading...</div>');
-    ensureElement('contentArea', 'content-area');
+    ensureElement('contentArea');
     ensureElement('viewerArea', 'viewer-area');
 
     loadUserInfoIntoUI();
-    setupSidebarNavigation();
     if (!token) {
         showError('Invalid share link. No token provided.');
     } else {
         loadShareInfo();
     }
+
+    // Close context menu on click outside
+    document.addEventListener('click', () => {
+        const menu = document.querySelector('.dropdown-menu');
+        if (menu) menu.remove();
+    });
 });
 
-// ===== SPECIALISED ERROR DISPLAYS =====
+// ===== USER INFO =====
+function loadUserInfoIntoUI() {
+    const jwtToken = localStorage.getItem('jwtToken');
+    if (!jwtToken) return;
+    const user = getUserFromToken ? getUserFromToken() : null;
+    if (user) {
+        document.getElementById('userEmail').textContent = user.name || user.email || '';
+        const avatarEl = document.getElementById('userAvatar');
+        if (user.photoUrl) {
+            avatarEl.innerHTML = `<img src="${user.photoUrl}" alt="avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+        } else {
+            avatarEl.textContent = user.name ? user.name.charAt(0).toUpperCase() : (user.email ? user.email.charAt(0).toUpperCase() : 'U');
+        }
+    }
+}
+
+// ===== ERROR DISPLAYS =====
 function showError(message) {
     const loading = document.getElementById('loading');
     if (loading) loading.style.display = 'none';
@@ -44,8 +65,8 @@ function showError(message) {
     if (contentArea) {
         contentArea.style.display = 'block';
         contentArea.innerHTML = `
-            <div class="error-message" style="display:block; text-align:center;">
-                <div style="font-size:48px; margin-bottom:16px;">🔗</div>
+            <div class="empty-state" style="text-align:center; padding:60px 20px;">
+                <div class="empty-state-icon" style="font-size:48px;">🔗</div>
                 <h3>Link Not Found</h3>
                 <p>${escapeHtml(message)}</p>
             </div>
@@ -60,8 +81,8 @@ function showShareNotFound() {
     if (contentArea) {
         contentArea.style.display = 'block';
         contentArea.innerHTML = `
-            <div class="error-message" style="display:block; text-align:center;">
-                <div style="font-size:48px; margin-bottom:16px;">❓</div>
+            <div class="empty-state" style="text-align:center; padding:60px 20px;">
+                <div class="empty-state-icon" style="font-size:48px;">❓</div>
                 <h3>Share Never Existed</h3>
                 <p>The share link you are trying to access was never created or has been permanently removed.</p>
                 <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please check the link or contact the owner.</p>
@@ -77,8 +98,8 @@ function showShareRemoved() {
     if (contentArea) {
         contentArea.style.display = 'block';
         contentArea.innerHTML = `
-            <div class="error-message" style="display:block; text-align:center;">
-                <div style="font-size:48px; margin-bottom:16px;">🚫</div>
+            <div class="empty-state" style="text-align:center; padding:60px 20px;">
+                <div class="empty-state-icon" style="font-size:48px;">🚫</div>
                 <h3>Share Removed by Sharer</h3>
                 <p>This share link has been removed by the person who shared it and is no longer available.</p>
                 <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the file owner for a new link.</p>
@@ -87,15 +108,15 @@ function showShareRemoved() {
     }
 }
 
-function showExpired(message = "This share link has expired or is no longer available.") {
+function showExpired(message) {
     const loading = document.getElementById('loading');
     if (loading) loading.style.display = 'none';
     const contentArea = document.getElementById('contentArea');
     if (contentArea) {
         contentArea.style.display = 'block';
         contentArea.innerHTML = `
-            <div class="expired-message">
-                <div class="expired-icon">⏰</div>
+            <div class="empty-state" style="text-align:center; padding:60px 20px;">
+                <div class="empty-state-icon" style="font-size:48px;">⏰</div>
                 <h3>Link Expired</h3>
                 <p>${escapeHtml(message)}</p>
                 <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the file owner for a new link.</p>
@@ -111,8 +132,8 @@ function showFileRemoved() {
     if (contentArea) {
         contentArea.style.display = 'block';
         contentArea.innerHTML = `
-            <div class="error-message" style="display:block; text-align:center;">
-                <div style="font-size:48px; margin-bottom:16px;">🗑️</div>
+            <div class="empty-state" style="text-align:center; padding:60px 20px;">
+                <div class="empty-state-icon" style="font-size:48px;">🗑️</div>
                 <h3>File Removed</h3>
                 <p>The file(s) that were shared have been deleted by the owner.</p>
                 <p style="margin-top:16px; font-size:13px; color:#5f6368;">Please contact the owner for a new link.</p>
@@ -194,26 +215,24 @@ async function displayShareInfo(share) {
     contentArea.style.display = 'block';
 
     const isExpiredStatus = share.expiresAt && new Date(share.expiresAt) < new Date();
-    const shareInfoClass = isExpiredStatus ? 'share-info expired' : 'share-info';
     const expiresText = isExpiredStatus ? '⚠️ This link has expired' :
         (share.expiresAt ? `⏰ Expires on ${new Date(share.expiresAt).toLocaleDateString()}` : 'Never expires');
 
     let html = `
-        <div class="file-info">
-            <div class="file-icon">${getFileIcon(share.driveName)}</div>
+        <div class="file-info" style="display:flex; align-items:center; gap:16px; padding:12px 0; border-bottom:1px solid #e8eaed; margin-bottom:16px;">
+            <div class="file-icon" style="font-size:40px;">${getFileIcon(share.driveName)}</div>
             <div class="file-details">
-                <div class="file-name">${escapeHtml(share.driveName)}</div>
-                <div class="file-meta">Shared via ${share.shareType} link • ${share.viewCount || 0} views</div>
+                <div class="file-name" style="font-size:20px; font-weight:500;">${escapeHtml(share.driveName)}</div>
+                <div class="file-meta" style="font-size:14px; color:#5f6368;">
+                    Shared via ${share.shareType} link • ${share.viewCount || 0} views
+                    <br><span style="font-size:13px;">Created ${new Date(share.createdAt).toLocaleDateString()} • ${expiresText}</span>
+                </div>
             </div>
-        </div>
-        <div class="${shareInfoClass}">
-            🔗 This link was created on ${new Date(share.createdAt).toLocaleDateString()}
-            <br>${expiresText}
         </div>
     `;
 
     if (isExpiredStatus) {
-        html += `<div class="expired-message" style="margin-top:20px;"><p style="color:#c5221f;">This link has expired. No further access is available.</p></div>`;
+        html += `<div class="empty-state" style="text-align:center; padding:20px;"><p style="color:#c5221f;">This link has expired. No further access is available.</p></div>`;
         contentArea.innerHTML = html;
         return;
     }
@@ -225,15 +244,16 @@ async function displayShareInfo(share) {
         return;
     }
 
+    // SINGLE FILE
     const permission = share.permission;
     const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
     const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
 
     if (share.shareType === 'PROTECTED') {
         html += `
-            <div class="password-section">
-                <label>This file is password protected</label>
-                <input type="password" id="password" class="password-input" placeholder="Enter password">
+            <div class="password-section" style="background:#f8f9fa; border-radius:8px; padding:20px; text-align:center;">
+                <label style="display:block; font-weight:500; margin-bottom:8px;">This file is password protected</label>
+                <input type="password" id="password" class="password-input" placeholder="Enter password" style="width:100%; max-width:300px; padding:10px 16px; border:1px solid #dadce0; border-radius:24px; font-size:14px;">
                 <div class="action-buttons" style="margin-top:16px;">
                     <button class="btn btn-primary" onclick="accessWithPassword()">Access File</button>
                 </div>
@@ -244,26 +264,26 @@ async function displayShareInfo(share) {
         const jwtToken = localStorage.getItem('jwtToken');
         if (jwtToken) {
             html += `
-                <div class="login-section">
+                <div style="background:#e8f0fe; padding:12px 16px; border-radius:8px; margin:16px 0;">
                     <p>✅ You are logged in. You can access this file.</p>
-                    <div class="action-buttons">
-                        ${canView ? `<button class="btn btn-primary" onclick="loadRootFileContent()">👁️ View File</button>` : ''}
-                        ${canDownload ? `<button class="btn btn-secondary" onclick="downloadRootFile()">⬇️ Download</button>` : ''}
-                    </div>
+                </div>
+                <div class="action-buttons">
+                    ${canView ? `<button class="btn btn-primary" onclick="loadRootFileContent()">👁️ View File</button>` : ''}
+                    ${canDownload ? `<button class="btn btn-secondary" onclick="downloadRootFile()">⬇️ Download</button>` : ''}
                 </div>
             `;
             contentArea.innerHTML = html;
         } else {
             html += `
-                <div class="login-section">
-                    <p>🔐 This file is shared with registered users only.</p>
-                    <p>Please login to access this file.</p>
-                    <button class="btn btn-primary" onclick="redirectToLogin()">Login to Access</button>
+                <div style="background:#fce8e6; padding:12px 16px; border-radius:8px; margin:16px 0;">
+                    <p>🔐 This file is shared with registered users only. Please login to access.</p>
                 </div>
+                <button class="btn btn-primary" onclick="redirectToLogin()">Login to Access</button>
             `;
             contentArea.innerHTML = html;
         }
     } else {
+        // PUBLIC
         html += `
             <div class="action-buttons">
                 ${canView ? `<button class="btn btn-primary" onclick="loadRootFileContent()">👁️ View File</button>` : ''}
@@ -282,8 +302,9 @@ async function loadCurrentFolder() {
     const endpoint = folderId ? `/share/${token}/folder/${folderId}/contents` : `/share/${token}/contents`;
     const permission = currentShare ? currentShare.permission : null;
     const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+    const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
 
-    // 👇 Build note if some files are missing
+    // Missing files note (only for MULTI)
     let missingNote = '';
     if (currentShare && currentShare.driveType === 'MULTI' &&
         currentShare.totalFileCount !== undefined && currentShare.activeFileCount !== undefined &&
@@ -300,18 +321,22 @@ async function loadCurrentFolder() {
     }
 
     contentArea.innerHTML = `
-        <div class="folder-toolbar">
-            <div>
-                <span id="folderBreadcrumb"></span>
-                <span style="margin-left:12px; font-size:13px; color:#5f6368;">Select items to download</span>
+        <div class="toolbar">
+            <div class="breadcrumb" id="folderBreadcrumb">
+                <span class="breadcrumb-item" onclick="navigateToFolder(null)">${escapeHtml(currentShare.driveName)}</span>
             </div>
             <div class="action-buttons">
-                ${canDownload ? `<button class="btn btn-secondary" onclick="toggleSelectAllShared()">☑️ Select All</button>` : ''}
-                ${canDownload ? `<button class="btn btn-primary" onclick="downloadSelectedShared()">⬇️ Download Selected</button>` : ''}
+                ${canDownload ? `
+                    <input type="checkbox" id="selectAllCheckbox" title="Select All" onchange="toggleSelectAllShared()" />
+                    <button class="btn btn-secondary" onclick="downloadSelectedShared()">⬇️ Download Selected</button>
+                ` : ''}
             </div>
         </div>
         ${missingNote}
-        <div id="folderGrid" class="folder-grid"></div>
+        <div id="selectionToolbar" class="selection-toolbar" style="display:none;">
+            <span id="selectionCount">0 items selected</span>
+        </div>
+        <div id="folderGrid" class="file-grid"></div>
     `;
 
     renderBreadcrumb();
@@ -326,7 +351,7 @@ async function loadCurrentFolder() {
         renderFolderGrid(items);
     } catch (error) {
         const grid = document.getElementById('folderGrid');
-        if (grid) grid.innerHTML = `<p style="color:red; padding:20px;">❌ ${error.message}</p>`;
+        if (grid) grid.innerHTML = `<div class="empty-state">❌ ${escapeHtml(error.message)}</div>`;
         safeToast('Failed to load folder contents: ' + error.message, 'error');
     }
 }
@@ -335,18 +360,26 @@ function renderBreadcrumb() {
     const container = document.getElementById('folderBreadcrumb');
     if (!container) return;
     if (!sharedCurrentFolderId) {
-        container.innerHTML = `<strong>${escapeHtml(currentShare.driveName)}</strong>`;
+        container.innerHTML = `<span class="breadcrumb-item" onclick="navigateToFolder(null)">${escapeHtml(currentShare.driveName)}</span>`;
         return;
     }
-    let html = `<span onclick="navigateToFolder(null)" style="cursor:pointer; color:#1a73e8;">${escapeHtml(currentShare.driveName)}</span>`;
+    let html = `<span class="breadcrumb-item" onclick="navigateToFolder(null)">${escapeHtml(currentShare.driveName)}</span>`;
     for (let i = 0; i < navHistory.length; i++) {
         const item = navHistory[i];
-        html += ` / <span onclick="navigateToFolder('${escapeJSString(item.id)}')" style="cursor:pointer; color:#1a73e8;">${escapeHtml(item.name)}</span>`;
+        html += `<span class="breadcrumb-separator">/</span>`;
+        html += `<span class="breadcrumb-item" onclick="navigateToFolder('${escapeJSString(item.id)}')">${escapeHtml(item.name)}</span>`;
     }
     container.innerHTML = html;
 }
 
 async function navigateToFolder(folderId, folderName) {
+    // Check view permission before navigating
+    const canView = currentShare.permission === 'VIEW' || currentShare.permission === 'VIEW_DOWNLOAD';
+    if (!canView) {
+        safeToast('You do not have permission to view this folder.', 'warning');
+        return;
+    }
+
     if (folderId === null) {
         sharedCurrentFolderId = null;
         navHistory = [];
@@ -359,38 +392,194 @@ async function navigateToFolder(folderId, folderName) {
     await loadCurrentFolder();
 }
 
+// ===== RENDER FOLDER GRID with context menu =====
 function renderFolderGrid(items) {
     const grid = document.getElementById('folderGrid');
     if (!grid) return;
     if (!items || items.length === 0) {
-        grid.innerHTML = '<p style="color:#5f6368; text-align:center; padding:20px;">This folder is empty.</p>';
+        grid.innerHTML = '<div class="empty-state">📁 This folder is empty.</div>';
         return;
     }
+
+    const permission = currentShare.permission;
+    const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+    const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
+
     let html = '';
     items.forEach(item => {
+        const isSelected = selectedSharedItems.has(item.id);
         const icon = item.driveType === 'FILE' ? getFileIcon(item.name) : '📁';
         const info = item.driveType === 'FILE' ? formatFileSize(item.size) : 'Folder';
         const isFolder = item.driveType === 'FOLDER';
         const eId = escapeJSString(item.id);
         const eName = escapeJSString(item.name);
-        let ondblclick = '';
-        if (isFolder) ondblclick = `ondblclick="navigateToFolder('${eId}', '${eName}')"`;
-        else ondblclick = `ondblclick="viewSharedFile('${eId}', '${eName}')"`;
+
+        // Double‑click: open folder (if view) or view file (if view) else download (if download)
+        let doubleClickAction = '';
+        if (isFolder) {
+            if (canView) {
+                doubleClickAction = `ondblclick="navigateToFolder('${eId}', '${eName}')"`;
+            } else {
+                doubleClickAction = `ondblclick="safeToast('You do not have permission to open this folder.', 'warning')"`;
+            }
+        } else {
+            if (canView) {
+                doubleClickAction = `ondblclick="viewSharedFile('${eId}', '${eName}')"`;
+            } else if (canDownload) {
+                doubleClickAction = `ondblclick="downloadSharedFile('${eId}', '${eName}')"`;
+            }
+        }
 
         html += `
-            <div class="folder-item" data-id="${item.id}" ${ondblclick}>
-                <input type="checkbox" class="checkbox" onchange="toggleSharedSelection('${eId}', this.checked)">
-                <div class="icon">${icon}</div>
-                <div class="name">${escapeHtml(item.name)}</div>
-                <div class="info">${info}</div>
+            <div class="file-item ${isSelected ? 'selected' : ''}" 
+                 data-id="${item.id}" 
+                 data-type="${item.driveType}" 
+                 data-name="${escapeHtml(item.name)}"
+                 ${doubleClickAction}
+                 onclick="handleSharedItemClick(event, '${eId}')"
+                 oncontextmenu="showSharedContextMenu(event, '${eId}', '${eName}', '${item.driveType}')">
+                ${canDownload ? `<input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSharedSelection('${eId}', this.checked)">` : ''}
+                <div class="file-icon">${icon}</div>
+                <div class="file-name">${escapeHtml(item.name)}</div>
+                <div class="file-info">${info}</div>
+                <div class="file-menu" onclick="event.stopPropagation(); showSharedContextMenu(event, '${eId}', '${eName}', '${item.driveType}')">⋮</div>
             </div>
         `;
     });
+
     grid.innerHTML = html;
+    updateSelectionToolbar();
+}
+
+// ===== SHARED CONTEXT MENU =====
+function showSharedContextMenu(event, id, name, type) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Remove any existing menu
+    const existing = document.querySelector('.dropdown-menu');
+    if (existing) existing.remove();
+
+    const permission = currentShare.permission;
+    const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
+    const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+
+    const menu = document.createElement('div');
+    menu.className = 'dropdown-menu show';
+    menu.style.position = 'fixed';
+    menu.style.top = `${Math.min(event.clientY, window.innerHeight - 200)}px`;
+    menu.style.left = `${Math.min(event.clientX, window.innerWidth - 180)}px`;
+    menu.style.zIndex = '9999';
+    menu.style.background = 'white';
+    menu.style.borderRadius = '8px';
+    menu.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
+    menu.style.minWidth = '160px';
+    menu.style.padding = '6px 0';
+
+    const isFolder = type === 'FOLDER';
+
+    const items = [];
+
+    if (isFolder) {
+        if (canView) {
+            items.push({ icon: '📂', label: 'Open', action: () => navigateToFolder(id, name) });
+        } else {
+            items.push({ icon: '🚫', label: 'Open (no permission)', action: () => safeToast('You do not have permission to view this folder.', 'warning') });
+        }
+        if (canDownload) {
+            items.push({ icon: '⬇️', label: 'Download Folder as ZIP', action: () => downloadSharedFolder(id, name) });
+        }
+    } else {
+        // File
+        if (canView) {
+            items.push({ icon: '👁️', label: 'View', action: () => viewSharedFile(id, name) });
+            items.push({ icon: '🔄', label: 'View in new tab', action: () => viewSharedFileInNewTab(id, name) });
+        }
+        if (canDownload) {
+            items.push({ icon: '⬇️', label: 'Download', action: () => downloadSharedFile(id, name) });
+        }
+    }
+
+    if (items.length === 0) {
+        items.push({ icon: 'ℹ️', label: 'No actions available', action: () => {} });
+    }
+
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'dropdown-item';
+        div.style.padding = '8px 16px';
+        div.style.cursor = 'pointer';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.gap = '10px';
+        div.style.fontSize = '14px';
+        div.innerHTML = `${item.icon} ${item.label}`;
+        div.onclick = (e) => {
+            e.stopPropagation();
+            item.action();
+            menu.remove();
+        };
+        div.onmouseenter = () => { div.style.background = '#f1f3f4'; };
+        div.onmouseleave = () => { div.style.background = 'transparent'; };
+        menu.appendChild(div);
+    });
+
+    document.body.appendChild(menu);
+
+    // Auto-close on click outside
+    setTimeout(() => {
+        document.addEventListener('click', () => menu.remove(), { once: true });
+    }, 10);
+}
+
+// ===== DOWNLOAD SHARED FOLDER (as ZIP) =====
+async function downloadSharedFolder(folderId, folderName) {
+    safeToast('Preparing folder download...', 'info', 2000);
+    try {
+        const response = await fetch(`${API_URL}/share/download/${token}?fileId=${encodeURIComponent(folderId)}&type=folder`, {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('jwtToken') || '') }
+        });
+        if (!response.ok) throw new Error('Download failed');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${folderName}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        safeToast('Download completed.', 'success');
+    } catch (error) {
+        safeToast('Failed to download folder: ' + error.message, 'error');
+    }
+}
+
+// ===== VIEW SHARED FILE IN NEW TAB =====
+function viewSharedFileInNewTab(fileId, fileName) {
+    let url = `${API_URL}/share/stream/${token}?fileId=${encodeURIComponent(fileId)}`;
+    if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
+    window.open(url, '_blank');
+}
+
+// ===== SELECTION HANDLING =====
+function handleSharedItemClick(event, id) {
+    if (event.target.type === 'checkbox' || event.target.classList.contains('file-menu')) return;
+    if (!event.ctrlKey && !event.metaKey) {
+        if (!selectedSharedItems.has(id)) {
+            selectedSharedItems.clear();
+            selectedSharedItems.add(id);
+            loadCurrentFolder();
+        }
+    } else {
+        const checked = !selectedSharedItems.has(id);
+        toggleSharedSelection(id, checked);
+    }
 }
 
 function toggleSharedSelection(id, checked) {
-    const itemDiv = document.querySelector(`#folderGrid .folder-item[data-id="${id}"]`);
+    const itemDiv = document.querySelector(`.file-item[data-id="${id}"]`);
     if (checked) {
         selectedSharedItems.add(id);
         if (itemDiv) itemDiv.classList.add('selected');
@@ -398,10 +587,11 @@ function toggleSharedSelection(id, checked) {
         selectedSharedItems.delete(id);
         if (itemDiv) itemDiv.classList.remove('selected');
     }
+    updateSelectionToolbar();
 }
 
 function toggleSelectAllShared() {
-    const allItems = document.querySelectorAll('#folderGrid .folder-item');
+    const allItems = document.querySelectorAll('.file-item');
     if (allItems.length === 0) return;
     const allChecked = Array.from(allItems).every(item => { const cb = item.querySelector('.checkbox'); return cb && cb.checked; });
     const newState = !allChecked;
@@ -415,6 +605,18 @@ function toggleSelectAllShared() {
             else { item.classList.remove('selected'); }
         }
     });
+    updateSelectionToolbar();
+}
+
+function updateSelectionToolbar() {
+    const toolbar = document.getElementById('selectionToolbar');
+    const count = selectedSharedItems.size;
+    if (count > 0) {
+        toolbar.style.display = 'flex';
+        document.getElementById('selectionCount').innerText = `${count} item${count > 1 ? 's' : ''} selected`;
+    } else {
+        toolbar.style.display = 'none';
+    }
 }
 
 async function downloadSelectedShared() {
@@ -443,50 +645,14 @@ async function downloadSelectedShared() {
     }
 }
 
-// ===== FILE VIEWER =====
-async function loadRootFileContent() {
-    const viewerArea = document.getElementById('viewerArea');
-    const contentArea = document.getElementById('contentArea');
-    if (!viewerArea || !contentArea) return;
-    viewerArea.style.display = 'block';
-    viewerArea.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading file...</div></div>';
-    const buttons = document.querySelectorAll('.action-buttons .btn');
-    buttons.forEach(btn => btn.disabled = true);
-    try {
-        let url = `${API_URL}/share/stream/${token}`;
-        if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
-        const headers = {};
-        const jwtToken = localStorage.getItem('jwtToken');
-        if (jwtToken) headers['Authorization'] = 'Bearer ' + jwtToken;
-        const response = await fetch(url, { headers });
-        if (response.status === 403) throw new Error('Access denied. Invalid password or permissions.');
-        if (response.status === 410) throw new Error('This share link has expired');
-        if (response.status === 404) throw new Error('The shared file has been deleted or is no longer available.');
-        if (!response.ok) throw new Error('Failed to load file');
-        const blob = await response.blob();
-        const fileUrl = URL.createObjectURL(blob);
-        const contentType = blob.type;
-        const ext = currentShare.driveName.split('.').pop().toLowerCase();
-        displayFileInViewer(fileUrl, contentType, currentShare.driveName, ext);
-    } catch (error) {
-        viewerArea.innerHTML = `<div class="error-message" style="display:block; text-align:center; margin:20px;">❌ ${error.message}</div>`;
-        safeToast(error.message, 'error');
-    } finally { buttons.forEach(btn => btn.disabled = false); }
-}
-
-async function downloadRootFile() { downloadFile(); }
-
+// ===== VIEW / DOWNLOAD SINGLE FILE =====
 async function viewSharedFile(fileId, fileName) {
     const viewerArea = document.getElementById('viewerArea');
-    const contentArea = document.getElementById('contentArea');
-    if (!viewerArea || !contentArea) return;
+    if (!viewerArea) return;
     viewerArea.style.display = 'block';
     viewerArea.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading file...</div></div>';
-    const buttons = document.querySelectorAll('.action-buttons .btn');
-    buttons.forEach(btn => btn.disabled = true);
     try {
-        let url = `${API_URL}/share/stream/${token}`;
-        if (fileId) url += `?fileId=${encodeURIComponent(fileId)}`;
+        let url = `${API_URL}/share/stream/${token}?fileId=${encodeURIComponent(fileId)}`;
         if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
         const headers = {};
         const jwtToken = localStorage.getItem('jwtToken');
@@ -502,43 +668,67 @@ async function viewSharedFile(fileId, fileName) {
         const ext = fileName.split('.').pop().toLowerCase();
         displayFileInViewer(fileUrl, contentType, fileName, ext);
     } catch (error) {
-        viewerArea.innerHTML = `<div class="error-message" style="display:block; text-align:center; margin:20px;">❌ ${error.message}</div>`;
+        viewerArea.innerHTML = `<div class="empty-state">❌ ${escapeHtml(error.message)}</div>`;
         safeToast(error.message, 'error');
-    } finally { buttons.forEach(btn => btn.disabled = false); }
+    }
 }
 
+async function downloadSharedFile(fileId, fileName) {
+    let url = `${API_URL}/share/download/${token}?fileId=${encodeURIComponent(fileId)}`;
+    if (currentPassword) url += `&password=${encodeURIComponent(currentPassword)}`;
+    safeToast('Preparing download...', 'info', 2000);
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Download failed');
+        const blob = await response.blob();
+        const fileUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = fileUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(fileUrl);
+        safeToast('Download completed.', 'success');
+    } catch (error) {
+        safeToast('Download failed: ' + error.message, 'error');
+    }
+}
+
+// ===== FILE VIEWER (inline) =====
 function displayFileInViewer(fileUrl, contentType, filename, ext) {
     const viewerArea = document.getElementById('viewerArea');
     if (!viewerArea) return;
-    const permission = currentShare ? currentShare.permission : null;
-    const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
+    const canDownload = currentShare.permission === 'DOWNLOAD' || currentShare.permission === 'VIEW_DOWNLOAD';
 
     if (contentType.startsWith('image/')) {
-        viewerArea.innerHTML = `<div class="viewer-container"><img src="${fileUrl}" alt="${filename}"></div>`;
+        viewerArea.innerHTML = `<div style="text-align:center;"><img src="${fileUrl}" alt="${filename}" style="max-width:100%; max-height:80vh;"></div>`;
     } else if (contentType === 'application/pdf') {
-        viewerArea.innerHTML = `<div class="viewer-container"><iframe src="${fileUrl}" title="${filename}"></iframe></div>`;
+        viewerArea.innerHTML = `<iframe src="${fileUrl}" style="width:100%; height:600px; border:none;"></iframe>`;
     } else if (contentType.startsWith('video/')) {
-        viewerArea.innerHTML = `<div class="viewer-container"><video controls autoplay><source src="${fileUrl}" type="${contentType}">Your browser does not support video playback.</video></div>`;
+        viewerArea.innerHTML = `<video controls autoplay style="max-width:100%; max-height:80vh;"><source src="${fileUrl}" type="${contentType}">Your browser does not support video.</video>`;
     } else if (contentType.startsWith('audio/')) {
-        viewerArea.innerHTML = `<div class="viewer-container"><audio controls autoplay><source src="${fileUrl}" type="${contentType}">Your browser does not support audio playback.</audio></div>`;
+        viewerArea.innerHTML = `<audio controls autoplay><source src="${fileUrl}" type="${contentType}"></audio>`;
     } else if (contentType.startsWith('text/') || ['txt', 'log', 'md', 'csv', 'json', 'xml', 'html', 'css', 'js'].includes(ext)) {
         fetch(fileUrl)
             .then(res => res.text())
-            .then(text => { viewerArea.innerHTML = `<div class="text-viewer">${escapeHtml(text)}</div>`; })
-            .catch(() => { viewerArea.innerHTML = `<div class="text-viewer">Failed to load text content.</div>`; });
+            .then(text => { viewerArea.innerHTML = `<pre style="background:#f1f3f4; padding:16px; border-radius:4px; white-space:pre-wrap; max-height:600px; overflow:auto;">${escapeHtml(text)}</pre>`; })
+            .catch(() => { viewerArea.innerHTML = `<div class="empty-state">Failed to load text content.</div>`; });
     } else {
         viewerArea.innerHTML = `
-            <div class="viewer-container" style="flex-direction:column; padding:40px;">
-                <div style="font-size:64px; margin-bottom:20px;">📄</div>
-                <div style="margin-bottom:20px;">Preview not available for this file type.</div>
-                ${canDownload ? `<button class="btn btn-primary" onclick="downloadFile()">⬇️ Download File</button>` : ''}
+            <div style="text-align:center; padding:40px;">
+                <div style="font-size:64px;">📄</div>
+                <p>Preview not available for this file type.</p>
+                ${canDownload ? `<button class="btn btn-primary" onclick="downloadRootFile()">⬇️ Download File</button>` : ''}
             </div>
         `;
     }
     URL.revokeObjectURL(fileUrl);
 }
 
-// ===== DOWNLOAD =====
+// ===== DOWNLOAD ROOT FILE (single file share) =====
+async function downloadRootFile() { downloadFile(); }
+
 async function downloadFile() {
     let url = `${API_URL}/share/download/${token}`;
     if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
@@ -561,6 +751,34 @@ async function downloadFile() {
     }
 }
 
+// ===== VIEW ROOT FILE (single file share) =====
+async function loadRootFileContent() {
+    const viewerArea = document.getElementById('viewerArea');
+    if (!viewerArea) return;
+    viewerArea.style.display = 'block';
+    viewerArea.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading file...</div></div>';
+    try {
+        let url = `${API_URL}/share/stream/${token}`;
+        if (currentPassword) url += `?password=${encodeURIComponent(currentPassword)}`;
+        const headers = {};
+        const jwtToken = localStorage.getItem('jwtToken');
+        if (jwtToken) headers['Authorization'] = 'Bearer ' + jwtToken;
+        const response = await fetch(url, { headers });
+        if (response.status === 403) throw new Error('Access denied.');
+        if (response.status === 410) throw new Error('Link expired');
+        if (response.status === 404) throw new Error('The shared file has been deleted or is no longer available.');
+        if (!response.ok) throw new Error('Failed to load file');
+        const blob = await response.blob();
+        const fileUrl = URL.createObjectURL(blob);
+        const contentType = blob.type;
+        const ext = currentShare.driveName.split('.').pop().toLowerCase();
+        displayFileInViewer(fileUrl, contentType, currentShare.driveName, ext);
+    } catch (error) {
+        viewerArea.innerHTML = `<div class="empty-state">❌ ${escapeHtml(error.message)}</div>`;
+        safeToast(error.message, 'error');
+    }
+}
+
 // ===== PASSWORD ACCESS =====
 async function accessWithPassword() {
     const password = document.getElementById('password').value;
@@ -575,24 +793,7 @@ async function accessWithPassword() {
         const response = await fetch(`${API_URL}/share/${token}?password=${encodeURIComponent(password)}`);
         if (response.status === 403) throw new Error('Invalid password');
         if (!response.ok) throw new Error('Access denied');
-        const contentArea = document.getElementById('contentArea');
-        if (!contentArea) return;
-        const permission = currentShare ? currentShare.permission : null;
-        const canView = permission === 'VIEW' || permission === 'VIEW_DOWNLOAD';
-        const canDownload = permission === 'DOWNLOAD' || permission === 'VIEW_DOWNLOAD';
-        contentArea.innerHTML = `
-            <div class="file-info">
-                <div class="file-icon">${getFileIcon(currentShare.driveName)}</div>
-                <div class="file-details">
-                    <div class="file-name">${escapeHtml(currentShare.driveName)}</div>
-                    <div class="file-meta">Shared via ${currentShare.shareType} link</div>
-                </div>
-            </div>
-            <div class="action-buttons">
-                ${canView ? `<button class="btn btn-primary" onclick="loadRootFileContent()">👁️ View File</button>` : ''}
-                ${canDownload ? `<button class="btn btn-secondary" onclick="downloadRootFile()">⬇️ Download</button>` : ''}
-            </div>
-        `;
+        await loadShareInfo();
         safeToast('Access granted.', 'success');
     } catch (error) {
         safeToast('Invalid password. Please try again.', 'error');
@@ -608,3 +809,25 @@ function redirectToLogin() {
     localStorage.setItem('redirectAfterLogin', window.location.href);
     window.location.href = '/login.html';
 }
+
+// ===== UTILITY =====
+function escapeJSString(str) {
+    if (!str) return '';
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// Expose globals
+window.navigateToFolder = navigateToFolder;
+window.toggleSharedSelection = toggleSharedSelection;
+window.toggleSelectAllShared = toggleSelectAllShared;
+window.downloadSelectedShared = downloadSelectedShared;
+window.viewSharedFile = viewSharedFile;
+window.downloadSharedFile = downloadSharedFile;
+window.loadRootFileContent = loadRootFileContent;
+window.downloadRootFile = downloadRootFile;
+window.accessWithPassword = accessWithPassword;
+window.redirectToLogin = redirectToLogin;
+window.handleSharedItemClick = handleSharedItemClick;
+window.showSharedContextMenu = showSharedContextMenu;
+window.viewSharedFileInNewTab = viewSharedFileInNewTab;
+window.downloadSharedFolder = downloadSharedFolder;
