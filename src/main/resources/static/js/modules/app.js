@@ -1,4 +1,4 @@
-// app.js – Main file manager (final)
+// app.js – Main file manager (final) – with multi-share & adaptive menu
 
 // Globals from config.js
 // currentFolderId, allFiles, selectedItems, jwtToken, etc.
@@ -53,7 +53,7 @@ function setupSearch() {
 }
 
 // ============================
-// MODAL CLOSE PATCH (for Cancel buttons)
+// MODAL CLOSE PATCH
 // ============================
 function patchCloseModal() {
     const originalCloseModal = window.closeModal;
@@ -112,6 +112,9 @@ async function loadFiles() {
     }
 }
 
+// ============================
+// RENDER FILES (updated layout)
+// ============================
 function renderFiles(files) {
     const container = document.getElementById('fileContainer');
     if (!container) return;
@@ -304,6 +307,26 @@ function updateSelectionToolbar() {
 }
 
 // ============================
+// SHARE SELECTED (MULTI)
+// ============================
+async function shareSelected() {
+    const selectedIds = Array.from(selectedItems);
+    if (selectedIds.length === 0) {
+        safeToast('No items selected.', 'warning');
+        return;
+    }
+
+    window._multiShareFileIds = selectedIds;
+
+    const selectedNames = selectedIds.map(id => {
+        const item = allFiles.find(f => f.id === id);
+        return item ? item.name : id;
+    });
+
+    openShareModalForMulti(selectedIds, selectedNames);
+}
+
+// ============================
 // FOLDER OPERATIONS
 // ============================
 function showCreateFolderModal() {
@@ -384,7 +407,7 @@ async function createFolder() {
 }
 
 // ============================
-// CONTEXT MENU
+// CONTEXT MENU (with adaptive positioning)
 // ============================
 function showContextMenu(event, id, name, type, fileType, isProtected, parentId) {
     event.stopPropagation();
@@ -395,9 +418,8 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
 
     const menu = document.createElement('div');
     menu.className = 'dropdown-menu show';
-    menu.style.position = 'absolute';
-    menu.style.top = `${event.clientY}px`;
-    menu.style.left = `${event.clientX}px`;
+    menu.style.position = 'fixed';
+    menu.style.zIndex = '9999';
 
     let items = [];
 
@@ -439,15 +461,50 @@ function showContextMenu(event, id, name, type, fileType, isProtected, parentId)
 
     document.body.appendChild(menu);
 
+    // --- Adaptive positioning (Windows style) ---
+    const menuRect = menu.getBoundingClientRect();
+    const menuWidth = menuRect.width || 180;
+    const menuHeight = menuRect.height || 200;
+
+    let left = event.clientX;
+    let top = event.clientY;
+
+    // If menu would overflow right, align to left of cursor
+    if (left + menuWidth > window.innerWidth) {
+        left = event.clientX - menuWidth;
+    }
+    if (left < 0) {
+        left = 10;
+    }
+
+    if (top + menuHeight > window.innerHeight) {
+        top = event.clientY - menuHeight;
+    }
+    if (top < 0) {
+        top = 10;
+    }
+
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+
+    // Final clamp
+    const finalRect = menu.getBoundingClientRect();
+    if (finalRect.right > window.innerWidth) {
+        menu.style.left = (window.innerWidth - finalRect.width - 10) + 'px';
+    }
+    if (finalRect.bottom > window.innerHeight) {
+        menu.style.top = (window.innerHeight - finalRect.height - 10) + 'px';
+    }
+
+    // Auto-close on click outside
     setTimeout(() => {
         document.addEventListener('click', () => menu.remove(), { once: true });
-    }, 0);
+    }, 10);
 }
 
-// ======================================================
-//  MODAL HELPERS (pure class-based, no inline styles)
-// ======================================================
-
+// ============================
+// MODAL HELPERS
+// ============================
 function openModalById(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) {
@@ -468,10 +525,9 @@ function closeModalById(modalId) {
     }
 }
 
-// ======================================================
-//  RENAME (extension preservation + duplicate check)
-// ======================================================
-
+// ============================
+// RENAME
+// ============================
 function showRenameModal(id, currentName, type) {
     console.log('🔍 showRenameModal called with id:', id, 'name:', currentName, 'type:', type);
     contextMenuItem = { id, name: currentName, type: type, parentId: contextMenuItem ? contextMenuItem.parentId : currentFolderId };
@@ -508,7 +564,6 @@ async function executeRename() {
         }
     }
 
-    // If the name hasn't changed, close modal and show info
     if (fullNewName === contextMenuItem.name) {
         closeModalById('renameModal');
         safeToast('No changes made', 'info');
@@ -517,15 +572,13 @@ async function executeRename() {
 
     const parentId = contextMenuItem.parentId !== undefined ? contextMenuItem.parentId : currentFolderId;
 
-    // ✅ Use checkDuplicateName with excludeId
     try {
         await checkDuplicateName(fullNewName, parentId, contextMenuItem.id);
     } catch (error) {
         safeToast(error.message, 'warning');
-        return; // keep modal open
+        return;
     }
 
-    // Proceed with rename
     try {
         const response = await apiCall('/resources/action', {
             method: 'POST',
@@ -549,10 +602,9 @@ async function executeRename() {
     }
 }
 
-// ======================================================
-//  MOVE / COPY
-// ======================================================
-
+// ============================
+// MOVE / COPY
+// ============================
 async function copyItem(id) {
     pendingAction = 'copy';
     pendingItems = [{ id, password: null }];
@@ -635,10 +687,9 @@ async function executeMove() {
     }
 }
 
-// ======================================================
-//  DOWNLOAD
-// ======================================================
-
+// ============================
+// DOWNLOAD
+// ============================
 async function downloadFile(fileId, filename) {
     safeToast('Preparing download...', 'info', 1500);
     try {
@@ -663,10 +714,9 @@ function viewFile(fileId, filename) {
     window.open(`/viewer.html?id=${fileId}&token=${jwtToken}`, '_blank');
 }
 
-// ======================================================
-//  DELETE
-// ======================================================
-
+// ============================
+// DELETE
+// ============================
 async function deleteItem(id) {
     const item = allFiles.find(f => f.id === id);
     if (!item) {
@@ -721,18 +771,9 @@ async function deleteSelected() {
     }
 }
 
-// ======================================================
-//  SHARE (placeholder)
-// ======================================================
-
-function showShareModal(id, name) {
-    safeToast('Share functionality is under development.', 'info');
-}
-
-// ======================================================
-//  USER INFO
-// ======================================================
-
+// ============================
+// USER INFO
+// ============================
 async function loadUserInfo() {
     try {
         const user = getUserFromToken();
@@ -764,9 +805,9 @@ async function loadUserInfo() {
     }
 }
 
-// ======================================================
-//  EXPOSE GLOBALLY
-// ======================================================
+// ============================
+// EXPOSE GLOBALLY
+// ============================
 window.loadFiles = loadFiles;
 window.renderFiles = renderFiles;
 window.openFolder = openFolder;
@@ -796,5 +837,6 @@ window.updateSelectionToolbar = updateSelectionToolbar;
 window.loadUserInfo = loadUserInfo;
 window.openModalById = openModalById;
 window.closeModalById = closeModalById;
+window.shareSelected = shareSelected;
 
 console.log('✅ app.js loaded (final)');

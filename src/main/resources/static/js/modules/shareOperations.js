@@ -39,22 +39,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // [FIX 1]: Click outside the input/results to close the list AND clear it
     document.addEventListener('click', function(e) {
         const resultsContainer = document.getElementById('userSearchResults');
         const searchInput = document.getElementById('userSearchInput');
 
         if (!resultsContainer || !searchInput) return;
 
-        // If click is NOT inside the input and NOT inside the results
         if (!e.target.closest('#userSearchInput') && !e.target.closest('#userSearchResults')) {
             closeAndClearSearchResults();
         }
     });
 
-    // ============================================================
-    // Inject Clear Button INSIDE the input
-    // ============================================================
     const searchInput = document.getElementById('userSearchInput');
     if (searchInput && !document.getElementById('searchClearBtn')) {
         const parent = searchInput.parentNode;
@@ -90,28 +85,86 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// [FIX 2]: Shared helper to hide AND empty the list completely
 function closeAndClearSearchResults() {
     const resultsContainer = document.getElementById('userSearchResults');
     if (resultsContainer) {
-        resultsContainer.innerHTML = '';    // Fully wipes the DOM rendering
+        resultsContainer.innerHTML = '';
         resultsContainer.classList.remove('show');
     }
-    clearTimeout(shareTimer); // Kills any pending searches
+    clearTimeout(shareTimer);
 }
 
 // ============================
 // SHOW / CLOSE MODALS
 // ============================
 function showShareModal(id, name) {
+    // Reset multi‑share state
+    window._multiShareFileIds = null;
+
     currentShareItem = { id, name };
     document.getElementById('shareFileId').value = id;
     document.getElementById('shareFileName').value = name;
+
+    // Update modal title and file info using existing elements
+    const titleEl = document.getElementById('shareModalTitle');
+    if (titleEl) titleEl.textContent = '📤 Create Share Link';
+
+    const infoEl = document.getElementById('shareFileInfo');
+    if (infoEl) {
+        infoEl.innerHTML = `
+            <span class="share-file-icon">📄</span>
+            <span class="share-file-name">${escapeHtml(name)}</span>
+        `;
+    }
+
+    // Reset form
     document.getElementById('sharePassword').value = '';
     document.getElementById('shareExpiry').value = '';
     document.getElementById('sharePermission').value = 'VIEW_DOWNLOAD';
     document.getElementById('shareType').value = 'PUBLIC';
-    document.getElementById('shareNameDisplay').textContent = name;
+    toggleShareOptions();
+    selectedUsers = [];
+    renderSelectedUsers();
+
+    const input = document.getElementById('userSearchInput');
+    if (input) {
+        input.value = '';
+        const clearBtn = document.getElementById('searchClearBtn');
+        if (clearBtn) clearBtn.style.display = 'none';
+    }
+    closeAndClearSearchResults();
+    document.getElementById('shareModal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+// ============================
+// MULTI‑SHARE MODAL OPENER (NEW)
+// ============================
+function openShareModalForMulti(fileIds, names) {
+    // Store the IDs for multi‑share
+    window._multiShareFileIds = fileIds;
+
+    // Reset single‑file state
+    currentShareItem = null;
+    document.getElementById('shareFileId').value = '';
+
+    // Update modal title and file info
+    const titleEl = document.getElementById('shareModalTitle');
+    if (titleEl) titleEl.textContent = `📤 Share ${fileIds.length} Items`;
+
+    const infoEl = document.getElementById('shareFileInfo');
+    if (infoEl) {
+        infoEl.innerHTML = `
+            <span class="share-file-icon">📂</span>
+            <span class="share-file-name">Sharing ${fileIds.length} items: ${names.join(', ')}</span>
+        `;
+    }
+
+    // Reset form
+    document.getElementById('sharePassword').value = '';
+    document.getElementById('shareExpiry').value = '';
+    document.getElementById('sharePermission').value = 'VIEW_DOWNLOAD';
+    document.getElementById('shareType').value = 'PUBLIC';
     toggleShareOptions();
     selectedUsers = [];
     renderSelectedUsers();
@@ -199,17 +252,14 @@ function renderSearchResults(users) {
         return;
     }
 
-    // [FIX 3]: Get current logged-in user's email
     const currentUser = getUserFromToken();
     const currentUserEmail = currentUser ? currentUser.email : null;
 
     let html = '';
     users.forEach(user => {
-        // 1. Filter out users already selected for the share list
         const isAlreadySelected = selectedUsers.some(u => u.email.toLowerCase().trim() === user.email.toLowerCase().trim());
         if (isAlreadySelected) return;
 
-        // 2. Filter out the currently logged-in user (themselves!)
         if (currentUserEmail && currentUserEmail.toLowerCase().trim() === user.email.toLowerCase().trim()) {
             return;
         }
@@ -249,7 +299,6 @@ function selectUser(id, email, name) {
         input.focus();
     }
 
-    // [FIX 4]: When selected, immediately clear and hide the list
     closeAndClearSearchResults();
 }
 
@@ -286,20 +335,18 @@ function renderSelectedUsers() {
 }
 
 // ============================
-// CREATE SHARE LINK
+// CREATE SHARE LINK (SINGLE / MULTI)
 // ============================
 async function createShareLink() {
-    const fileId = document.getElementById('shareFileId').value;
-    if (!fileId) {
-        safeToast('No file selected', 'error');
-        return;
-    }
-
     const shareType = document.getElementById('shareType').value;
     const password = document.getElementById('sharePassword').value;
     const expiry = document.getElementById('shareExpiry').value || null;
     const permission = document.getElementById('sharePermission').value;
 
+    // Detect if multi‑share
+    const isMulti = window._multiShareFileIds && window._multiShareFileIds.length > 0;
+
+    // Build payload based on share type
     let payload;
     if (shareType === 'USER_ONLY') {
         if (selectedUsers.length === 0) {
@@ -307,7 +354,7 @@ async function createShareLink() {
             return;
         }
         payload = {
-            fileId: fileId,
+            ...(isMulti ? { fileIds: window._multiShareFileIds } : { fileId: document.getElementById('shareFileId').value }),
             publicAccess: false,
             permission: permission,
             expiry: expiry,
@@ -320,7 +367,7 @@ async function createShareLink() {
             return;
         }
         payload = {
-            fileId: fileId,
+            ...(isMulti ? { fileIds: window._multiShareFileIds } : { fileId: document.getElementById('shareFileId').value }),
             publicAccess: false,
             permission: permission,
             expiry: expiry,
@@ -328,8 +375,9 @@ async function createShareLink() {
             allowedUsers: []
         };
     } else {
+        // PUBLIC
         payload = {
-            fileId: fileId,
+            ...(isMulti ? { fileIds: window._multiShareFileIds } : { fileId: document.getElementById('shareFileId').value }),
             publicAccess: true,
             permission: permission,
             expiry: expiry,
@@ -338,13 +386,15 @@ async function createShareLink() {
         };
     }
 
+    const endpoint = isMulti ? '/share/multi' : '/share';
+
     const createBtn = document.querySelector('#shareModal .btn-primary');
     const originalText = createBtn.textContent;
     createBtn.textContent = 'Creating...';
     createBtn.disabled = true;
 
     try {
-        const response = await apiCall('/share', {
+        const response = await apiCall(endpoint, {
             method: 'POST',
             body: JSON.stringify(payload)
         });
@@ -354,13 +404,15 @@ async function createShareLink() {
         }
         const result = await response.json();
 
-        const shareUrl = result.url || `${window.location.origin}/share2.html?token=
-		/${result.token}`;
+        const shareUrl = result.url || `${window.location.origin}/share2.html?token=/${result.token}`;
         document.getElementById('shareLinkInput').value = shareUrl;
         document.getElementById('shareLinkExpiry').textContent = expiry ? new Date(expiry).toLocaleDateString() : 'Never';
         document.getElementById('shareLinkType').textContent = shareType === 'PUBLIC' ? 'Public' :
             shareType === 'PROTECTED' ? 'Password Protected' :
                 'User Only';
+
+        // Clear multi‑share state
+        window._multiShareFileIds = null;
 
         closeShareModal();
         document.getElementById('shareLinkModal').classList.add('active');
@@ -378,11 +430,10 @@ function copyShareLink() {
     const input = document.getElementById('shareLinkInput');
     const text = input.value;
 
-    // Function to clear selection
     function clearSelection() {
-        input.blur();                         // removes focus
-        input.setSelectionRange(0, 0);        // clears selection
-        document.getSelection().removeAllRanges(); // extra safety
+        input.blur();
+        input.setSelectionRange(0, 0);
+        document.getSelection().removeAllRanges();
     }
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -418,8 +469,6 @@ function copyShareLink() {
         }
 
         document.body.removeChild(textarea);
-        // The temporary textarea is removed, so no selection remains.
-        // For the original input, we still clear it if it was focused.
         clearSelection();
     }
 }
@@ -428,6 +477,7 @@ function copyShareLink() {
 // EXPOSE GLOBALLY
 // ============================
 window.showShareModal = showShareModal;
+window.openShareModalForMulti = openShareModalForMulti;
 window.closeShareModal = closeShareModal;
 window.closeShareLinkModal = closeShareLinkModal;
 window.createShareLink = createShareLink;

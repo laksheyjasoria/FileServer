@@ -54,6 +54,7 @@
                 <button class="btn btn-secondary" onclick="downloadSelected()">⬇ Download</button>
                 <button class="btn btn-secondary" onclick="copySelected()">📋 Copy</button>
                 <button class="btn btn-secondary" onclick="moveSelected()">📁 Move</button>
+                <button class="btn btn-secondary" onclick="shareSelected()">🔗 Share</button>  <!-- 👈 NEW -->
                 <button class="btn btn-danger" onclick="deleteSelected()">🗑 Delete</button>
             </div>
 
@@ -139,18 +140,17 @@
         </div>
     </div>
 
-    <!-- ===== SHARE MODAL (UPDATED UI) ===== -->
+    <!-- ===== SHARE MODAL ===== -->
     <div id="shareModal" class="modal-overlay">
         <div class="modal-content share-modal">
             <div class="modal-header">
-                <h2>📤 Create Share Link</h2>
+                <h2 id="shareModalTitle">📤 Create Share Link</h2>
                 <button class="modal-close" onclick="closeShareModal()">&times;</button>
             </div>
 
             <div class="modal-body">
-                <div class="share-file-info">
-                    <span class="share-file-icon">📄</span>
-                    <span class="share-file-name" id="shareNameDisplay">file.txt</span>
+                <div id="shareFileInfo" class="share-file-info">
+                    <!-- Dynamically filled -->
                 </div>
 
                 <div class="form-group">
@@ -264,7 +264,7 @@
     <!-- ===== TOAST CONTAINER ===== -->
     <div id="toast-container"></div>
 
-    <!-- ===== SCRIPTS (using your file names) ===== -->
+    <!-- ===== SCRIPTS ===== -->
     <script src="/js/core/config.js"></script>
     <script src="/js/core/utils.js"></script>
     <script src="/js/core/api.js"></script>
@@ -272,8 +272,7 @@
     <script src="/js/core/modal.js"></script>
     <script src="/js/ui/navigation.js"></script>
     <script src="/js/modules/app.js"></script>           <!-- main manager -->
-    <script src="/js/ui/upload.js"></script>        <!-- upload queue -->
-    <script src="/js/modules/shareOperations.js"></script> <!-- share modal -->
-    <!-- fileRenderer.js, fileActions.js, folderOperations.js are used by app.js but no need to load separately if included -->
+    <script src="/js/ui/upload.js"></script>             <!-- upload queue -->
+    <script src="/js/modules/shareOperations.js"></script> <!-- share modal logic -->
 </body>
 </html>
