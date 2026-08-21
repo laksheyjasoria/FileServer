@@ -64,9 +64,7 @@ uploads/
 downloads/
 temp/
 tmp/
-storage/
 ./data/
-./storage/
 ./temp/
 
 ### OS generated files ###
