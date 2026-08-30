@@ -17,6 +17,7 @@ function setupSidebarNavigation() {
     if (isAdmin) {
         items.push({ view: 'master', icon: '🏢', label: 'Master Drives', href: '/master.html' });
         items.push({ view: 'logger', icon: '📝', label: 'Loggers', href: '/logger.html' });
+		items.push({ view: 'users', icon: '👥', label: 'Users', href: '/admin-users.html' });
     }
     items.push({ view: 'trash', icon: '🗑️', label: 'Trash', href: '/trash.html' });
     items.push({ view: 'signout', icon: '↩', label: 'Sign Out', id: 'signOutBtn' });

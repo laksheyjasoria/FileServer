@@ -56,9 +56,10 @@ public class SecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
 				.authorizeHttpRequests(auth -> auth
+						// Public endpoints (no auth)
 						.requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/profile.html",
 								"/viewer.html", "/share.html", "/shared.html", "/shared-by-me.html", "/share2.html",
-								"/master.html", "/logger.html", "/trash.html", "/favicon.ico", "/css/**", "/js/**",
+								"/master.html", "/logger.html", "/trash.html","admin-users.html", "/favicon.ico", "/css/**", "/js/**",
 								"/js2/**", "/auth/**", "/logger/log", "/logger/error", "/download/bulk/shared",
 								"/assets/**", "/forgot-password.html", "/auth/forgot-password", "/reset-password.html",
 								"/auth/reset-password")
@@ -68,7 +69,7 @@ public class SecurityConfig {
 						.requestMatchers("/share/shared-with-me").authenticated().requestMatchers("/share/shared-by-me")
 						.authenticated().requestMatchers(HttpMethod.DELETE, "/share/{token}").authenticated()
 
-						// 🌐 Public share viewing/streaming/downloading
+						// Public share viewing/streaming/downloading
 						.requestMatchers("/share/**").permitAll()
 
 						.anyRequest().authenticated())

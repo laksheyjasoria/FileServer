@@ -1,8 +1,9 @@
 package com.app.identity.entity;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
+import java.time.Instant;
 import java.time.LocalDateTime;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -37,6 +38,38 @@ public class User {
 
 	private boolean enabled;
 	private LocalDateTime createdAt;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private UserStatus status = UserStatus.ACTIVE;
+
+	private Instant deactivatedAt;
+
+	public UserStatus getStatus() {
+		return status;
+	}
+
+	public void setStatus(UserStatus status) {
+		this.status = status;
+	}
+
+	public Instant getDeactivatedAt() {
+		return deactivatedAt;
+	}
+
+	public void setDeactivatedAt(Instant deactivatedAt) {
+		this.deactivatedAt = deactivatedAt;
+	}
+
+	public Instant getDeletedAt() {
+		return deletedAt;
+	}
+
+	public void setDeletedAt(Instant deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+
+	private Instant deletedAt;
 
 	public Long getId() {
 		return id;
