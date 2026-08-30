@@ -25,12 +25,16 @@ public class UserManagementService {
         if (statusFilter != null && !statusFilter.isEmpty()) {
             UserStatus status = UserStatus.valueOf(statusFilter.toUpperCase());
             if (search != null && !search.isEmpty()) {
-                return userRepository.findAllByStatusAndEmailContainingIgnoreCase(status, search, pageable);
+                return userRepository.findAllByStatusAndEmailOrNameContainingIgnoreCase(status, search, pageable);
             }
             return userRepository.findAllByStatus(status, pageable);
+        } else {
+            // No status filter
+            if (search != null && !search.isEmpty()) {
+                return userRepository.findAllByEmailOrNameContainingIgnoreCaseAndStatusNot(search, UserStatus.DELETED, pageable);
+            }
+            return userRepository.findAllByStatusNot(UserStatus.DELETED, pageable);
         }
-        // Exclude DELETED users by default
-        return userRepository.findAllByStatusNot(UserStatus.DELETED, pageable);
     }
 
     // Admin: update user status

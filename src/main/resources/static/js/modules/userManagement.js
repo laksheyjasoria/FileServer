@@ -1,6 +1,6 @@
 /**
  * User Management Module – Admin only
- * With token retry and proper visibility toggling.
+ * With token retry, debounced search, and proper visibility toggling.
  */
 
 (function() {
@@ -27,6 +27,15 @@
                 };
                 check();
             });
+        }
+
+        // ---- Debounce helper ----
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
         }
 
         // ---- DOM refs ----
@@ -103,6 +112,10 @@
             });
         }
         if (searchInput) {
+            // Debounced search on input
+            const debouncedSearch = debounce(() => fetchUsers(0), 300);
+            searchInput.addEventListener('input', debouncedSearch);
+            // Enter key also triggers search
             searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchUsers(0); });
         }
         if (prevBtn) {
