@@ -1,7 +1,7 @@
 package com.app.identity.controller;
 
 import com.app.identity.entity.User;
-import com.app.identity.entity.UserStatus;
+import com.app.identity.enums.UserStatus;
 import com.app.identity.service.UserManagementService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

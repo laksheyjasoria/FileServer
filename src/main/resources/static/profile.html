@@ -5,10 +5,461 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile - File Server</title>
     <link rel="stylesheet" href="/css/styles.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👤</text></svg>">
+    <style>
+        /* ----- Reset & base ----- */
+        * { box-sizing: border-box; }
+        body {
+            background: #f5f7fb;
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ----- Profile container ----- */
+        .profile-container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .profile-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        /* ----- Header (centered, gradient) ----- */
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px 32px;
+            text-align: center;
+            color: white;
+        }
+        .profile-avatar-wrapper {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            margin: 0 auto 12px;
+            border: 4px solid rgba(255,255,255,0.3);
+            overflow: hidden;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .profile-avatar-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .profile-avatar-wrapper .initials {
+            font-size: 48px;
+            font-weight: 600;
+            color: #6c757d;
+        }
+        .profile-header .profile-name {
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0 0 4px;
+        }
+        .profile-header .profile-email {
+            font-size: 16px;
+            opacity: 0.85;
+            margin-bottom: 12px;
+        }
+        .profile-header .header-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .profile-header .header-actions label,
+        .profile-header .header-actions button {
+            font-size: 13px;
+            padding: 4px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.15);
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            backdrop-filter: blur(4px);
+        }
+        .profile-header .header-actions label:hover,
+        .profile-header .header-actions button:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        .profile-header .header-actions .google-sync {
+            background: rgba(255,255,255,0.2);
+        }
+        .profile-header .header-actions .google-sync:hover {
+            background: rgba(255,255,255,0.35);
+        }
+        input[type="file"] { display: none; }
+
+        /* ----- Body ----- */
+        .profile-body {
+            padding: 32px 40px 40px;
+        }
+
+        /* ----- Sections ----- */
+        .section {
+            margin-top: 28px;
+            padding-top: 24px;
+            border-top: 1px solid #edf2f7;
+        }
+        .section:first-of-type { margin-top: 0; border-top: none; padding-top: 0; }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-title .badge {
+            font-size: 12px;
+            background: #edf2f7;
+            color: #4a5568;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-weight: 400;
+        }
+
+        /* ----- Form groups ----- */
+        .form-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .form-row .form-group {
+            flex: 1 1 200px;
+            min-width: 160px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #4a5568;
+            margin-bottom: 4px;
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            background: white;
+            transition: 0.2s;
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .btn-profile {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            background: #edf2f7;
+            color: #2d3748;
+        }
+        .btn-profile:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a6fd6; }
+        .btn-danger { background: #fc8181; color: white; }
+        .btn-danger:hover { background: #f56565; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-success:hover { background: #38a169; }
+
+        /* ----- Privacy settings ----- */
+        .privacy-section {
+            background: #f7fafc;
+            border-radius: 14px;
+            padding: 20px 24px;
+        }
+        .privacy-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .privacy-row:last-child { margin-bottom: 0; }
+        .privacy-row label {
+            font-weight: 500;
+            font-size: 14px;
+            min-width: 160px;
+            color: #2d3748;
+        }
+        .privacy-row select {
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            font-size: 13px;
+            background: white;
+        }
+        .privacy-hint {
+            font-size: 13px;
+            color: #718096;
+            margin-left: 6px;
+        }
+        /* Toggle switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 26px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #cbd5e0;
+            border-radius: 34px;
+            transition: .4s;
+        }
+        .slider:before {
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: .4s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: absolute;
+        }
+        input:checked + .slider { background: #48bb78; }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        /* ----- Friends & tags ----- */
+        .friend-list, .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .friend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: #ebf8ff;
+            border-radius: 20px;
+            color: #2b6cb0;
+            font-size: 14px;
+        }
+        .friend-item .remove-friend {
+            cursor: pointer;
+            color: #a0aec0;
+            font-size: 16px;
+            line-height: 1;
+        }
+        .friend-item .remove-friend:hover { color: #e53e3e; }
+        .pending-request {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px;
+            background: #fefcbf;
+            border-radius: 20px;
+            color: #975a16;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .pending-request:hover { background: #fde68a; }
+
+        /* ----- Add friend search ----- */
+        .add-user-input {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        .add-user-input input {
+            flex: 1;
+            padding: 8px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            min-width: 180px;
+        }
+        .add-user-input button {
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .add-user-input button:hover { background: #5a6fd6; }
+        .search-result-item {
+            padding: 8px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f7fafc;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        .search-result-item:hover { background: #f7fafc; }
+        .user-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            background: #edf2f7;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .user-tag .remove-tag {
+            cursor: pointer;
+            color: #a0aec0;
+            font-size: 18px;
+            line-height: 1;
+        }
+        .user-tag .remove-tag:hover { color: #e53e3e; }
+
+        /* ----- Account actions ----- */
+        .account-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* ----- Responsive ----- */
+        @media (max-width: 640px) {
+            .profile-body { padding: 20px; }
+            .profile-header { padding: 32px 16px 24px; }
+            .profile-avatar-wrapper { width: 100px; height: 100px; }
+            .profile-header .profile-name { font-size: 20px; }
+            .privacy-row { flex-direction: column; align-items: flex-start; }
+        }
+
+        /* ----- Modal for pending request ----- */
+        .friend-request-modal {
+            display: flex;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .friend-request-modal .modal-box {
+            background: white;
+            border-radius: 20px;
+            max-width: 400px;
+            width: 90%;
+            padding: 32px 24px 28px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+            text-align: center;
+        }
+        .friend-request-modal .close-btn {
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            background: none;
+            border: none;
+            font-size: 26px;
+            cursor: pointer;
+            color: #a0aec0;
+            transition: 0.2s;
+            line-height: 1;
+        }
+        .friend-request-modal .close-btn:hover {
+            color: #4a5568;
+            transform: rotate(90deg);
+        }
+        .friend-request-modal .modal-avatar {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #e2e8f0;
+            margin-bottom: 14px;
+        }
+        .friend-request-modal .modal-avatar-placeholder {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: 600;
+            color: white;
+            margin: 0 auto 14px;
+        }
+        .friend-request-modal .modal-name {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1a202c;
+            margin: 0 0 4px;
+        }
+        .friend-request-modal .modal-email {
+            color: #4a5568;
+            font-size: 15px;
+            margin: 0 0 24px;
+        }
+        .friend-request-modal .modal-actions {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+        }
+        .friend-request-modal .modal-actions button {
+            padding: 10px 30px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .friend-request-modal .modal-actions .accept-btn {
+            background: #48bb78;
+            color: white;
+        }
+        .friend-request-modal .modal-actions .accept-btn:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+        }
+        .friend-request-modal .modal-actions .reject-btn {
+            background: #fc8181;
+            color: white;
+        }
+        .friend-request-modal .modal-actions .reject-btn:hover {
+            background: #f56565;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(252, 129, 129, 0.3);
+        }
+    </style>
 </head>
 <body>
 
+    <!-- Standard Header -->
     <div class="header">
         <div class="logo">
             <span class="logo-icon">📁</span>
@@ -23,59 +474,26 @@
         </div>
     </div>
 
+    <!-- Main app -->
     <div class="app-container">
         <div class="sidebar"></div>
-
         <div class="main-content">
             <div class="toolbar">
                 <div class="breadcrumb"><span class="breadcrumb-item">Profile</span></div>
             </div>
 
-            <div class="profile-container">
-                <div class="profile-card">
-                    <div class="profile-header">
-                        <div class="profile-avatar-wrapper" id="photoPreview">
-                            <div class="loading" style="width:120px; height:120px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#e9ecef; color:#666; font-size:12px;">Loading...</div>
-                        </div>
-                        <div class="profile-email" id="userEmailDisplay">Loading...</div>
-                        <div style="display:flex; gap:10px; margin-top:4px;">
-                            <label for="photoFile" class="upload-photo-btn">📷 Change Photo</label>
-                            <input id="photoFile" type="file" accept="image/*" style="display:none;" onchange="uploadPhoto()">
-                        </div>
-                    </div>
-
-                    <div class="profile-body">
-                        <div class="section-title">👤 Personal Information</div>
-                        <div class="form-group">
-                            <label for="name">Full Name</label>
-                            <input id="name" type="text" placeholder="Enter your full name">
-                        </div>
-                        <hr class="divider">
-                        <div class="section-title">🔒 Security</div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="oldPassword">Current Password</label>
-                                <input id="oldPassword" type="password" placeholder="Enter current password">
-                            </div>
-                            <div class="form-group">
-                                <label for="newPassword">New Password</label>
-                                <input id="newPassword" type="password" placeholder="Enter new password">
-                            </div>
-                        </div>
-                        <div class="action-buttons">
-                            <button class="btn-profile btn-primary" onclick="saveProfile()">💾 Save Changes</button>
-                            <button class="btn-profile btn-secondary" onclick="changePassword()">🔑 Update Password</button>
-                            <button class="btn-profile btn-secondary" id="syncGoogleBtn" style="display:none; background:#4285f4; color:#fff;" onclick="syncWithGoogle()">🔄 Sync with Google</button>
-                        </div>
-                    </div>
-                </div>
+            <div class="profile-container" id="profileContainer">
+                <!-- Content injected by profile.js -->
+                <div class="loading">Loading profile...</div>
             </div>
         </div>
     </div>
 
+    <!-- Toasts & modals -->
     <div id="toast-container"></div>
     <div id="modal-overlay"></div>
 
+    <!-- Scripts -->
     <script src="/js/core/config.js"></script>
     <script src="/js/core/utils.js"></script>
     <script src="/js/core/api.js"></script>

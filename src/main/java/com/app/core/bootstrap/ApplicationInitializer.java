@@ -8,9 +8,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.app.core.config.AppProperties;
-import com.app.identity.entity.AuthProvider;
-import com.app.identity.entity.Role;
 import com.app.identity.entity.User;
+import com.app.identity.enums.AuthProvider;
+import com.app.identity.enums.Role;
 import com.app.identity.repository.UserRepository;
 import com.app.logger.AppLogger;
 import com.app.logger.factory.AppLoggerFactory;

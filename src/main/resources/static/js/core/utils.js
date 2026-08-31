@@ -118,3 +118,26 @@ window.loadUserInfoIntoUI = function() {
         }
     }
 };
+
+// ================================
+// DEBOUNCE HELPER
+// ================================
+window.debounce = function(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+};
+
+// ================================
+// ESCAPE FOR JAVASCRIPT STRINGS
+// ================================
+window.escapeJS = function(str) {
+    if (!str) return '';
+    return str.replace(/\\/g, '\\\\')
+              .replace(/'/g, "\\'")
+              .replace(/"/g, '\\"')
+              .replace(/\n/g, '\\n')
+              .replace(/\r/g, '\\r');
+};

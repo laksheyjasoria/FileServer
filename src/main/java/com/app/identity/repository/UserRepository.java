@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.app.identity.entity.User;
-import com.app.identity.entity.UserStatus;
+import com.app.identity.enums.UserStatus;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 	Optional<User> findByEmail(String email);
@@ -32,4 +32,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	@Query("SELECT u FROM User u WHERE u.status != :excludedStatus AND (LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')))")
 	Page<User> findAllByEmailOrNameContainingIgnoreCaseAndStatusNot(@Param("search") String search,
 			@Param("excludedStatus") UserStatus excludedStatus, Pageable pageable);
+	
+	long countByIdIn(java.util.Collection<Long> ids);
 }

@@ -19,10 +19,10 @@ import com.app.core.exception.UserAlreadyExistsException;
 import com.app.core.exception.UserNotFoundException;
 import com.app.core.security.jwt.JwtService;
 import com.app.core.util.FileStorageUtils;
-import com.app.identity.entity.AuthProvider;
-import com.app.identity.entity.Role;
 import com.app.identity.entity.User;
-import com.app.identity.entity.UserStatus;
+import com.app.identity.enums.AuthProvider;
+import com.app.identity.enums.Role;
+import com.app.identity.enums.UserStatus;
 import com.app.identity.repository.UserRepository;
 import com.app.storage.factory.StorageFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -359,5 +359,64 @@ public class AuthService {
 
 	public User getUserByEmail(String email) {
 		return repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
+	}
+	
+	public void syncProfileWithGoogle(String idToken, String currentUserEmail) {
+	    try {
+	        Map<String, Object> tokenInfo = verifyGoogleToken(idToken);
+	        String email = (String) tokenInfo.get("email");
+	        Boolean emailVerified = tokenInfo.get("email_verified") == null ? Boolean.FALSE
+	                : Boolean.valueOf(tokenInfo.get("email_verified").toString());
+	        String name = (String) tokenInfo.get("name");
+	        String googlePictureUrl = (String) tokenInfo.get("picture");
+
+	        if (email == null || !emailVerified) {
+	            throw new RuntimeException("Google email not verified");
+	        }
+
+	        if (!email.equalsIgnoreCase(currentUserEmail)) {
+	            throw new RuntimeException("Token email does not match logged-in user");
+	        }
+
+	        User user = repo.findByEmail(currentUserEmail)
+	                .orElseThrow(() -> new RuntimeException("User not found"));
+
+	        boolean changed = false;
+	        if (name != null && !name.equals(user.getName())) {
+	            user.setName(name);
+	            changed = true;
+	        }
+
+	        // ---- Fetch current photo from Google and upload to Telegram ----
+	        String fileId = downloadAndUploadGooglePicture(googlePictureUrl, email);
+	        if (fileId != null) {
+	            user.setPhotoUrl(fileId);
+	            changed = true;
+	        }
+
+	        if (changed) {
+	            repo.save(user);
+	            log.info("User profile synced with Google for {}", currentUserEmail);
+	        }
+	    } catch (Exception e) {
+	        log.error("Google sync failed: {}", e.getMessage(), e);
+	        throw new RuntimeException("Google sync failed: " + e.getMessage());
+	    }
+	}
+
+	// ---- Helper to verify Google token ----
+	private Map<String, Object> verifyGoogleToken(String idToken) throws Exception {
+	    URL url = new URL("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken);
+	    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+	    conn.setRequestMethod("GET");
+	    conn.setConnectTimeout(5000);
+	    conn.setReadTimeout(5000);
+
+	    if (conn.getResponseCode() != 200) {
+	        throw new RuntimeException("Google token verification failed");
+	    }
+
+	    ObjectMapper mapper = new ObjectMapper();
+	    return mapper.readValue(conn.getInputStream(), Map.class);
 	}
 }

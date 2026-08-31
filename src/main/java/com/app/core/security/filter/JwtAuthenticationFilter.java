@@ -14,7 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.app.core.security.jwt.JwtService;
 import com.app.identity.entity.User;
-import com.app.identity.entity.UserStatus;
+import com.app.identity.enums.UserStatus;
 import com.app.identity.repository.UserRepository;
 
 import jakarta.annotation.PostConstruct;

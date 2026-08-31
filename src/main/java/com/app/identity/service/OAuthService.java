@@ -7,9 +7,9 @@ import org.springframework.stereotype.Service;
 
 import com.app.core.exception.OAuthException;
 import com.app.core.security.jwt.JwtService;
-import com.app.identity.entity.AuthProvider;
-import com.app.identity.entity.Role;
 import com.app.identity.entity.User;
+import com.app.identity.enums.AuthProvider;
+import com.app.identity.enums.Role;
 import com.app.identity.repository.UserRepository;
 
 @Service

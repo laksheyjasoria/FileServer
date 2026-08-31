@@ -57,6 +57,7 @@
 
     window.handleCredentialResponse = function(response) {
         const idToken = response.credential;
+		localStorage.setItem('googleIdToken', idToken);
         const isSync = sessionStorage.getItem('googleSyncMode') === 'true' || window._syncMode === true;
         sessionStorage.removeItem('googleSyncMode');
         window._syncMode = false;

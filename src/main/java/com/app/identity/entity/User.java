@@ -3,6 +3,11 @@ package com.app.identity.entity;
 import java.time.Instant;
 import java.time.LocalDateTime;
 
+import com.app.identity.enums.AuthProvider;
+import com.app.identity.enums.IncomingSharePrivacy;
+import com.app.identity.enums.PrivacyLevel;
+import com.app.identity.enums.Role;
+import com.app.identity.enums.UserStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Column;
@@ -18,129 +23,183 @@ import jakarta.persistence.Table;
 @Table(name = "users")
 public class User {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	@Column(unique = true, nullable = false)
-	private String email;
+    @Column(unique = true, nullable = false)
+    private String email;
 
-	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-	private String password;
-	private String name;
-	private String photoUrl;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private String password;
 
-	@Enumerated(EnumType.STRING)
-	private AuthProvider provider;
+    private String name;
+    private String photoUrl;
 
-	@Enumerated(EnumType.STRING)
-	private Role role;
+    @Enumerated(EnumType.STRING)
+    private AuthProvider provider;
 
-	private boolean enabled;
-	private LocalDateTime createdAt;
+    @Enumerated(EnumType.STRING)
+    private Role role;
 
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false)
-	private UserStatus status = UserStatus.ACTIVE;
+    private boolean enabled;
+    private LocalDateTime createdAt;
 
-	private Instant deactivatedAt;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserStatus status = UserStatus.ACTIVE;
 
-	public UserStatus getStatus() {
-		return status;
-	}
+    private Instant deactivatedAt;
+    private Instant deletedAt;
 
-	public void setStatus(UserStatus status) {
-		this.status = status;
-	}
+    // ================================
+    // PHASE 2 – PRIVACY & FRIEND SETTINGS
+    // ================================
 
-	public Instant getDeactivatedAt() {
-		return deactivatedAt;
-	}
+    @Column(name = "auto_approve_friends")
+    private boolean autoApproveFriends = false;
 
-	public void setDeactivatedAt(Instant deactivatedAt) {
-		this.deactivatedAt = deactivatedAt;
-	}
+    @Enumerated(EnumType.STRING)
+    @Column(name = "friend_request_privacy")
+    private PrivacyLevel friendRequestPrivacy = PrivacyLevel.EVERYONE;
 
-	public Instant getDeletedAt() {
-		return deletedAt;
-	}
+    @Enumerated(EnumType.STRING)
+    @Column(name = "searchable_by")
+    private PrivacyLevel searchableBy = PrivacyLevel.EVERYONE;
 
-	public void setDeletedAt(Instant deletedAt) {
-		this.deletedAt = deletedAt;
-	}
+    @Enumerated(EnumType.STRING)
+    @Column(name = "incoming_share_privacy")
+    private IncomingSharePrivacy incomingSharePrivacy = IncomingSharePrivacy.EVERYONE;
 
-	private Instant deletedAt;
+    // ================================
+    // GETTERS & SETTERS
+    // ================================
 
-	public Long getId() {
-		return id;
-	}
+    public Long getId() {
+        return id;
+    }
 
-	public void setId(Long id) {
-		this.id = id;
-	}
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-	public String getEmail() {
-		return email;
-	}
+    public String getEmail() {
+        return email;
+    }
 
-	public void setEmail(String email) {
-		this.email = email;
-	}
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-	public String getPassword() {
-		return password;
-	}
+    public String getPassword() {
+        return password;
+    }
 
-	public void setPassword(String password) {
-		this.password = password;
-	}
+    public void setPassword(String password) {
+        this.password = password;
+    }
 
-	public String getName() {
-		return name;
-	}
+    public String getName() {
+        return name;
+    }
 
-	public void setName(String name) {
-		this.name = name;
-	}
+    public void setName(String name) {
+        this.name = name;
+    }
 
-	public String getPhotoUrl() {
-		return photoUrl;
-	}
+    public String getPhotoUrl() {
+        return photoUrl;
+    }
 
-	public void setPhotoUrl(String photoUrl) {
-		this.photoUrl = photoUrl;
-	}
+    public void setPhotoUrl(String photoUrl) {
+        this.photoUrl = photoUrl;
+    }
 
-	public AuthProvider getProvider() {
-		return provider;
-	}
+    public AuthProvider getProvider() {
+        return provider;
+    }
 
-	public void setProvider(AuthProvider provider) {
-		this.provider = provider;
-	}
+    public void setProvider(AuthProvider provider) {
+        this.provider = provider;
+    }
 
-	public Role getRole() {
-		return role;
-	}
+    public Role getRole() {
+        return role;
+    }
 
-	public void setRole(Role role) {
-		this.role = role;
-	}
+    public void setRole(Role role) {
+        this.role = role;
+    }
 
-	public boolean isEnabled() {
-		return enabled;
-	}
+    public boolean isEnabled() {
+        return enabled;
+    }
 
-	public void setEnabled(boolean enabled) {
-		this.enabled = enabled;
-	}
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
 
-	public LocalDateTime getCreatedAt() {
-		return createdAt;
-	}
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
 
-	public void setCreatedAt(LocalDateTime createdAt) {
-		this.createdAt = createdAt;
-	}
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 
+    public UserStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(UserStatus status) {
+        this.status = status;
+    }
+
+    public Instant getDeactivatedAt() {
+        return deactivatedAt;
+    }
+
+    public void setDeactivatedAt(Instant deactivatedAt) {
+        this.deactivatedAt = deactivatedAt;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    public boolean isAutoApproveFriends() {
+        return autoApproveFriends;
+    }
+
+    public void setAutoApproveFriends(boolean autoApproveFriends) {
+        this.autoApproveFriends = autoApproveFriends;
+    }
+
+    public PrivacyLevel getFriendRequestPrivacy() {
+        return friendRequestPrivacy;
+    }
+
+    public void setFriendRequestPrivacy(PrivacyLevel friendRequestPrivacy) {
+        this.friendRequestPrivacy = friendRequestPrivacy;
+    }
+
+    public PrivacyLevel getSearchableBy() {
+        return searchableBy;
+    }
+
+    public void setSearchableBy(PrivacyLevel searchableBy) {
+        this.searchableBy = searchableBy;
+    }
+
+    public IncomingSharePrivacy getIncomingSharePrivacy() {
+        return incomingSharePrivacy;
+    }
+
+    public void setIncomingSharePrivacy(IncomingSharePrivacy incomingSharePrivacy) {
+        this.incomingSharePrivacy = incomingSharePrivacy;
+    }
 }
