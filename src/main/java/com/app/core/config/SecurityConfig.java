@@ -16,6 +16,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.app.core.security.filter.JwtAuthenticationFilter;
 import com.app.core.security.jwt.JwtService;
+import com.app.identity.repository.UserRepository;
 
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -31,8 +32,8 @@ public class SecurityConfig {
 	// ================= JWT FILTER BEAN =================
 	@Bean
 	JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService,
-			@Value("${app.security.master.key}") String masterKey) {
-		return new JwtAuthenticationFilter(jwtService, masterKey);
+			@Value("${app.security.master.key}") String masterKey, UserRepository userRepository) {
+		return new JwtAuthenticationFilter(jwtService, masterKey, userRepository);
 	}
 
 	// ================= CORS =================
@@ -54,15 +55,14 @@ public class SecurityConfig {
 	SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
 		return http.csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
-				.authorizeHttpRequests(auth -> auth
+				.cors(cors -> cors.configurationSource(corsConfigurationSource())).authorizeHttpRequests(auth -> auth
 						// Public endpoints (no auth)
 						.requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/profile.html",
 								"/viewer.html", "/share.html", "/shared.html", "/shared-by-me.html", "/share2.html",
-								"/master.html", "/logger.html", "/trash.html","admin-users.html", "/favicon.ico", "/css/**", "/js/**",
-								"/js2/**", "/auth/**", "/logger/log", "/logger/error", "/download/bulk/shared",
-								"/assets/**", "/forgot-password.html", "/auth/forgot-password", "/reset-password.html",
-								"/auth/reset-password")
+								"/master.html", "/logger.html", "/trash.html", "admin-users.html", "/favicon.ico",
+								"/css/**", "/js/**", "/js2/**", "/auth/**", "/logger/log", "/logger/error",
+								"/download/bulk/shared", "/assets/**", "/forgot-password.html", "/auth/forgot-password",
+								"/reset-password.html", "/auth/reset-password")
 						.permitAll()
 
 						// 🔐 Authenticated share endpoints
