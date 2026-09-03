@@ -317,20 +317,43 @@ window.debouncedFriendSearch = debounce(async function() {
             return;
         }
 
-        results.forEach(u => {
-            const div = document.createElement('div');
-            div.className = 'search-result-item';
-            div.style.cssText = 'padding:8px 14px; cursor:pointer; border-bottom:1px solid #f7fafc; display:flex; justify-content:space-between; font-size:13px;';
-            div.innerHTML = `
-                <span><strong>${escapeHtml(u.name || u.email)}</strong></span>
-                <span style="color:#718096; font-size:12px;">${escapeHtml(u.email)}</span>
-                <button onclick="window.sendFriendRequestDirect('${u.id}', '${escapeJS(u.email)}', '${escapeJS(u.name || u.email)}')" 
-                        style="background:#48bb78; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px;">
-                    ➕ Send Request
-                </button>
-            `;
-            resultsContainer.appendChild(div);
-        });
+		results.forEach(u => {
+		    const div = document.createElement('div');
+		    div.className = 'search-result-item';
+		    div.style.cssText = 'padding:8px 14px; cursor:pointer; border-bottom:1px solid #f7fafc; display:flex; justify-content:space-between; font-size:13px;';
+
+		    let buttonHtml = '';
+		    if (u.requestStatus === 'ACCEPTED') {
+		        buttonHtml = '<span style="color:#48bb78; font-weight:600;">✓ Friends</span>';
+		    } else if (u.requestStatus === 'PENDING_SENT') {
+		        buttonHtml = '<span style="color:#f59e0b; font-weight:600;">⏳ Pending</span>';
+		    } else if (u.requestStatus === 'PENDING_RECEIVED') {
+		        buttonHtml = `
+		            <button onclick="window.handleFriendRequest(${u.id}, 'accept')" 
+		                    style="background:#48bb78; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px; margin-right:4px;">
+		                Accept
+		            </button>
+		            <button onclick="window.handleFriendRequest(${u.id}, 'reject')" 
+		                    style="background:#fc8181; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px;">
+		                Reject
+		            </button>
+		        `;
+		    } else {
+		        buttonHtml = `
+		            <button onclick="window.sendFriendRequestDirect('${u.id}', '${escapeJS(u.email)}', '${escapeJS(u.name || u.email)}')" 
+		                    style="background:#48bb78; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px;">
+		                ➕ Send Request
+		            </button>
+		        `;
+		    }
+
+		    div.innerHTML = `
+		        <span><strong>${escapeHtml(u.name || u.email)}</strong></span>
+		        <span style="color:#718096; font-size:12px;">${escapeHtml(u.email)}</span>
+		        ${buttonHtml}
+		    `;
+		    resultsContainer.appendChild(div);
+		});
 
     } catch (error) {
         showToast('Error searching: ' + error.message, 'error');

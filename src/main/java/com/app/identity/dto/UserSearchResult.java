@@ -5,17 +5,19 @@ public class UserSearchResult {
 	private String email;
 	private String name;
 	private String photoUrl;
+	private String requestStatus;
 
 	public UserSearchResult() {
 
 	}
 
-	public UserSearchResult(Long id, String email, String name, String photoUrl) {
+	public UserSearchResult(Long id, String email, String name, String photoUrl, String requestStatus) {
 		super();
 		this.id = id;
 		this.email = email;
 		this.name = name;
 		this.photoUrl = photoUrl;
+		this.requestStatus = requestStatus;
 	}
 
 	// Getters and Setters
@@ -49,5 +51,13 @@ public class UserSearchResult {
 
 	public void setPhotoUrl(String photoUrl) {
 		this.photoUrl = photoUrl;
+	}
+
+	public String getRequestStatus() {
+		return requestStatus;
+	}
+
+	public void setRequestStatus(String requestStatus) {
+		this.requestStatus = requestStatus;
 	}
 }
