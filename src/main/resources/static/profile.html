@@ -529,7 +529,7 @@
     </style>
   </head>
   <body>
-    <!-- Standard Header -->
+    <!-- Header placeholder -->
     <div id="header-container"></div>
 
     <!-- Main app -->
@@ -541,10 +541,219 @@
             <span class="breadcrumb-item">Profile</span>
           </div>
         </div>
-
         <div class="profile-container" id="profileContainer">
-          <!-- Content injected by profile.js -->
           <div class="loading">Loading profile...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CHANGE PASSWORD MODAL ===== -->
+    <div id="changePasswordModal" class="modal-overlay">
+      <div class="modal-box" style="max-width: 420px; width: 90%">
+        <div class="modal-title">🔑 Change Password</div>
+        <div class="modal-body" style="text-align: left; padding: 16px 0">
+          <div class="form-group">
+            <label for="modalCurrentPassword">Current Password</label>
+            <input
+              type="password"
+              id="modalCurrentPassword"
+              placeholder="Enter current password"
+            />
+          </div>
+          <div class="form-group">
+            <label for="modalNewPassword">New Password</label>
+            <input
+              type="password"
+              id="modalNewPassword"
+              placeholder="Enter new password"
+            />
+
+            <!-- Password requirements list -->
+            <div
+              id="passwordRequirements"
+              style="margin-top: 8px; font-size: 13px; color: #a0aec0"
+            >
+              <div
+                id="reqLength"
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 4px;
+                  color: #a0aec0;
+                "
+              >
+                <span id="reqLengthIcon">✗</span> Must be at least 8 characters
+              </div>
+              <div
+                id="reqCase"
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 4px;
+                  color: #a0aec0;
+                "
+              >
+                <span id="reqCaseIcon">✗</span> One uppercase and one lowercase
+                letter
+              </div>
+              <div
+                id="reqDigit"
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 4px;
+                  color: #a0aec0;
+                "
+              >
+                <span id="reqDigitIcon">✗</span> One number
+              </div>
+              <div
+                id="reqSpecial"
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 4px;
+                  color: #a0aec0;
+                "
+              >
+                <span id="reqSpecialIcon">✗</span> Must contain special
+                character (@$!%*?&)
+              </div>
+              <div
+                id="reqCommon"
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  color: #a0aec0;
+                "
+              >
+                <span id="reqCommonIcon">✗</span> Must not be common
+              </div>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top: 12px">
+            <label for="modalConfirmPassword">Confirm New Password</label>
+            <input
+              type="password"
+              id="modalConfirmPassword"
+              placeholder="Re‑enter new password"
+            />
+            <!-- Confirm match indicator -->
+            <div
+              id="confirmMatch"
+              style="
+                margin-top: 6px;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                color: #a0aec0;
+              "
+            >
+              <span id="confirmMatchIcon">✗</span>
+              <span id="confirmMatchText">Please confirm your password</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button
+            class="modal-btn modal-btn-secondary"
+            id="cancelPasswordModalBtn"
+          >
+            Cancel
+          </button>
+          <button
+            class="modal-btn modal-btn-primary"
+            id="confirmPasswordModalBtn"
+          >
+            Change Password
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PRIVACY SETTINGS MODAL ===== -->
+    <div id="privacySettingsModal" class="modal-overlay">
+      <div class="modal-box" style="max-width: 450px; width: 90%">
+        <div class="modal-title">🔐 Privacy Settings</div>
+        <div class="modal-body" style="text-align: left; padding: 16px 0">
+          <!-- Who can share with me -->
+          <div class="form-group">
+            <label for="modalIncomingSharePrivacy"
+              >Who can share with me?</label
+            >
+            <select
+              id="modalIncomingSharePrivacy"
+              style="
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+              "
+            >
+              <option value="EVERYONE">Everyone</option>
+              <option value="FRIENDS_ONLY">Friends Only</option>
+              <option value="NOBODY">Nobody</option>
+            </select>
+            <div
+              id="modalIncomingSharePrivacyHint"
+              style="font-size: 12px; color: #a0aec0; margin-top: 4px"
+            ></div>
+          </div>
+
+          <!-- Who can send friend requests -->
+          <div class="form-group" style="margin-top: 16px">
+            <label for="modalFriendRequestPrivacy"
+              >Who can send friend requests?</label
+            >
+            <select
+              id="modalFriendRequestPrivacy"
+              style="
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+              "
+            >
+              <option value="EVERYONE">Everyone</option>
+              <option value="NOBODY">Nobody</option>
+            </select>
+            <div
+              id="modalFriendRequestPrivacyHint"
+              style="font-size: 12px; color: #a0aec0; margin-top: 4px"
+            ></div>
+          </div>
+
+          <!-- Auto-approve friends -->
+          <div class="form-group" style="margin-top: 16px">
+            <label style="display: flex; align-items: center; gap: 12px">
+              <label class="toggle-switch">
+                <input type="checkbox" id="modalAutoApprove" />
+                <span class="slider"></span>
+              </label>
+              <span>Auto-approve friend requests</span>
+            </label>
+            <div
+              id="modalAutoApproveHint"
+              style="font-size: 12px; color: #a0aec0; margin-top: 4px"
+            ></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button
+            class="modal-btn modal-btn-secondary"
+            id="cancelPrivacyModalBtn"
+          >
+            Cancel
+          </button>
+          <button class="modal-btn modal-btn-primary" id="savePrivacyModalBtn">
+            Save Changes
+          </button>
         </div>
       </div>
     </div>

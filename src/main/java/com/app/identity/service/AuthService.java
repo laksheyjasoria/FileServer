@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -15,6 +16,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.app.core.exception.AccountDeactivatedException;
 import com.app.core.exception.InvalidCredentialsException;
+import com.app.core.exception.InvalidPasswordException;
+import com.app.core.exception.SamePasswordException;
 import com.app.core.exception.UserAlreadyExistsException;
 import com.app.core.exception.UserNotFoundException;
 import com.app.core.security.jwt.JwtService;
@@ -185,10 +188,10 @@ public class AuthService {
 			} else {
 				log.info("Existing user found: email={}, current photoUrl={}, sync={}", email, user.getPhotoUrl(),
 						sync);
-				
+
 				if (user.getStatus() != UserStatus.ACTIVE) {
-				    log.warn("User {} is not active (status={}), rejecting login", email, user.getStatus());
-				    throw new AccountDeactivatedException("Account is deactivated or deleted");
+					log.warn("User {} is not active (status={}), rejecting login", email, user.getStatus());
+					throw new AccountDeactivatedException("Account is deactivated or deleted");
 				}
 
 				boolean changed = false;
@@ -345,12 +348,62 @@ public class AuthService {
 	// ================================
 
 	public void changePassword(String email, String oldPassword, String newPassword) {
+		log.info("Password change requested for email: {}", email);
+
+		// 1. User exists
 		User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
-		if (!encoder.matches(oldPassword, user.getPassword())) {
-			throw new InvalidCredentialsException();
+
+		// 2. Validate old password
+		if (oldPassword == null || oldPassword.isBlank()) {
+			throw new InvalidCredentialsException("Current password is required");
 		}
-		user.setPassword(encoder.encode(newPassword));
+		if (!encoder.matches(oldPassword, user.getPassword())) {
+			throw new InvalidCredentialsException("Current password is incorrect");
+		}
+
+		// 3. Validate new password
+		if (newPassword == null || newPassword.isBlank()) {
+			throw new InvalidPasswordException("New password is required");
+		}
+
+		// Trim whitespace
+		String trimmedNew = newPassword.trim();
+		if (trimmedNew.isEmpty()) {
+			throw new InvalidPasswordException("New password cannot be empty or contain only spaces");
+		}
+
+		// 4. Check if same as old password
+		if (encoder.matches(trimmedNew, user.getPassword())) {
+			throw new SamePasswordException("New password must be different from the current password");
+		}
+
+		// 5. Length checks
+		if (trimmedNew.length() < 8) {
+			throw new InvalidPasswordException("Password must be at least 8 characters long");
+		}
+		if (trimmedNew.length() > 64) {
+			throw new InvalidPasswordException("Password cannot exceed 64 characters");
+		}
+
+		// 6. Complexity requirements
+		String complexityPattern = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&]).+$";
+		if (!trimmedNew.matches(complexityPattern)) {
+			throw new InvalidPasswordException(
+					"Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character (@$!%*?&)");
+		}
+
+		// 7. Block common weak passwords
+		List<String> commonPasswords = List.of("password123", "password1", "12345678", "123456789", "qwerty123",
+				"admin123", "letmein", "welcome1", "passw0rd", "hello123");
+		String lowerPass = trimmedNew.toLowerCase();
+		if (commonPasswords.contains(lowerPass)) {
+			throw new InvalidPasswordException("Password is too common and easily guessable");
+		}
+
+		// 8. Encode and save
+		user.setPassword(encoder.encode(trimmedNew));
 		repo.save(user);
+		log.info("Password changed successfully for email: {}", email);
 	}
 
 	// ================================
@@ -360,63 +413,62 @@ public class AuthService {
 	public User getUserByEmail(String email) {
 		return repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
 	}
-	
+
 	public void syncProfileWithGoogle(String idToken, String currentUserEmail) {
-	    try {
-	        Map<String, Object> tokenInfo = verifyGoogleToken(idToken);
-	        String email = (String) tokenInfo.get("email");
-	        Boolean emailVerified = tokenInfo.get("email_verified") == null ? Boolean.FALSE
-	                : Boolean.valueOf(tokenInfo.get("email_verified").toString());
-	        String name = (String) tokenInfo.get("name");
-	        String googlePictureUrl = (String) tokenInfo.get("picture");
+		try {
+			Map<String, Object> tokenInfo = verifyGoogleToken(idToken);
+			String email = (String) tokenInfo.get("email");
+			Boolean emailVerified = tokenInfo.get("email_verified") == null ? Boolean.FALSE
+					: Boolean.valueOf(tokenInfo.get("email_verified").toString());
+			String name = (String) tokenInfo.get("name");
+			String googlePictureUrl = (String) tokenInfo.get("picture");
 
-	        if (email == null || !emailVerified) {
-	            throw new RuntimeException("Google email not verified");
-	        }
+			if (email == null || !emailVerified) {
+				throw new RuntimeException("Google email not verified");
+			}
 
-	        if (!email.equalsIgnoreCase(currentUserEmail)) {
-	            throw new RuntimeException("Token email does not match logged-in user");
-	        }
+			if (!email.equalsIgnoreCase(currentUserEmail)) {
+				throw new RuntimeException("Token email does not match logged-in user");
+			}
 
-	        User user = repo.findByEmail(currentUserEmail)
-	                .orElseThrow(() -> new RuntimeException("User not found"));
+			User user = repo.findByEmail(currentUserEmail).orElseThrow(() -> new RuntimeException("User not found"));
 
-	        boolean changed = false;
-	        if (name != null && !name.equals(user.getName())) {
-	            user.setName(name);
-	            changed = true;
-	        }
+			boolean changed = false;
+			if (name != null && !name.equals(user.getName())) {
+				user.setName(name);
+				changed = true;
+			}
 
-	        // ---- Fetch current photo from Google and upload to Telegram ----
-	        String fileId = downloadAndUploadGooglePicture(googlePictureUrl, email);
-	        if (fileId != null) {
-	            user.setPhotoUrl(fileId);
-	            changed = true;
-	        }
+			// ---- Fetch current photo from Google and upload to Telegram ----
+			String fileId = downloadAndUploadGooglePicture(googlePictureUrl, email);
+			if (fileId != null) {
+				user.setPhotoUrl(fileId);
+				changed = true;
+			}
 
-	        if (changed) {
-	            repo.save(user);
-	            log.info("User profile synced with Google for {}", currentUserEmail);
-	        }
-	    } catch (Exception e) {
-	        log.error("Google sync failed: {}", e.getMessage(), e);
-	        throw new RuntimeException("Google sync failed: " + e.getMessage());
-	    }
+			if (changed) {
+				repo.save(user);
+				log.info("User profile synced with Google for {}", currentUserEmail);
+			}
+		} catch (Exception e) {
+			log.error("Google sync failed: {}", e.getMessage(), e);
+			throw new RuntimeException("Google sync failed: " + e.getMessage());
+		}
 	}
 
 	// ---- Helper to verify Google token ----
 	private Map<String, Object> verifyGoogleToken(String idToken) throws Exception {
-	    URL url = new URL("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken);
-	    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-	    conn.setRequestMethod("GET");
-	    conn.setConnectTimeout(5000);
-	    conn.setReadTimeout(5000);
+		URL url = new URL("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken);
+		HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+		conn.setRequestMethod("GET");
+		conn.setConnectTimeout(5000);
+		conn.setReadTimeout(5000);
 
-	    if (conn.getResponseCode() != 200) {
-	        throw new RuntimeException("Google token verification failed");
-	    }
+		if (conn.getResponseCode() != 200) {
+			throw new RuntimeException("Google token verification failed");
+		}
 
-	    ObjectMapper mapper = new ObjectMapper();
-	    return mapper.readValue(conn.getInputStream(), Map.class);
+		ObjectMapper mapper = new ObjectMapper();
+		return mapper.readValue(conn.getInputStream(), Map.class);
 	}
 }

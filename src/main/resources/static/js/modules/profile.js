@@ -27,9 +27,56 @@ document.addEventListener("DOMContentLoaded", async function () {
     return;
   }
 
-  // ❌ REMOVED: loadUserInfoIntoUI(); – header is handled by header.js
-
   await loadProfile();
+
+  // ---- Attach password modal events ----
+  const cancelPwBtn = document.getElementById("cancelPasswordModalBtn");
+  const confirmPwBtn = document.getElementById("confirmPasswordModalBtn");
+  const pwModal = document.getElementById("changePasswordModal");
+
+  if (cancelPwBtn)
+    cancelPwBtn.addEventListener("click", hideChangePasswordModal);
+  if (confirmPwBtn)
+    confirmPwBtn.addEventListener("click", submitPasswordChange);
+  if (pwModal) {
+    pwModal.addEventListener("click", function (e) {
+      if (e.target === this) hideChangePasswordModal();
+    });
+  }
+
+  // ---- Password strength live validation ----
+  const newPassInput = document.getElementById("modalNewPassword");
+  if (newPassInput) {
+    newPassInput.addEventListener("input", function () {
+      validatePasswordStrength(this.value);
+      validateConfirmPassword();
+    });
+  }
+  const confirmInput = document.getElementById("modalConfirmPassword");
+  if (confirmInput) {
+    confirmInput.addEventListener("input", validateConfirmPassword);
+  }
+
+  // ---- Attach privacy modal events ----
+  const cancelPrivBtn = document.getElementById("cancelPrivacyModalBtn");
+  const savePrivBtn = document.getElementById("savePrivacyModalBtn");
+  const privModal = document.getElementById("privacySettingsModal");
+  const incomingSelect = document.getElementById("modalIncomingSharePrivacy");
+  const friendSelect = document.getElementById("modalFriendRequestPrivacy");
+  const autoCheck = document.getElementById("modalAutoApprove");
+
+  if (cancelPrivBtn)
+    cancelPrivBtn.addEventListener("click", hidePrivacySettingsModal);
+  if (savePrivBtn) savePrivBtn.addEventListener("click", savePrivacySettings);
+  if (incomingSelect)
+    incomingSelect.addEventListener("change", updatePrivacyHints);
+  if (friendSelect) friendSelect.addEventListener("change", updatePrivacyHints);
+  if (autoCheck) autoCheck.addEventListener("change", updatePrivacyHints);
+  if (privModal) {
+    privModal.addEventListener("click", function (e) {
+      if (e.target === this) hidePrivacySettingsModal();
+    });
+  }
 });
 
 // ================================
@@ -75,12 +122,12 @@ async function loadProfile() {
   } catch (error) {
     console.error("Error loading profile:", error);
     container.innerHTML = `
-            <div style="padding:40px; text-align:center; color:#e53e3e;">
-                <div style="font-size:48px; margin-bottom:16px;">❌</div>
-                <div style="font-size:18px; font-weight:600;">Failed to load profile</div>
-                <div style="font-size:14px; color:#718096; margin-top:8px;">${escapeHtml(error.message)}</div>
-            </div>
-        `;
+      <div style="padding:40px; text-align:center; color:#e53e3e;">
+        <div style="font-size:48px; margin-bottom:16px;">❌</div>
+        <div style="font-size:18px; font-weight:600;">Failed to load profile</div>
+        <div style="font-size:14px; color:#718096; margin-top:8px;">${escapeHtml(error.message)}</div>
+      </div>
+    `;
   }
 }
 
@@ -96,213 +143,134 @@ function renderProfile() {
   const autoApprove = currentUser.autoApproveFriends || false;
 
   const html = `
-        <div class="profile-card">
-            <!-- HEADER: gradient background with photo, name, email -->
-            <div class="profile-header">
-                <div class="profile-avatar-wrapper" id="photoPreview">
-                    <div id="profilePhotoPlaceholder" class="initials">${(currentUser.name || currentUser.email).charAt(0).toUpperCase()}</div>
-                </div>
-                <div class="profile-name">${escapeHtml(currentUser.name || currentUser.email)}</div>
-                <div class="profile-email">${escapeHtml(currentUser.email)}</div>
-                <div class="header-actions">
-                    <label for="photoFile">📷 Change Photo</label>
-                    <input id="photoFile" type="file" accept="image/*" style="display:none;" onchange="window.uploadPhoto()">
-                    ${
-                      currentUser.provider === "GOOGLE"
-                        ? `<button class="google-sync" onclick="window.syncWithGoogle()">🔄 Sync with Google</button>`
-                        : ""
-                    }
-                </div>
+    <div class="profile-card">
+      <!-- HEADER -->
+      <div class="profile-header">
+        <div class="profile-avatar-wrapper" id="photoPreview">
+          <div id="profilePhotoPlaceholder" class="initials">${(currentUser.name || currentUser.email).charAt(0).toUpperCase()}</div>
+        </div>
+        <div class="profile-name">${escapeHtml(currentUser.name || currentUser.email)}</div>
+        <div class="profile-email">${escapeHtml(currentUser.email)}</div>
+        <div class="header-actions">
+          <label for="photoFile">📷 Change Photo</label>
+          <input id="photoFile" type="file" accept="image/*" style="display:none;" onchange="window.uploadPhoto()">
+          ${currentUser.provider === "GOOGLE" ? `<button class="google-sync" onclick="window.syncWithGoogle()">🔄 Sync with Google</button>` : ""}
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div class="profile-body">
+
+        <!-- PERSONAL INFORMATION -->
+        <div class="section">
+          <div class="section-title">👤 Personal Information</div>
+          <div class="form-group">
+            <label for="nameInput">Full Name</label>
+            <input id="nameInput" type="text" value="${escapeHtml(currentUser.name || "")}" placeholder="Enter your full name">
+          </div>
+          <button class="btn-profile btn-primary" onclick="window.saveProfile()">💾 Save Changes</button>
+          <button class="btn-profile btn-secondary" onclick="window.showChangePasswordModal()">🔑 Change Password</button>
+          <button class="btn-profile btn-secondary" onclick="showPrivacySettingsModal()">⚙️ Edit Settings</button>
+        </div>
+
+        <!-- FRIENDS -->
+        <div class="section">
+          <div class="section-title">👥 Friends <span class="badge">${friends.length}</span></div>
+          <div class="friend-list" id="friendList">
+            ${
+              friends.length === 0
+                ? '<span style="color:#a0aec0; font-size:14px;">No friends yet</span>'
+                : friends
+                    .map(
+                      (f) => `
+                <span class="friend-item">
+                  ${escapeHtml(f.name || f.email)}
+                  <span class="remove-friend" onclick="window.removeFriend('${f.id}')" title="Remove friend">✕</span>
+                </span>
+              `,
+                    )
+                    .join("")
+            }
+          </div>
+        </div>
+
+        <!-- SEND FRIEND REQUEST -->
+        <div class="section">
+          <div class="section-title" style="font-size:14px;">📨 Send Friend Request</div>
+          <div class="add-user-input">
+            <input type="text" id="friendRequestSearch" placeholder="Search by name or email..." />
+            <button onclick="window.debouncedFriendSearch()">🔍 Search</button>
+          </div>
+          <div id="friendSearchResults" style="margin-top:8px; max-height:150px; overflow-y:auto; background:white; border:1px solid #e2e8f0; border-radius:8px; display:none;"></div>
+          <div style="font-size:12px; color:#a0aec0; margin-top:4px;">
+            💡 Search for a user and click "Send Request" next to their name.
+          </div>
+        </div>
+
+        <!-- SENT REQUESTS -->
+        ${
+          sentRequests.length > 0
+            ? `
+          <div class="section">
+            <div class="section-title" style="font-size:14px;">📤 Sent Requests <span class="badge">${sentRequests.length}</span></div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              ${sentRequests
+                .map(
+                  (req) => `
+                <span class="pending-request sent" style="background:#e2e8f0; color:#4a5568;">
+                  ${escapeHtml(req.friendName || req.friendEmail || "Unknown")}
+                  <button onclick="window.cancelSentRequest(${req.id})" style="padding:2px 10px; border:none; border-radius:12px; font-size:12px; cursor:pointer; background:#fc8181; color:white; font-weight:500;">Cancel</button>
+                </span>
+              `,
+                )
+                .join("")}
             </div>
+          </div>
+        `
+            : ""
+        }
 
-            <!-- BODY -->
-            <div class="profile-body">
+        <!-- INCOMING REQUESTS -->
+        ${
+          pendingRequests.length > 0
+            ? `
+          <div class="section">
+            <div class="section-title" style="font-size:14px;">📩 Incoming Requests <span class="badge">${pendingRequests.length}</span></div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              ${pendingRequests
+                .map(
+                  (req) => `
+                <span class="pending-request" 
+                      data-request='${encodeURIComponent(JSON.stringify(req))}'
+                      onclick="window.openFriendRequestModal(this)">
+                  ${escapeHtml(req.userName || req.userEmail || "Unknown")}
+                </span>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+        `
+            : ""
+        }
 
-                <!-- ====== PERSONAL INFORMATION ====== -->
-                <div class="section">
-                    <div class="section-title">👤 Personal Information</div>
-                    <div class="form-group">
-                        <label for="nameInput">Full Name</label>
-                        <input id="nameInput" type="text" value="${escapeHtml(currentUser.name || "")}" placeholder="Enter your full name">
-                    </div>
-                    <button class="btn-profile btn-primary" onclick="window.saveProfile()">💾 Save Changes</button>
-                </div>
+        <!-- ACCOUNT MANAGEMENT -->
+        <div class="section">
+          <div class="section-title">⚙️ Account Management</div>
+          <div class="account-actions">
+            <button class="btn-profile btn-danger" onclick="window.deactivateAccount()">🔒 Deactivate Account</button>
+            <button class="btn-profile btn-danger" onclick="window.deleteAccount()" style="background:#e53e3e;">🗑️ Delete Account</button>
+          </div>
+          <div style="margin-top:8px; font-size:12px; color:#a0aec0;">
+            ⚠️ Deactivating your account will prevent you from logging in. Deleting your account is permanent and cannot be undone.
+          </div>
+        </div>
 
-                <!-- ====== SECURITY ====== -->
-                <div class="section">
-                    <div class="section-title">🔒 Security</div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="oldPassword">Current Password</label>
-                            <input id="oldPassword" type="password" placeholder="Enter current password">
-                        </div>
-                        <div class="form-group">
-                            <label for="newPassword">New Password</label>
-                            <input id="newPassword" type="password" placeholder="Enter new password">
-                        </div>
-                    </div>
-                    <button class="btn-profile btn-secondary" onclick="window.changePassword()">🔑 Update Password</button>
-                </div>
-
-                <!-- ====== PRIVACY SETTINGS ====== -->
-                <div class="section">
-                    <div class="section-title">🔐 Privacy Settings</div>
-                    <div class="privacy-section">
-                        <!-- Who can share with me -->
-                        <div class="privacy-row">
-                            <label>Who can share with me?</label>
-                            <select id="incomingSharePrivacySelect" onchange="window.updateIncomingSharePrivacy(this.value)">
-                                <option value="EVERYONE" ${incomingSharePrivacy === "EVERYONE" ? "selected" : ""}>Everyone</option>
-                                <option value="FRIENDS_ONLY" ${incomingSharePrivacy === "FRIENDS_ONLY" ? "selected" : ""}>Friends Only</option>
-                                <option value="NOBODY" ${incomingSharePrivacy === "NOBODY" ? "selected" : ""}>Nobody</option>
-                            </select>
-                            <span class="privacy-hint">
-                                ${
-                                  incomingSharePrivacy === "EVERYONE"
-                                    ? "Anyone can share files with you."
-                                    : incomingSharePrivacy === "FRIENDS_ONLY"
-                                      ? "Only your friends can share files with you."
-                                      : "No one can share files with you."
-                                }
-                            </span>
-                        </div>
-
-                        <!-- Friend request privacy -->
-                        <div class="privacy-row">
-                            <label>Who can send friend requests?</label>
-                            <select id="friendRequestPrivacySelect" onchange="window.updateFriendRequestPrivacy(this.value)">
-                                <option value="EVERYONE" ${friendRequestPrivacy === "EVERYONE" ? "selected" : ""}>Everyone</option>
-                                <option value="NOBODY" ${friendRequestPrivacy === "NOBODY" ? "selected" : ""}>Nobody</option>
-                            </select>
-                            <span class="privacy-hint">
-                                ${
-                                  friendRequestPrivacy === "EVERYONE"
-                                    ? "Anyone can send you a friend request."
-                                    : "No one can send you friend requests."
-                                }
-                            </span>
-                        </div>
-
-                        <!-- Auto-approve friends -->
-                        <div class="privacy-row">
-                            <label>Auto-approve friend requests</label>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="autoApproveToggle" ${autoApprove ? "checked" : ""} onchange="window.updateAutoApprove(this.checked)">
-                                <span class="slider"></span>
-                            </label>
-                            <span class="privacy-hint">
-                                ${autoApprove ? "Friend requests are automatically accepted." : "You must manually accept friend requests."}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ====== FRIENDS ====== -->
-                <div class="section">
-                    <div class="section-title">👥 Friends <span class="badge">${friends.length}</span></div>
-                    <div class="friend-list" id="friendList">
-                        ${
-                          friends.length === 0
-                            ? '<span style="color:#a0aec0; font-size:14px;">No friends yet</span>'
-                            : friends
-                                .map(
-                                  (f) => `
-                                <span class="friend-item">
-                                    ${escapeHtml(f.name || f.email)}
-                                    <span class="remove-friend" onclick="window.removeFriend('${f.id}')" title="Remove friend">✕</span>
-                                </span>
-                            `,
-                                )
-                                .join("")
-                        }
-                    </div>
-                </div>
-
-                <!-- ====== SEND FRIEND REQUEST ====== -->
-                <div class="section">
-                    <div class="section-title" style="font-size:14px;">📨 Send Friend Request</div>
-                    <div class="add-user-input">
-                        <input type="text" id="friendRequestSearch" placeholder="Search by name or email..." />
-                        <button onclick="window.debouncedFriendSearch()">🔍 Search</button>
-                    </div>
-                    <div id="friendSearchResults" style="margin-top:8px; max-height:150px; overflow-y:auto; background:white; border:1px solid #e2e8f0; border-radius:8px; display:none;"></div>
-                    <div style="font-size:12px; color:#a0aec0; margin-top:4px;">
-                        💡 Search for a user and click "Send Request" next to their name.
-                    </div>
-                </div>
-
-                <!-- ====== SENT REQUESTS ====== -->
-                ${
-                  sentRequests.length > 0
-                    ? `
-                    <div class="section">
-                        <div class="section-title" style="font-size:14px;">📤 Sent Requests <span class="badge">${sentRequests.length}</span></div>
-                        <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                            ${sentRequests
-                              .map(
-                                (req) => `
-                                <span class="pending-request sent" style="background:#e2e8f0; color:#4a5568;">
-                                    ${escapeHtml(req.friendName || req.friendEmail || "Unknown")}
-                                    <button onclick="window.cancelSentRequest(${req.id})" style="padding:2px 10px; border:none; border-radius:12px; font-size:12px; cursor:pointer; background:#fc8181; color:white; font-weight:500;">Cancel</button>
-                                </span>
-                            `,
-                              )
-                              .join("")}
-                        </div>
-                    </div>
-                `
-                    : ""
-                }
-
-                <!-- ====== INCOMING REQUESTS ====== -->
-                ${
-                  pendingRequests.length > 0
-                    ? `
-                    <div class="section">
-                        <div class="section-title" style="font-size:14px;">📩 Incoming Requests <span class="badge">${pendingRequests.length}</span></div>
-                        <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                            ${pendingRequests
-                              .map(
-                                (req) => `
-                                <span class="pending-request" 
-                                      data-request='${encodeURIComponent(JSON.stringify(req))}'
-                                      onclick="window.openFriendRequestModal(this)">
-                                    ${escapeHtml(req.userName || req.userEmail || "Unknown")}
-                                </span>
-                            `,
-                              )
-                              .join("")}
-                        </div>
-                    </div>
-                `
-                    : ""
-                }
-
-                <!-- ====== ACCOUNT MANAGEMENT ====== -->
-                <div class="section">
-                    <div class="section-title">⚙️ Account Management</div>
-                    <div class="account-actions">
-                        <button class="btn-profile btn-danger" onclick="window.deactivateAccount()">🔒 Deactivate Account</button>
-                        <button class="btn-profile btn-danger" onclick="window.deleteAccount()" style="background:#e53e3e;">🗑️ Delete Account</button>
-                        ${
-                          isAdmin
-                            ? `
-                            <button class="btn-profile btn-secondary" onclick="window.location.href='/admin-users.html'" style="background:#667eea; color:white;">👥 Manage Users</button>
-                        `
-                            : ""
-                        }
-                    </div>
-                    <div style="margin-top:8px; font-size:12px; color:#a0aec0;">
-                        ⚠️ Deactivating your account will prevent you from logging in. Deleting your account is permanent and cannot be undone.
-                    </div>
-                </div>
-
-            </div> <!-- end profile-body -->
-        </div> <!-- end profile-card -->
-    `;
+      </div> <!-- end profile-body -->
+    </div> <!-- end profile-card -->
+  `;
 
   container.innerHTML = html;
-  // ❌ REMOVED: loadUserInfoIntoUI(); – header is self‑contained
 
   // Load the profile photo (signed URL)
   loadProfilePhoto();
@@ -321,10 +289,7 @@ function renderProfile() {
 }
 
 // ================================
-// LOAD PROFILE PHOTO (signed URL)
-// ================================
-// ================================
-// LOAD PROFILE PHOTO (signed URL with cache)
+// LOAD PROFILE PHOTO (cached)
 // ================================
 async function loadProfilePhoto() {
   const previewContainer = document.getElementById("photoPreview");
@@ -332,28 +297,24 @@ async function loadProfilePhoto() {
 
   const user = window.getUserData() || window.getUserFromToken();
   if (!user || !user.photoUrl) {
-    // Show initials
     const initial = (user?.name || user?.email || "U").charAt(0).toUpperCase();
     previewContainer.innerHTML = `<div class="initials">${initial}</div>`;
     return;
   }
 
-  // ---- CHECK CACHE FIRST ----
-  const cachedDataUrl = window.getCachedAvatarDataUrl ? window.getCachedAvatarDataUrl() : null;
+  // Check cache first
+  const cachedDataUrl = window.getCachedAvatarDataUrl
+    ? window.getCachedAvatarDataUrl()
+    : null;
   if (cachedDataUrl) {
-    console.log("🖼️ Profile: using cached avatar");
     previewContainer.innerHTML = `<img src="${cachedDataUrl}" alt="Profile photo" style="width:100%; height:100%; object-fit:cover;" />`;
     return;
   }
 
-  // ---- NO CACHE – FETCH ----
+  // No cache – fetch
   const token = localStorage.getItem("jwtToken");
-  if (!token) {
-    console.warn("No token – cannot load profile photo");
-    return;
-  }
+  if (!token) return;
 
-  console.log("📡 Fetching signed URL for profile photo...");
   try {
     const response = await fetch(`/api/files/${user.photoUrl}/signed/session`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -362,7 +323,6 @@ async function loadProfilePhoto() {
     const data = await response.json();
     const avatarUrl = data.url;
 
-    // Download the image and convert to Data URL (to cache)
     const imgResponse = await fetch(avatarUrl);
     if (!imgResponse.ok) throw new Error(`Image download failed`);
     const blob = await imgResponse.blob();
@@ -372,13 +332,9 @@ async function loadProfilePhoto() {
       reader.readAsDataURL(blob);
     });
 
-    // Store in cache
     if (window.setCachedAvatarDataUrl) {
       window.setCachedAvatarDataUrl(dataUrl, user.photoUrl);
-      console.log("✅ Profile: avatar cached");
     }
-
-    // Display
     previewContainer.innerHTML = `<img src="${dataUrl}" alt="Profile photo" style="width:100%; height:100%; object-fit:cover;" />`;
   } catch (err) {
     console.warn("Profile photo load failed:", err);
@@ -431,29 +387,20 @@ window.debouncedFriendSearch = debounce(async function () {
           '<span style="color:#f59e0b; font-weight:600;">⏳ Pending</span>';
       } else if (u.requestStatus === "PENDING_RECEIVED") {
         buttonHtml = `
-                    <button onclick="window.handleFriendRequest(${u.id}, 'accept')" 
-                            style="background:#48bb78; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px; margin-right:4px;">
-                        Accept
-                    </button>
-                    <button onclick="window.handleFriendRequest(${u.id}, 'reject')" 
-                            style="background:#fc8181; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px;">
-                        Reject
-                    </button>
-                `;
+          <button onclick="window.handleFriendRequest(${u.id}, 'accept')" style="background:#48bb78; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px; margin-right:4px;">Accept</button>
+          <button onclick="window.handleFriendRequest(${u.id}, 'reject')" style="background:#fc8181; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px;">Reject</button>
+        `;
       } else {
         buttonHtml = `
-                    <button onclick="window.sendFriendRequestDirect('${u.id}', '${escapeJS(u.email)}', '${escapeJS(u.name || u.email)}')" 
-                            style="background:#48bb78; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px;">
-                        ➕ Send Request
-                    </button>
-                `;
+          <button onclick="window.sendFriendRequestDirect('${u.id}', '${escapeJS(u.email)}', '${escapeJS(u.name || u.email)}')" style="background:#48bb78; color:white; border:none; border-radius:4px; padding:2px 12px; cursor:pointer; font-size:12px;">➕ Send Request</button>
+        `;
       }
 
       div.innerHTML = `
-                <span><strong>${escapeHtml(u.name || u.email)}</strong></span>
-                <span style="color:#718096; font-size:12px;">${escapeHtml(u.email)}</span>
-                ${buttonHtml}
-            `;
+        <span><strong>${escapeHtml(u.name || u.email)}</strong></span>
+        <span style="color:#718096; font-size:12px;">${escapeHtml(u.email)}</span>
+        ${buttonHtml}
+      `;
       resultsContainer.appendChild(div);
     });
   } catch (error) {
@@ -563,28 +510,27 @@ window.openFriendRequestModal = async function (element) {
     }
   }
 
-  // Remove any existing modal
   const existing = document.getElementById("friendRequestModal");
   if (existing) existing.remove();
 
   const modalHTML = `
-        <div class="friend-request-modal" id="friendRequestModal">
-            <div class="modal-box">
-                <button class="close-btn" onclick="window.closeFriendRequestModal()">✕</button>
-                ${
-                  photoSrc
-                    ? `<img src="${photoSrc}" alt="Profile photo" class="modal-avatar" />`
-                    : `<div class="modal-avatar-placeholder">${sender.name.charAt(0).toUpperCase()}</div>`
-                }
-                <div class="modal-name">${escapeHtml(sender.name)}</div>
-                <div class="modal-email">${escapeHtml(sender.email)}</div>
-                <div class="modal-actions">
-                    <button class="accept-btn" onclick="window.handleFriendRequestFromModal(${requestData.id}, 'accept')">✓ Accept</button>
-                    <button class="reject-btn" onclick="window.handleFriendRequestFromModal(${requestData.id}, 'reject')">✕ Reject</button>
-                </div>
-            </div>
+    <div class="friend-request-modal" id="friendRequestModal">
+      <div class="modal-box">
+        <button class="close-btn" onclick="window.closeFriendRequestModal()">✕</button>
+        ${
+          photoSrc
+            ? `<img src="${photoSrc}" alt="Profile photo" class="modal-avatar" />`
+            : `<div class="modal-avatar-placeholder">${sender.name.charAt(0).toUpperCase()}</div>`
+        }
+        <div class="modal-name">${escapeHtml(sender.name)}</div>
+        <div class="modal-email">${escapeHtml(sender.email)}</div>
+        <div class="modal-actions">
+          <button class="accept-btn" onclick="window.handleFriendRequestFromModal(${requestData.id}, 'accept')">✓ Accept</button>
+          <button class="reject-btn" onclick="window.handleFriendRequestFromModal(${requestData.id}, 'reject')">✕ Reject</button>
         </div>
-    `;
+      </div>
+    </div>
+  `;
   document.body.insertAdjacentHTML("beforeend", modalHTML);
 };
 
@@ -623,7 +569,6 @@ window.saveProfile = async function () {
     showToast("Profile updated successfully", "success");
     currentUser.name = name;
     window.setUserData(currentUser);
-    // ❌ REMOVED: loadUserInfoIntoUI(); – header will pick up new data on next page load
     await loadProfile();
   } catch (error) {
     showToast("Error: " + error.message, "error");
@@ -647,18 +592,16 @@ window.uploadPhoto = async function () {
       throw new Error(err || "Upload failed");
     }
     showToast("Photo updated successfully", "success");
-    // Refresh cached user data
     const userResponse = await apiCall("/api/users/me", { skipDedupe: true });
     if (userResponse && userResponse.ok) {
       const user = await userResponse.json();
       window.setUserData(user);
       currentUser = user;
     }
-    // Clear avatar cache so it will be reloaded
     if (typeof window.clearAvatarCache === "function") {
-	  window.clearAvatarCache();
+      window.clearAvatarCache();
     }
-	window.renderHeader();
+    window.renderHeader();
     await loadProfile();
   } catch (error) {
     showToast("Error: " + error.message, "error");
@@ -683,16 +626,11 @@ window.syncWithGoogle = async function () {
       throw new Error(err || "Sync failed");
     }
     showToast("Profile synced with Google", "success");
-    // Refresh cached user data
     const userResponse = await apiCall("/api/users/me", { skipDedupe: true });
     if (userResponse && userResponse.ok) {
       const user = await userResponse.json();
       window.setUserData(user);
       currentUser = user;
-    }
-    // Clear avatar cache so it will be reloaded
-    if (typeof window.clearCachedAvatarBlobUrl === "function") {
-      window.clearCachedAvatarBlobUrl();
     }
     await loadProfile();
   } catch (error) {
@@ -701,36 +639,192 @@ window.syncWithGoogle = async function () {
 };
 
 // ================================
-// SECURITY
+// CHANGE PASSWORD MODAL
 // ================================
-window.changePassword = async function () {
-  const oldPassword = document.getElementById("oldPassword").value;
-  const newPassword = document.getElementById("newPassword").value;
-  if (!oldPassword || !newPassword) {
-    showToast("Please fill in both password fields", "warning");
+window.showChangePasswordModal = function () {
+  const modal = document.getElementById("changePasswordModal");
+  if (!modal) {
+    console.warn("Password modal not found in DOM");
     return;
   }
-  if (newPassword.length < 6) {
-    showToast("New password must be at least 6 characters", "warning");
+  modal.classList.add("active");
+  document.getElementById("modalCurrentPassword").value = "";
+  document.getElementById("modalNewPassword").value = "";
+  document.getElementById("modalConfirmPassword").value = "";
+  // Reset requirement indicators
+  updateRequirement("reqLength", "reqLengthIcon", false);
+  updateRequirement("reqCase", "reqCaseIcon", false);
+  updateRequirement("reqDigit", "reqDigitIcon", false);
+  updateRequirement("reqSpecial", "reqSpecialIcon", false);
+  updateRequirement("reqCommon", "reqCommonIcon", false);
+};
+
+function hideChangePasswordModal() {
+  const modal = document.getElementById("changePasswordModal");
+  if (modal) modal.classList.remove("active");
+}
+
+async function submitPasswordChange() {
+  const current = document.getElementById("modalCurrentPassword").value;
+  const newPass = document.getElementById("modalNewPassword").value;
+  const confirm = document.getElementById("modalConfirmPassword").value;
+
+  if (!current || !newPass || !confirm) {
+    showToast("Please fill in all fields", "warning");
     return;
   }
+  if (newPass.length < 8) {
+    showToast("New password must be at least 8 characters", "warning");
+    return;
+  }
+  if (newPass !== confirm) {
+    showToast("Passwords do not match", "warning");
+    return;
+  }
+
   try {
     const response = await apiCall("/api/users/me/password", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ oldPassword, newPassword }),
+      body: JSON.stringify({ oldPassword: current, newPassword: newPass }),
     });
-    if (!response || !response.ok) throw new Error("Failed to update password");
+    if (!response || !response.ok) {
+      const err = await response.text();
+      throw new Error(err || "Failed to update password");
+    }
     showToast("Password updated successfully", "success");
-    document.getElementById("oldPassword").value = "";
-    document.getElementById("newPassword").value = "";
+    hideChangePasswordModal();
   } catch (error) {
     showToast("Error: " + error.message, "error");
   }
-};
+}
+
+// ---- Password strength helpers ----
+function validatePasswordStrength(password) {
+  const hasMinLength = password.length >= 8;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  const hasSpecial = /[@$!%*?&]/.test(password);
+  const commonPasswords = [
+    "password123",
+    "password1",
+    "12345678",
+    "123456789",
+    "qwerty123",
+    "admin123",
+    "letmein",
+    "welcome1",
+    "passw0rd",
+    "hello123",
+  ];
+  const isCommon = commonPasswords.includes(password.toLowerCase());
+
+  updateRequirement("reqLength", "reqLengthIcon", hasMinLength);
+  updateRequirement("reqCase", "reqCaseIcon", hasUpperCase && hasLowerCase);
+  updateRequirement("reqDigit", "reqDigitIcon", hasDigit);
+  updateRequirement("reqSpecial", "reqSpecialIcon", hasSpecial);
+  updateRequirement(
+    "reqCommon",
+    "reqCommonIcon",
+    !isCommon && password.length > 0,
+  );
+}
+
+function updateRequirement(containerId, iconId, isMet) {
+  const container = document.getElementById(containerId);
+  const icon = document.getElementById(iconId);
+  if (container) {
+    container.style.color = isMet ? "#48bb78" : "#a0aec0";
+  }
+  if (icon) {
+    icon.textContent = isMet ? "✓" : "✗";
+  }
+}
+
+function validateConfirmPassword() {
+  const newPass = document.getElementById("modalNewPassword").value;
+  const confirm = document.getElementById("modalConfirmPassword").value;
+  const icon = document.getElementById("confirmMatchIcon");
+  const text = document.getElementById("confirmMatchText");
+  const container = document.getElementById("confirmMatch");
+
+  if (!confirm) {
+    icon.textContent = "✗";
+    text.textContent = "Please confirm your password";
+    container.style.color = "#a0aec0";
+    return;
+  }
+  if (newPass === confirm) {
+    icon.textContent = "✓";
+    text.textContent = "Passwords match";
+    container.style.color = "#48bb78";
+  } else {
+    icon.textContent = "✗";
+    text.textContent = "Passwords do not match";
+    container.style.color = "#e53e3e";
+  }
+}
 
 // ================================
-// PRIVACY SETTINGS
+// PRIVACY SETTINGS MODAL
+// ================================
+function showPrivacySettingsModal() {
+  const modal = document.getElementById("privacySettingsModal");
+  if (!modal) return;
+  document.getElementById("modalIncomingSharePrivacy").value =
+    currentUser.incomingSharePrivacy || "EVERYONE";
+  document.getElementById("modalFriendRequestPrivacy").value =
+    currentUser.friendRequestPrivacy || "EVERYONE";
+  document.getElementById("modalAutoApprove").checked =
+    currentUser.autoApproveFriends || false;
+  updatePrivacyHints();
+  modal.classList.add("active");
+}
+
+function hidePrivacySettingsModal() {
+  const modal = document.getElementById("privacySettingsModal");
+  if (modal) modal.classList.remove("active");
+}
+
+function updatePrivacyHints() {
+  const incoming = document.getElementById("modalIncomingSharePrivacy").value;
+  const friendReq = document.getElementById("modalFriendRequestPrivacy").value;
+  const autoApprove = document.getElementById("modalAutoApprove").checked;
+  document.getElementById("modalIncomingSharePrivacyHint").textContent =
+    incoming === "EVERYONE"
+      ? "Anyone can share files with you."
+      : incoming === "FRIENDS_ONLY"
+        ? "Only your friends can share files with you."
+        : "No one can share files with you.";
+  document.getElementById("modalFriendRequestPrivacyHint").textContent =
+    friendReq === "EVERYONE"
+      ? "Anyone can send you a friend request."
+      : "No one can send you friend requests.";
+  document.getElementById("modalAutoApproveHint").textContent = autoApprove
+    ? "Friend requests are automatically accepted."
+    : "You must manually accept friend requests.";
+}
+
+async function savePrivacySettings() {
+  const incoming = document.getElementById("modalIncomingSharePrivacy").value;
+  const friendReq = document.getElementById("modalFriendRequestPrivacy").value;
+  const autoApprove = document.getElementById("modalAutoApprove").checked;
+
+  try {
+    await window.updateIncomingSharePrivacy(incoming);
+    await window.updateFriendRequestPrivacy(friendReq);
+    await window.updateAutoApprove(autoApprove);
+    showToast("Privacy settings updated", "success");
+    hidePrivacySettingsModal();
+    await loadProfile();
+  } catch (error) {
+    showToast("Error: " + error.message, "error");
+  }
+}
+
+// ================================
+// PRIVACY API UPDATES (existing)
 // ================================
 window.updateIncomingSharePrivacy = async function (value) {
   try {
@@ -740,14 +834,12 @@ window.updateIncomingSharePrivacy = async function (value) {
       body: JSON.stringify({ privacy: value }),
     });
     if (!response || !response.ok) throw new Error("Failed to update privacy");
-    showToast("Privacy updated", "success");
     const userResponse = await apiCall("/api/users/me", { skipDedupe: true });
     if (userResponse && userResponse.ok) {
       const user = await userResponse.json();
       window.setUserData(user);
       currentUser = user;
     }
-    await loadProfile();
   } catch (error) {
     showToast("Error: " + error.message, "error");
   }
@@ -762,14 +854,12 @@ window.updateFriendRequestPrivacy = async function (value) {
     });
     if (!response || !response.ok)
       throw new Error("Failed to update friend request privacy");
-    showToast("Friend request privacy updated", "success");
     const userResponse = await apiCall("/api/users/me", { skipDedupe: true });
     if (userResponse && userResponse.ok) {
       const user = await userResponse.json();
       window.setUserData(user);
       currentUser = user;
     }
-    await loadProfile();
   } catch (error) {
     showToast("Error: " + error.message, "error");
   }
@@ -783,14 +873,12 @@ window.updateAutoApprove = async function (enabled) {
     );
     if (!response || !response.ok)
       throw new Error("Failed to update auto-approve");
-    showToast(`Auto-approve ${enabled ? "enabled" : "disabled"}`, "success");
     const userResponse = await apiCall("/api/users/me", { skipDedupe: true });
     if (userResponse && userResponse.ok) {
       const user = await userResponse.json();
       window.setUserData(user);
       currentUser = user;
     }
-    await loadProfile();
   } catch (error) {
     showToast("Error: " + error.message, "error");
     document.getElementById("autoApproveToggle").checked = !enabled;

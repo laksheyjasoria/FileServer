@@ -12,6 +12,8 @@ public enum ErrorCode {
 	ACCESS_DENIED(HttpStatus.FORBIDDEN, "Access denied"), UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Unauthorized"),
 	OAUTH_ERROR(HttpStatus.UNAUTHORIZED, "OAuth authentication failed"),
 	ACCOUNT_DEACTIVATED(HttpStatus.FORBIDDEN, "Your account has been deactivated. Please contact the administrator."),
+	INVALID_PASSWORD(HttpStatus.BAD_REQUEST, "Password does not meet security requirements"),
+    SAME_PASSWORD(HttpStatus.BAD_REQUEST, "New password must be different from the current password"),
 
 	// Validation & Bad Requests
 	VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Validation failed"), BAD_REQUEST(HttpStatus.BAD_REQUEST, "Bad request"),
