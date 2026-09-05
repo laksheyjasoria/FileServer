@@ -9,6 +9,49 @@
       rel="icon"
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>"
     />
+    <style>
+      /* Override to allow scrolling */
+      .login-container {
+        height: 100vh;
+        overflow-y: auto;
+        padding: 20px 0;
+        display: flex;
+        align-items: flex-start; /* not centering vertically to allow scroll */
+        justify-content: center;
+      }
+      .login-card {
+        margin: 20px auto;
+        max-width: 400px;
+        width: 90%;
+      }
+      /* Password requirements styles */
+      #passwordRequirements {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #a0aec0;
+      }
+      #passwordRequirements div {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+        color: #a0aec0;
+        transition: color 0.2s;
+      }
+      #passwordRequirements .met {
+        color: #48bb78;
+      }
+      #passwordRequirements .icon {
+        font-size: 14px;
+        width: 20px;
+        text-align: center;
+      }
+      .optional {
+        font-weight: 400;
+        color: #a0aec0;
+        font-size: 0.85rem;
+      }
+    </style>
   </head>
   <body>
     <div class="login-container">
@@ -45,6 +88,24 @@
               placeholder="Create a strong password"
               required
             />
+            <!-- Password requirements list -->
+            <div id="passwordRequirements">
+              <div id="reqLength">
+                <span class="icon" id="reqLengthIcon">✗</span> Must be at least 8 characters
+              </div>
+              <div id="reqCase">
+                <span class="icon" id="reqCaseIcon">✗</span> One uppercase and one lowercase letter
+              </div>
+              <div id="reqDigit">
+                <span class="icon" id="reqDigitIcon">✗</span> One number
+              </div>
+              <div id="reqSpecial">
+                <span class="icon" id="reqSpecialIcon">✗</span> Must contain special character (@$!%*?&)
+              </div>
+              <div id="reqCommon">
+                <span class="icon" id="reqCommonIcon">✗</span> Must not be common
+              </div>
+            </div>
           </div>
           <div class="form-group">
             <label
@@ -92,10 +153,48 @@
           overlay.classList.remove("active");
           overlay.style.display = "none";
         }
+
+        const passwordInput = document.getElementById("password");
+        if (passwordInput) {
+          passwordInput.addEventListener("input", function () {
+            validatePasswordStrength(this.value);
+          });
+        }
       });
+
+      function updateRequirement(elementId, iconId, isMet) {
+        const container = document.getElementById(elementId);
+        const icon = document.getElementById(iconId);
+        if (container) {
+          container.className = isMet ? "met" : "";
+        }
+        if (icon) {
+          icon.textContent = isMet ? "✓" : "✗";
+        }
+      }
+
+      function validatePasswordStrength(password) {
+        const hasMinLength = password.length >= 8;
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasDigit = /\d/.test(password);
+        const hasSpecial = /[@$!%*?&]/.test(password);
+        const commonPasswords = [
+          "password123", "password1", "12345678", "123456789", "qwerty123",
+          "admin123", "letmein", "welcome1", "passw0rd", "hello123"
+        ];
+        const isCommon = commonPasswords.includes(password.toLowerCase());
+
+        updateRequirement("reqLength", "reqLengthIcon", hasMinLength);
+        updateRequirement("reqCase", "reqCaseIcon", hasUpperCase && hasLowerCase);
+        updateRequirement("reqDigit", "reqDigitIcon", hasDigit);
+        updateRequirement("reqSpecial", "reqSpecialIcon", hasSpecial);
+        updateRequirement("reqCommon", "reqCommonIcon", !isCommon && password.length > 0);
+      }
 
       async function register(event) {
         event.preventDefault();
+
         const name = document.getElementById("name").value.trim();
         const email = document.getElementById("email").value.trim();
         const password = document.getElementById("password").value;
@@ -103,6 +202,23 @@
 
         if (!name || !email || !password) {
           showToast("Please fill in all required fields.", "warning");
+          return;
+        }
+
+        // Defensive password validation
+        const hasMinLength = password.length >= 8;
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasDigit = /\d/.test(password);
+        const hasSpecial = /[@$!%*?&]/.test(password);
+        const commonPasswords = [
+          "password123", "password1", "12345678", "123456789", "qwerty123",
+          "admin123", "letmein", "welcome1", "passw0rd", "hello123"
+        ];
+        const isCommon = commonPasswords.includes(password.toLowerCase());
+
+        if (!hasMinLength || !hasUpperCase || !hasLowerCase || !hasDigit || !hasSpecial || isCommon) {
+          showToast("Please ensure your password meets all requirements.", "warning");
           return;
         }
 
@@ -119,11 +235,7 @@
           });
           const result = await response.json();
           if (response.ok && result.success) {
-            showToast(
-              "Registration successful. Redirecting...",
-              "success",
-              3000,
-            );
+            showToast("Registration successful. Redirecting...", "success", 3000);
             localStorage.setItem("jwtToken", result.data);
             localStorage.setItem("userEmail", email);
             setTimeout(() => (window.location.href = "/index.html"), 1500);
