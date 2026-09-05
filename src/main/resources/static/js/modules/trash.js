@@ -1,10 +1,11 @@
-// trash.js – Complete updated version (shows all trashed items at root)
+// trash.js – Complete with search filter (preserves all existing functionality)
 
 // ============================
 // GLOBALS
 // ============================
 let allTrashItems = [];
 let currentTrashFolderId = null; // null = root of trash
+let searchQuery = ''; // NEW: for filtering
 
 // ============================
 // INIT
@@ -18,6 +19,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setupTrashUI();
   await loadTrash();
+  attachSearchListener(); // NEW
 });
 
 function setupTrashUI() {
@@ -38,10 +40,30 @@ function setupTrashUI() {
 }
 
 // ============================
+// SEARCH FILTER
+// ============================
+function attachSearchListener() {
+  const searchInput = document.getElementById('searchInput');
+  if (!searchInput) {
+    // Header may not be ready yet – retry
+    setTimeout(attachSearchListener, 200);
+    return;
+  }
+  // Remove any existing listener to avoid duplicates
+  searchInput.removeEventListener('input', handleSearchInput);
+  searchInput.addEventListener('input', handleSearchInput);
+}
+
+function handleSearchInput(event) {
+  searchQuery = event.target.value.trim().toLowerCase();
+  renderTrashItems(); // re‑render with filter
+}
+
+// ============================
 // LOAD TRASH
 // ============================
 async function loadTrash() {
-  let container = document.getElementById("trashContainer");
+  const container = document.getElementById("trashContainer");
   if (!container) {
     console.warn("Container #trashContainer missing – creating one.");
     const body = document.body || document.documentElement;
@@ -55,6 +77,10 @@ async function loadTrash() {
   try {
     const files = await getTrashItems({ skipDedupe: true });
     allTrashItems = files;
+    // Reset search when reloading (optional)
+    searchQuery = '';
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.value = '';
     renderTrashItems();
     updateBreadcrumb();
   } catch (error) {
@@ -70,21 +96,23 @@ function renderTrashItems() {
   const container = document.getElementById("trashContainer");
   if (!container) return;
 
-  // ✅ FIX: At root, show ALL trashed items (not just parentId === null)
-  const items = allTrashItems.filter((item) => {
+  // 1. Filter by current folder
+  let items = allTrashItems.filter((item) => {
     const parentId = item.parentId || null;
-    if (currentTrashFolderId === null) {
-      return true; // show everything
-    }
+    if (currentTrashFolderId === null) return true;
     return parentId === currentTrashFolderId;
   });
 
-  if (!items || items.length === 0) {
-    showEmptyState(
-      container,
-      "This folder is empty",
-      "Items deleted from your drive will appear here",
+  // 2. Apply search filter (NEW)
+  if (searchQuery) {
+    items = items.filter(item => 
+      item.name.toLowerCase().includes(searchQuery)
     );
+  }
+
+  if (!items || items.length === 0) {
+    const message = searchQuery ? `No items match "${searchQuery}"` : "This folder is empty";
+    showEmptyState(container, message, "Items deleted from your drive will appear here");
     return;
   }
 
@@ -171,12 +199,19 @@ function openTrashFolder(folderId) {
     return;
   }
   currentTrashFolderId = folderId;
+  // Clear search when navigating into a folder
+  searchQuery = '';
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) searchInput.value = '';
   renderTrashItems();
   updateBreadcrumb();
 }
 
 function navigateToTrashRoot() {
   currentTrashFolderId = null;
+  searchQuery = '';
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) searchInput.value = '';
   renderTrashItems();
   updateBreadcrumb();
 }
@@ -244,16 +279,19 @@ function toggleSelectAll() {
   const selectAll = document.getElementById("selectAllCheckbox");
   if (!selectAll) return;
   const checked = selectAll.checked;
-  // Get current visible items (based on current folder)
-  const visibleItems = allTrashItems.filter((item) => {
+  // Get current visible items (based on current folder + search)
+  let items = allTrashItems.filter((item) => {
     const parentId = item.parentId || null;
     if (currentTrashFolderId === null) return true;
     return parentId === currentTrashFolderId;
   });
+  if (searchQuery) {
+    items = items.filter(item => item.name.toLowerCase().includes(searchQuery));
+  }
   if (checked) {
-    visibleItems.forEach((f) => selectedItems.add(f.id));
+    items.forEach((f) => selectedItems.add(f.id));
   } else {
-    visibleItems.forEach((f) => selectedItems.delete(f.id));
+    items.forEach((f) => selectedItems.delete(f.id));
   }
   renderTrashItems();
 }
@@ -269,14 +307,18 @@ function updateSelectionToolbar() {
     if (countEl)
       countEl.innerText = `${count} item${count > 1 ? "s" : ""} selected`;
     if (selectAllCheckbox) {
-      const visibleItems = allTrashItems.filter((item) => {
+      // Get current visible items
+      let items = allTrashItems.filter((item) => {
         const parentId = item.parentId || null;
         if (currentTrashFolderId === null) return true;
         return parentId === currentTrashFolderId;
       });
-      selectAllCheckbox.checked = count === visibleItems.length;
+      if (searchQuery) {
+        items = items.filter(item => item.name.toLowerCase().includes(searchQuery));
+      }
+      selectAllCheckbox.checked = count === items.length;
       selectAllCheckbox.indeterminate =
-        count > 0 && count < visibleItems.length;
+        count > 0 && count < items.length;
     }
   } else {
     toolbar.classList.remove("show");
@@ -569,4 +611,4 @@ window.loadTrash = loadTrash;
 window.openTrashFolder = openTrashFolder;
 window.navigateToTrashRoot = navigateToTrashRoot;
 
-console.log("✅ trash.js loaded (all trashed items visible at root)");
+console.log("✅ trash.js loaded with search filter");
