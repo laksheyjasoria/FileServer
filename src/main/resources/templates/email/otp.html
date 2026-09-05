@@ -1,29 +1,54 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <style>
-        .container { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; }
-        .header { background: #1a73e8; color: white; padding: 20px; text-align: center; }
-        .otp-code { font-size: 32px; font-weight: bold; text-align: center; padding: 20px; background: #f5f5f5; letter-spacing: 5px; }
-        .warning { color: #dc3545; font-size: 12px; text-align: center; margin-top: 20px; }
+      .container {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      .header {
+        background: #1a73e8;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+      .otp-code {
+        font-size: 32px;
+        font-weight: bold;
+        text-align: center;
+        padding: 20px;
+        background: #f5f5f5;
+        letter-spacing: 5px;
+      }
+      .warning {
+        color: #dc3545;
+        font-size: 12px;
+        text-align: center;
+        margin-top: 20px;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <div class="header">
-            <h2>Password Reset OTP</h2>
+      <div class="header">
+        <h2>Password Reset OTP</h2>
+      </div>
+      <div class="content">
+        <p>Hi there,</p>
+        <p>
+          We received a request to reset your password. Use the OTP below to
+          proceed:
+        </p>
+        <div class="otp-code">{{otp}}</div>
+        <p>This OTP is valid for <strong>{{expiryMinutes}} minutes</strong>.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+        <div class="warning">
+          ⚠️ Never share this OTP with anyone. Our support team will never ask
+          for it.
         </div>
-        <div class="content">
-            <p>Hi there,</p>
-            <p>We received a request to reset your password. Use the OTP below to proceed:</p>
-            <div class="otp-code">{{otp}}</div>
-            <p>This OTP is valid for <strong>{{expiryMinutes}} minutes</strong>.</p>
-            <p>If you didn't request this, please ignore this email.</p>
-            <div class="warning">
-                ⚠️ Never share this OTP with anyone. Our support team will never ask for it.
-            </div>
-        </div>
+      </div>
     </div>
-</body>
+  </body>
 </html>

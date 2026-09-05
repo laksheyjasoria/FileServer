@@ -52,7 +52,6 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1.0.0
 
-
 app:
   name: File Server
   environment: dev
@@ -99,13 +98,15 @@ app:
   scheduler:
     enabled: true
 
+  file:
+    token:
+      validity-seconds: 2592000 # 30 days (30 * 24 * 60 * 60)
 
 telegram:
   logger:
     enabled: true
     bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN:8199363389:AAHwJxIGiq4eY2TW2Rw1_h4g0oTomETjPCE}
     chat-id: ${TELEGRAM_LOGGER_CHAT_ID:1379405363}
-
 
 logging:
   level:

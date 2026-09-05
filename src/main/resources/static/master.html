@@ -1,82 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Master Drives - File Server</title>
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>">
-</head>
-<body>
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>"
+    />
+  </head>
+  <body>
+    <div id="mainApp" style="display: none">
+      <div id="header-container"></div>
 
-    <div id="mainApp" style="display:none;">
-        <div class="header">
-            <div class="logo">
-                <span class="logo-icon">🏢</span>
-                <span class="logo-text">Master Drive Management</span>
-                <span class="admin-badge">MASTER</span>
+      <div class="app-container">
+        <div class="sidebar"></div>
+        <div class="main-content">
+          <div class="toolbar">
+            <div class="breadcrumb" id="breadcrumb">
+              <span class="breadcrumb-item" onclick="navigateToParent()"
+                >Master Drives</span
+              >
             </div>
-            <div class="search-bar">
-                <input type="text" placeholder="Search master drives..." id="searchInput" 
-                       autocomplete="new-password" name="search">
+            <div class="action-buttons">
+              <button class="btn btn-secondary" id="newFolderBtn">
+                📁 New Folder
+              </button>
             </div>
-            <div class="user-menu">
-                <span id="userEmail" style="font-size:14px; color:#5f6368;"></span>
-                <div class="user-avatar" id="userAvatar">M</div>
-            </div>
+          </div>
+          <div id="fileContainer">
+            <div class="loading">Loading master drives...</div>
+          </div>
         </div>
-
-        <div class="app-container">
-            <div class="sidebar"></div>
-            <div class="main-content">
-                <div class="toolbar">
-                    <div class="breadcrumb" id="breadcrumb">
-                        <span class="breadcrumb-item" onclick="navigateToParent()">Master Drives</span>
-                    </div>
-                    <div class="action-buttons">
-                        <button class="btn btn-secondary" id="newFolderBtn">📁 New Folder</button>
-                    </div>
-                </div>
-                <div id="fileContainer">
-                    <div class="loading">Loading master drives...</div>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
 
     <!-- ===== MODALS ===== -->
     <!-- Create Folder Modal (no private option) -->
     <div class="modal-overlay" id="folderModal">
-        <div class="modal-box">
-            <div class="modal-title">New Folder</div>
-            <div class="modal-body" style="text-align:left;">
-                <div class="form-group">
-                    <label>Folder Name</label>
-                    <input type="text" id="folderName" placeholder="Enter folder name">
-                </div>
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn modal-btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
-                <button class="modal-btn modal-btn-primary" id="createFolderBtn">Create</button>
-            </div>
+      <div class="modal-box">
+        <div class="modal-title">New Folder</div>
+        <div class="modal-body" style="text-align: left">
+          <div class="form-group">
+            <label>Folder Name</label>
+            <input
+              type="text"
+              id="folderName"
+              placeholder="Enter folder name"
+            />
+          </div>
         </div>
+        <div class="modal-actions">
+          <button
+            class="modal-btn modal-btn-secondary"
+            onclick="closeModal('folderModal')"
+          >
+            Cancel
+          </button>
+          <button class="modal-btn modal-btn-primary" id="createFolderBtn">
+            Create
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Rename Modal -->
     <div class="modal-overlay" id="renameModal">
-        <div class="modal-box">
-            <div class="modal-title">Rename</div>
-            <div class="modal-body" style="text-align:left;">
-                <div class="form-group">
-                    <label>New Name</label>
-                    <input type="text" id="newName" placeholder="Enter new name">
-                </div>
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn modal-btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
-                <button class="modal-btn modal-btn-primary" onclick="executeRename()">Save</button>
-            </div>
+      <div class="modal-box">
+        <div class="modal-title">Rename</div>
+        <div class="modal-body" style="text-align: left">
+          <div class="form-group">
+            <label>New Name</label>
+            <input type="text" id="newName" placeholder="Enter new name" />
+          </div>
         </div>
+        <div class="modal-actions">
+          <button
+            class="modal-btn modal-btn-secondary"
+            onclick="closeModal('renameModal')"
+          >
+            Cancel
+          </button>
+          <button class="modal-btn modal-btn-primary" onclick="executeRename()">
+            Save
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="toast-container"></div>
@@ -88,7 +98,8 @@
     <script src="/js/core/toast.js"></script>
     <script src="/js/core/modal.js"></script>
     <script src="/js/ui/navigation.js"></script>
+    <script src="/js/ui/header.js"></script>
     <script src="/js/ui/contextMenu.js"></script>
     <script src="/js/modules/admin.js"></script>
-</body>
+  </body>
 </html>

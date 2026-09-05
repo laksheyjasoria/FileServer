@@ -1,264 +1,324 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>File Server – My Drive</title>
     <link rel="stylesheet" href="/css/styles.css" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>" />
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>"
+    />
+  </head>
+  <body>
+    <div id="header-container"></div>
 
     <!-- ===== HEADER ===== -->
-    <header class="header">
-        <div class="logo">
-            <span class="logo-icon">📁</span>
-            <span class="logo-text">File Server</span>
-        </div>
-        <div class="search-bar">
-            <input type="text" id="searchInput" placeholder="Search files and folders..." />
-        </div>
-        <div class="user-menu">
-            <span id="userEmail" class="user-email"></span>
-            <div class="user-avatar" id="userAvatar">U</div>
-        </div>
-    </header>
 
     <!-- ===== APP CONTAINER ===== -->
     <div class="app-container">
+      <!-- Sidebar -->
+      <nav class="sidebar" id="sidebar">
+        <!-- Dynamically built by navigation.js -->
+      </nav>
 
-        <!-- Sidebar -->
-        <nav class="sidebar" id="sidebar">
-            <!-- Dynamically built by navigation.js -->
-        </nav>
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <div class="breadcrumb" id="breadcrumb">
+            <span class="breadcrumb-item" onclick="navigateToParent()"
+              >My Drive</span
+            >
+          </div>
+          <div class="action-buttons">
+            <input type="checkbox" id="selectAllCheckbox" title="Select All" />
+            <button class="btn btn-secondary" id="newFolderBtn">
+              📁 New Folder
+            </button>
+            <button class="btn btn-primary" id="uploadBtn">⬆ Upload</button>
+            <input type="file" id="fileInput" multiple style="display: none" />
+          </div>
+        </div>
 
-        <!-- Main Content -->
-        <main class="main-content">
+        <!-- Selection Toolbar -->
+        <div id="selectionToolbar" class="selection-toolbar">
+          <span id="selectionCount">0 items selected</span>
+          <button class="btn btn-secondary" onclick="downloadSelected()">
+            ⬇ Download
+          </button>
+          <button class="btn btn-secondary" onclick="copySelected()">
+            📋 Copy
+          </button>
+          <button class="btn btn-secondary" onclick="moveSelected()">
+            📁 Move
+          </button>
+          <button class="btn btn-secondary" onclick="shareSelected()">
+            🔗 Share
+          </button>
+          <!-- 👈 NEW -->
+          <button class="btn btn-danger" onclick="deleteSelected()">
+            🗑 Delete
+          </button>
+        </div>
 
-            <!-- Toolbar -->
-            <div class="toolbar">
-                <div class="breadcrumb" id="breadcrumb">
-                    <span class="breadcrumb-item" onclick="navigateToParent()">My Drive</span>
-                </div>
-                <div class="action-buttons">
-                    <input type="checkbox" id="selectAllCheckbox" title="Select All" />
-                    <button class="btn btn-secondary" id="newFolderBtn">📁 New Folder</button>
-                    <button class="btn btn-primary" id="uploadBtn">⬆ Upload</button>
-                    <input type="file" id="fileInput" multiple style="display:none;" />
-                </div>
-            </div>
-
-            <!-- Selection Toolbar -->
-            <div id="selectionToolbar" class="selection-toolbar">
-                <span id="selectionCount">0 items selected</span>
-                <button class="btn btn-secondary" onclick="downloadSelected()">⬇ Download</button>
-                <button class="btn btn-secondary" onclick="copySelected()">📋 Copy</button>
-                <button class="btn btn-secondary" onclick="moveSelected()">📁 Move</button>
-                <button class="btn btn-secondary" onclick="shareSelected()">🔗 Share</button>  <!-- 👈 NEW -->
-                <button class="btn btn-danger" onclick="deleteSelected()">🗑 Delete</button>
-            </div>
-
-            <!-- File Container -->
-            <div id="fileContainer">
-                <div class="loading">Loading...</div>
-            </div>
-
-        </main>
+        <!-- File Container -->
+        <div id="fileContainer">
+          <div class="loading">Loading...</div>
+        </div>
+      </main>
     </div>
 
     <!-- ===== MODALS ===== -->
 
     <!-- Create Folder Modal -->
     <div id="folderModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>📁 New Folder</h2>
-                <button class="modal-close" onclick="closeModal('folderModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Folder Name</label>
-                    <input type="text" id="folderName" placeholder="Enter folder name" />
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="isPrivate" onchange="togglePasswordField()" />
-                        Make private (password protected)
-                    </label>
-                </div>
-                <div class="form-group" id="passwordField" style="display:none;">
-                    <label>Password</label>
-                    <input type="text" id="folderPassword" placeholder="Enter password" />
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
-                <button class="btn btn-primary" id="createFolderBtn">Create</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>📁 New Folder</h2>
+          <button class="modal-close" onclick="closeModal('folderModal')">
+            &times;
+          </button>
         </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Folder Name</label>
+            <input
+              type="text"
+              id="folderName"
+              placeholder="Enter folder name"
+            />
+          </div>
+          <div class="form-group">
+            <label>
+              <input
+                type="checkbox"
+                id="isPrivate"
+                onchange="togglePasswordField()"
+              />
+              Make private (password protected)
+            </label>
+          </div>
+          <div class="form-group" id="passwordField" style="display: none">
+            <label>Password</label>
+            <input
+              type="text"
+              id="folderPassword"
+              placeholder="Enter password"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('folderModal')">
+            Cancel
+          </button>
+          <button class="btn btn-primary" id="createFolderBtn">Create</button>
+        </div>
+      </div>
     </div>
 
     <!-- Rename Modal -->
     <div id="renameModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>✏️ Rename</h2>
-                <button class="modal-close" onclick="closeModal('renameModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>New Name</label>
-                    <input type="text" id="newName" placeholder="Enter new name" />
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="executeRename()">Rename</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>✏️ Rename</h2>
+          <button class="modal-close" onclick="closeModal('renameModal')">
+            &times;
+          </button>
         </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>New Name</label>
+            <input type="text" id="newName" placeholder="Enter new name" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('renameModal')">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="executeRename()">
+            Rename
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Move/Copy Modal -->
     <div id="moveModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="moveModalTitle">Move to</h2>
-                <button class="modal-close" onclick="closeModal('moveModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Destination</label>
-                    <select id="destinationFolder">
-                        <option value="">Root</option>
-                    </select>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('moveModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="executeMove()">Confirm</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="moveModalTitle">Move to</h2>
+          <button class="modal-close" onclick="closeModal('moveModal')">
+            &times;
+          </button>
         </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Destination</label>
+            <select id="destinationFolder">
+              <option value="">Root</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('moveModal')">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="executeMove()">
+            Confirm
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- ===== SHARE MODAL ===== -->
     <div id="shareModal" class="modal-overlay">
-        <div class="modal-content share-modal">
-            <div class="modal-header">
-                <h2 id="shareModalTitle">📤 Create Share Link</h2>
-                <button class="modal-close" onclick="closeShareModal()">&times;</button>
-            </div>
-
-            <div class="modal-body">
-                <div id="shareFileInfo" class="share-file-info">
-                    <!-- Dynamically filled -->
-                </div>
-
-                <div class="form-group">
-                    <label>Who can access?</label>
-                    <select id="shareType" onchange="toggleShareOptions()">
-                        <option value="PUBLIC">🔓 Anyone with link</option>
-                        <option value="PROTECTED">🔒 Password protected</option>
-                        <option value="USER_ONLY">👤 Specific users only</option>
-                    </select>
-                </div>
-
-                <div id="sharePasswordGroup" class="form-group" style="display:none;">
-                    <label>Set Password</label>
-                    <input type="text" id="sharePassword" placeholder="Enter a password (min 4 characters)" />
-                    <div class="field-hint">Users will need this password to access</div>
-                </div>
-
-                <div id="userSelectionGroup" style="display:none;">
-                    <div class="share-user-description">Users Only – Registered users only</div>
-                    <div class="form-group">
-                        <label>Selected Users</label>
-                        <div id="selectedUsersContainer" class="selected-users-container">
-                            <span class="empty-chip-text">No users selected</span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Add users</label>
-                        <div class="user-search-container">
-                            <input type="text" id="userSearchInput" placeholder="Type email or name to search..." oninput="searchUsers(this.value)" />
-                            <div id="userSearchResults" class="user-search-results"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Permission</label>
-                    <select id="sharePermission">
-                        <option value="VIEW_DOWNLOAD">👁️ View & Download</option>
-                        <option value="VIEW">👁️ View only</option>
-                        <option value="DOWNLOAD">⬇️ Download only</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Expiry (optional)</label>
-                    <input type="datetime-local" id="shareExpiry" />
-                    <div class="field-hint">Leave empty for no expiry</div>
-                </div>
-
-                <input type="hidden" id="shareFileId" />
-                <input type="hidden" id="shareFileName" />
-            </div>
-
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeShareModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="createShareLink()">Create Link</button>
-            </div>
+      <div class="modal-content share-modal">
+        <div class="modal-header">
+          <h2 id="shareModalTitle">📤 Create Share Link</h2>
+          <button class="modal-close" onclick="closeShareModal()">
+            &times;
+          </button>
         </div>
+
+        <div class="modal-body">
+          <div id="shareFileInfo" class="share-file-info">
+            <!-- Dynamically filled -->
+          </div>
+
+          <div class="form-group">
+            <label>Who can access?</label>
+            <select id="shareType" onchange="toggleShareOptions()">
+              <option value="PUBLIC">🔓 Anyone with link</option>
+              <option value="PROTECTED">🔒 Password protected</option>
+              <option value="USER_ONLY">👤 Specific users only</option>
+            </select>
+          </div>
+
+          <div id="sharePasswordGroup" class="form-group" style="display: none">
+            <label>Set Password</label>
+            <input
+              type="text"
+              id="sharePassword"
+              placeholder="Enter a password (min 4 characters)"
+            />
+            <div class="field-hint">
+              Users will need this password to access
+            </div>
+          </div>
+
+          <div id="userSelectionGroup" style="display: none">
+            <div class="share-user-description">
+              Users Only – Registered users only
+            </div>
+            <div class="form-group">
+              <label>Selected Users</label>
+              <div id="selectedUsersContainer" class="selected-users-container">
+                <span class="empty-chip-text">No users selected</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Add users</label>
+              <div class="user-search-container">
+                <input
+                  type="text"
+                  id="userSearchInput"
+                  placeholder="Type email or name to search..."
+                  oninput="searchUsers(this.value)"
+                />
+                <div id="userSearchResults" class="user-search-results"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Permission</label>
+            <select id="sharePermission">
+              <option value="VIEW_DOWNLOAD">👁️ View & Download</option>
+              <option value="VIEW">👁️ View only</option>
+              <option value="DOWNLOAD">⬇️ Download only</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Expiry (optional)</label>
+            <input type="datetime-local" id="shareExpiry" />
+            <div class="field-hint">Leave empty for no expiry</div>
+          </div>
+
+          <input type="hidden" id="shareFileId" />
+          <input type="hidden" id="shareFileName" />
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeShareModal()">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="createShareLink()">
+            Create Link
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Share Link Modal -->
     <div id="shareLinkModal" class="modal-overlay">
-        <div class="modal-content share-link-modal">
-            <div class="modal-header">
-                <h2>✅ Share Link Created</h2>
-                <button class="modal-close" onclick="closeShareLinkModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="share-link-info">
-                    <div class="share-link-detail">
-                        <span class="label">🔗 Link</span>
-                        <div class="share-link-container">
-                            <input type="text" id="shareLinkInput" readonly />
-                            <button class="btn btn-primary" onclick="copyShareLink()">📋 Copy</button>
-                        </div>
-                    </div>
-                    <div class="share-link-detail">
-                        <span class="label">⏱️ Expires</span>
-                        <span id="shareLinkExpiry">Never</span>
-                    </div>
-                    <div class="share-link-detail">
-                        <span class="label">🔐 Type</span>
-                        <span id="shareLinkType">Public</span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeShareLinkModal()">Close</button>
-            </div>
+      <div class="modal-content share-link-modal">
+        <div class="modal-header">
+          <h2>✅ Share Link Created</h2>
+          <button class="modal-close" onclick="closeShareLinkModal()">
+            &times;
+          </button>
         </div>
+        <div class="modal-body">
+          <div class="share-link-info">
+            <div class="share-link-detail">
+              <span class="label">🔗 Link</span>
+              <div class="share-link-container">
+                <input type="text" id="shareLinkInput" readonly />
+                <button class="btn btn-primary" onclick="copyShareLink()">
+                  📋 Copy
+                </button>
+              </div>
+            </div>
+            <div class="share-link-detail">
+              <span class="label">⏱️ Expires</span>
+              <span id="shareLinkExpiry">Never</span>
+            </div>
+            <div class="share-link-detail">
+              <span class="label">🔐 Type</span>
+              <span id="shareLinkType">Public</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeShareLinkModal()">
+            Close
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Upload Modal -->
     <div id="uploadModal" class="modal-overlay">
-        <div class="modal-content upload-modal">
-            <div class="modal-header">
-                <h2>⬆ Upload Queue</h2>
-                <button class="modal-close" onclick="closeUploadModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="uploadList" class="upload-list">
-                    <!-- Upload items added dynamically -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeUploadModal()">Close</button>
-            </div>
+      <div class="modal-content upload-modal">
+        <div class="modal-header">
+          <h2>⬆ Upload Queue</h2>
+          <button class="modal-close" onclick="closeUploadModal()">
+            &times;
+          </button>
         </div>
+        <div class="modal-body">
+          <div id="uploadList" class="upload-list">
+            <!-- Upload items added dynamically -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeUploadModal()">
+            Close
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- ===== TOAST CONTAINER ===== -->
@@ -266,13 +326,14 @@
 
     <!-- ===== SCRIPTS ===== -->
     <script src="/js/core/config.js"></script>
+    <script src="/js/ui/header.js"></script>
     <script src="/js/core/utils.js"></script>
     <script src="/js/core/api.js"></script>
     <script src="/js/core/toast.js"></script>
     <script src="/js/core/modal.js"></script>
     <script src="/js/ui/navigation.js"></script>
-    <script src="/js/modules/app.js"></script>           <!-- main manager -->
-    <script src="/js/ui/upload.js"></script>             <!-- upload queue -->
-    <script src="/js/modules/shareOperations.js"></script> <!-- share modal logic -->
-</body>
+    <script src="/js/modules/app.js"></script>
+    <script src="/js/ui/upload.js"></script>
+    <script src="/js/modules/shareOperations.js"></script>
+  </body>
 </html>

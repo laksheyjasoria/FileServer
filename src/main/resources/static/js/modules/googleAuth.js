@@ -1,115 +1,176 @@
-// googleAuth.js – Google Sign-In (renders GSI button)
+// googleAuth.js – Google Sign-In (renders GSI button) with user data caching
 
-(function() {
-    let initialized = false;
+(function () {
+  let initialized = false;
 
-    function initGoogleSignIn() {
-        if (initialized) return;
-        if (typeof google === 'undefined' || typeof google.accounts === 'undefined') {
-            console.warn('Google SDK not loaded yet. Retrying...');
-            setTimeout(initGoogleSignIn, 500);
-            return;
-        }
-
-        fetch(`${API_URL}/auth/google/client-id`)
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to fetch client ID');
-                return response.text();
-            })
-            .then(clientId => {
-                if (!clientId || clientId.trim() === '') {
-                    throw new Error('Client ID is empty');
-                }
-                initialized = true;
-
-                google.accounts.id.initialize({
-                    client_id: clientId.trim(),
-                    callback: handleCredentialResponse,
-                    cancel_on_tap_outside: false,
-                    use_fedcm: false,
-                    context: 'signin'
-                });
-
-                // Render the GSI button in the container
-                const container = document.querySelector('.g_id_signin');
-                if (container) {
-                    google.accounts.id.renderButton(container, {
-                        type: 'standard',
-                        theme: 'outline',
-                        size: 'large',
-                        text: 'continue_with',
-                        shape: 'pill',
-                        width: '315',
-                        logo_alignment: 'center'
-                    });
-                    console.log('✅ Google GSI button rendered.');
-                } else {
-                    console.warn('Container .g_id_signin not found.');
-                }
-            })
-            .catch(error => {
-                console.error('Google Sign-In setup failed:', error);
-                if (typeof showToast === 'function') {
-                    showToast('Google Sign-In is not available. Please use email/password.', 'warning');
-                }
-            });
+  function initGoogleSignIn() {
+    if (initialized) return;
+    if (
+      typeof google === "undefined" ||
+      typeof google.accounts === "undefined"
+    ) {
+      console.warn("Google SDK not loaded yet. Retrying...");
+      setTimeout(initGoogleSignIn, 500);
+      return;
     }
 
-    window.handleCredentialResponse = function(response) {
-        const idToken = response.credential;
-		localStorage.setItem('googleIdToken', idToken);
-        const isSync = sessionStorage.getItem('googleSyncMode') === 'true' || window._syncMode === true;
-        sessionStorage.removeItem('googleSyncMode');
-        window._syncMode = false;
+    fetch(`${API_URL}/auth/google/client-id`)
+      .then((response) => {
+        if (!response.ok) throw new Error("Failed to fetch client ID");
+        return response.text();
+      })
+      .then((clientId) => {
+        if (!clientId || clientId.trim() === "") {
+          throw new Error("Client ID is empty");
+        }
+        initialized = true;
 
-        fetch(`${API_URL}/auth/google?sync=${isSync}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken })
-        })
-            .then(r => r.json())
-            .then(json => {
-                if (json && json.success) {
-                    localStorage.setItem('jwtToken', json.data);
-                    if (isSync) {
-                        if (typeof showToast === 'function') {
-                            showToast('Profile synced with Google! Redirecting...', 'success', 2000);
-                        }
-                        setTimeout(() => window.location.href = '/profile.html', 1500);
-                    } else {
-                        if (typeof showToast === 'function') {
-                            showToast('Google Sign-In successful. Redirecting...', 'success', 2000);
-                        }
-                        setTimeout(() => window.location.href = '/index.html', 1500);
-                    }
-                } else {
-                    const msg = json.message || 'Google sign-in failed';
-                    if (typeof showToast === 'function') showToast(msg, 'error');
-                    else alert(msg);
-                }
-            })
-            .catch(err => {
-                console.error('Google sign-in error:', err);
-                if (typeof showToast === 'function') showToast('Network error during Google sign-in.', 'error');
-                else alert('Network error');
-            });
-    };
+        google.accounts.id.initialize({
+          client_id: clientId.trim(),
+          callback: handleCredentialResponse,
+          cancel_on_tap_outside: false,
+          use_fedcm: false,
+          context: "signin",
+        });
 
-    // ===== Trigger Google sync (profile page) =====
-    window.triggerGoogleSync = function() {
-        if (!initialized) {
-            if (typeof showToast === 'function') {
-                showToast('Google Sign-In is still loading. Please wait a moment and try again.', 'info');
+        const container = document.querySelector(".g_id_signin");
+        if (container) {
+          google.accounts.id.renderButton(container, {
+            type: "standard",
+            theme: "outline",
+            size: "large",
+            text: "continue_with",
+            shape: "pill",
+            width: "315",
+            logo_alignment: "center",
+          });
+          console.log("✅ Google GSI button rendered.");
+        } else {
+          console.warn("Container .g_id_signin not found.");
+        }
+      })
+      .catch((error) => {
+        console.error("Google Sign-In setup failed:", error);
+        if (typeof showToast === "function") {
+          showToast(
+            "Google Sign-In is not available. Please use email/password.",
+            "warning",
+          );
+        }
+      });
+  }
+
+  async function fetchAndStoreUserData(token) {
+    try {
+      console.log("📡 Fetching user profile after Google login...");
+      const response = await fetch(`${API_URL}/api/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        let errorMsg = "Failed to fetch user profile";
+        try {
+          const errJson = await response.json();
+          errorMsg = errJson.message || errorMsg;
+        } catch (_) {}
+        throw new Error(errorMsg);
+      }
+      const user = await response.json();
+      console.log("👤 User profile fetched:", user);
+
+      if (typeof window.setUserData === "function") {
+        window.setUserData(user);
+        console.log("📦 User data cached (setUserData called)");
+      }
+      return user;
+    } catch (err) {
+      console.error("❌ Error fetching user profile:", err);
+      throw err;
+    }
+  }
+
+  window.handleCredentialResponse = function (response) {
+    const idToken = response.credential;
+    localStorage.setItem("googleIdToken", idToken);
+    const isSync =
+      sessionStorage.getItem("googleSyncMode") === "true" ||
+      window._syncMode === true;
+    sessionStorage.removeItem("googleSyncMode");
+    window._syncMode = false;
+
+    console.log(`🔑 Google sign-in with sync=${isSync}`);
+
+    fetch(`${API_URL}/auth/google?sync=${isSync}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    })
+      .then((r) => r.json())
+      .then(async (json) => {
+        if (json && json.success) {
+          const token = json.data;
+          localStorage.setItem("jwtToken", token);
+          console.log("✅ Google auth successful, token stored");
+
+          try {
+            await fetchAndStoreUserData(token);
+          } catch (err) {
+            localStorage.removeItem("jwtToken");
+            showToast(err.message || "Failed to load profile", "error");
+            return;
+          }
+
+          if (isSync) {
+            if (typeof showToast === "function") {
+              showToast(
+                "Profile synced with Google! Redirecting...",
+                "success",
+                2000,
+              );
             }
-            return;
+            setTimeout(() => (window.location.href = "/profile.html"), 1500);
+          } else {
+            if (typeof showToast === "function") {
+              showToast(
+                "Google Sign-In successful. Redirecting...",
+                "success",
+                2000,
+              );
+            }
+            setTimeout(() => (window.location.href = "/index.html"), 1500);
+          }
+        } else {
+          const msg = json.message || "Google sign-in failed";
+          console.error("❌ Google sign-in error:", msg);
+          if (typeof showToast === "function") showToast(msg, "error");
+          else alert(msg);
         }
-        sessionStorage.setItem('googleSyncMode', 'true');
-        window.location.href = '/login.html?sync=true';
-    };
+      })
+      .catch((err) => {
+        console.error("❌ Google sign-in network error:", err);
+        if (typeof showToast === "function")
+          showToast("Network error during Google sign-in.", "error");
+        else alert("Network error");
+      });
+  };
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initGoogleSignIn);
-    } else {
-        initGoogleSignIn();
+  // ===== Trigger Google sync (profile page) =====
+  window.triggerGoogleSync = function () {
+    if (!initialized) {
+      if (typeof showToast === "function") {
+        showToast(
+          "Google Sign-In is still loading. Please wait a moment and try again.",
+          "info",
+        );
+      }
+      return;
     }
+    sessionStorage.setItem("googleSyncMode", "true");
+    window.location.href = "/login.html?sync=true";
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initGoogleSignIn);
+  } else {
+    initGoogleSignIn();
+  }
 })();

@@ -71,6 +71,7 @@ public class SecurityConfig {
 
 						// Public share viewing/streaming/downloading
 						.requestMatchers("/share/**").permitAll()
+						.requestMatchers("/api/files/stream/**").permitAll()
 
 						.anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
