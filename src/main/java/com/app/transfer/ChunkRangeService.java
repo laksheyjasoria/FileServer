@@ -57,7 +57,7 @@ public class ChunkRangeService {
 			return resolveStartOnly(rangeRequest.getStart(), fileSize);
 
 		case SUFFIX:
-			return resolveSuffix(rangeRequest.getSuffixLength(), fileSize);
+			return resolveSuffix(rangeRequest.getStart(), fileSize);
 
 		default:
 			throw new IllegalArgumentException("Unsupported range type.");

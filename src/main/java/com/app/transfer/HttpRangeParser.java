@@ -1,115 +1,184 @@
 package com.app.transfer;
 
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 public class HttpRangeParser {
 
-	public HttpRange parse(String rangeHeader, long fileSize) {
+	public RangeRequest parse(String header) {
 
-		if (rangeHeader == null || rangeHeader.isBlank()) {
-
-			throw new IllegalArgumentException("Range header cannot be empty.");
+		if (header == null || header.isBlank()) {
+			throw new IllegalArgumentException("Range header is empty");
 		}
 
-		if (fileSize <= 0) {
-			throw new IllegalArgumentException("Cannot create a range for an empty file.");
+		String value = header.trim();
+
+		int equalsIndex = value.indexOf('=');
+
+		if (equalsIndex <= 0) {
+			throw new IllegalArgumentException("Invalid Range header");
 		}
 
-		String value = rangeHeader.trim();
+		String unit = value.substring(0, equalsIndex).trim();
 
-		if (!value.regionMatches(true, 0, "bytes=", 0, 6)) {
-
-			throw new IllegalArgumentException("Only byte ranges are supported.");
+		if (!"bytes".equalsIgnoreCase(unit)) {
+			throw new IllegalArgumentException("Only bytes ranges are supported");
 		}
 
-		String rangeValue = value.substring(6).trim();
+		String rangeValue = value.substring(equalsIndex + 1).trim();
 
 		if (rangeValue.isEmpty()) {
-			throw new IllegalArgumentException("Byte range cannot be empty.");
+			throw new IllegalArgumentException("Range value is empty");
 		}
 
 		/*
-		 * Phase 5 intentionally supports one range only.
-		 *
-		 * Multiple ranges require multipart/byteranges responses, which will be added
-		 * only if the application needs them.
+		 * Multiple ranges are intentionally not supported.
 		 */
 		if (rangeValue.contains(",")) {
-			throw new IllegalArgumentException("Multiple byte ranges are not supported.");
+			throw new IllegalArgumentException("Multiple ranges are not supported");
+		}
+
+		if (rangeValue.startsWith("-")) {
+
+			String suffix = rangeValue.substring(1).trim();
+
+			if (suffix.isEmpty()) {
+				throw new IllegalArgumentException("Invalid suffix range");
+			}
+
+			long suffixLength = parsePositiveLong(suffix);
+
+			return RangeRequest.suffix(suffixLength);
 		}
 
 		int dashIndex = rangeValue.indexOf('-');
 
 		if (dashIndex < 0) {
-			throw new IllegalArgumentException("Invalid byte range.");
+			throw new IllegalArgumentException("Invalid byte range");
 		}
 
-		String startPart = rangeValue.substring(0, dashIndex).trim();
+		String startText = rangeValue.substring(0, dashIndex).trim();
+		String endText = rangeValue.substring(dashIndex + 1).trim();
 
-		String endPart = rangeValue.substring(dashIndex + 1).trim();
-
-		if (startPart.isEmpty()) {
-
-			return parseSuffix(endPart, fileSize);
+		if (startText.isEmpty()) {
+			throw new IllegalArgumentException("Invalid byte range");
 		}
 
-		long start = parseNonNegativeLong(startPart, "Range start");
+		long start = parseNonNegativeLong(startText);
 
-		if (start >= fileSize) {
-			throw new IllegalArgumentException("Range start is outside the file.");
+		/*
+		 * bytes=start-
+		 */
+		if (endText.isEmpty()) {
+			return RangeRequest.startOnly(start);
 		}
 
-		if (endPart.isEmpty()) {
+		long end = parseNonNegativeLong(endText);
 
-			return new HttpRange(start, fileSize - 1);
+		if (end < start) {
+			throw new IllegalArgumentException("Range end is smaller than range start");
 		}
 
-		long requestedEnd = parseNonNegativeLong(endPart, "Range end");
-
-		if (requestedEnd < start) {
-			throw new IllegalArgumentException("Range end cannot be smaller than range start.");
-		}
-
-		long end = Math.min(requestedEnd, fileSize - 1);
-
-		return new HttpRange(start, end);
+		return RangeRequest.startEnd(start, end);
 	}
 
-	private HttpRange parseSuffix(String suffixPart, long fileSize) {
+	public ByteRange resolve(RangeRequest request, long fileSize) {
 
-		if (suffixPart.isEmpty()) {
-			throw new IllegalArgumentException("Suffix range length cannot be empty.");
+		if (request == null) {
+			throw new IllegalArgumentException("Range request is null");
 		}
 
-		long suffixLength = parseNonNegativeLong(suffixPart, "Suffix range length");
-
-		if (suffixLength <= 0) {
-			throw new IllegalArgumentException("Suffix range length must be greater than zero.");
+		if (fileSize < 0) {
+			throw new IllegalArgumentException("File size cannot be negative");
 		}
 
-		long actualLength = Math.min(suffixLength, fileSize);
+		if (fileSize == 0) {
+			throw new IllegalArgumentException("Cannot resolve range for empty file");
+		}
 
-		long start = fileSize - actualLength;
+		switch (request.getType()) {
 
-		return new HttpRange(start, fileSize - 1);
-	}
+		case FULL:
+			return new ByteRange(0L, fileSize - 1L);
 
-	private long parseNonNegativeLong(String value, String fieldName) {
+		case START_END: {
 
-		try {
+			long start = request.getStart();
+			long requestedEnd = request.getEnd();
 
-			long parsed = Long.parseLong(value);
-
-			if (parsed < 0) {
-				throw new IllegalArgumentException(fieldName + " cannot be negative.");
+			if (start < 0 || start >= fileSize) {
+				throw new IllegalArgumentException("Range start is outside file");
 			}
 
-			return parsed;
+			long end = Math.min(requestedEnd, fileSize - 1L);
+
+			if (end < start) {
+				throw new IllegalArgumentException("Invalid resolved range");
+			}
+
+			return new ByteRange(start, end);
+		}
+
+		case START_ONLY: {
+
+			long start = request.getStart();
+
+			if (start < 0 || start >= fileSize) {
+				throw new IllegalArgumentException("Range start is outside file");
+			}
+
+			return new ByteRange(start, fileSize - 1L);
+		}
+
+		case SUFFIX: {
+
+			long suffixLength = request.getStart();
+
+			if (suffixLength <= 0) {
+				throw new IllegalArgumentException("Suffix length must be positive");
+			}
+
+			long actualLength = Math.min(suffixLength, fileSize);
+
+			long start = fileSize - actualLength;
+
+			return new ByteRange(start, fileSize - 1L);
+		}
+
+		default:
+			throw new IllegalArgumentException("Unsupported range type");
+		}
+	}
+
+	private long parsePositiveLong(String value) {
+
+		try {
+			long result = Long.parseLong(value);
+
+			if (result <= 0) {
+				throw new IllegalArgumentException("Value must be positive");
+			}
+
+			return result;
 
 		} catch (NumberFormatException ex) {
+			throw new IllegalArgumentException("Invalid numeric range value", ex);
+		}
+	}
 
-			throw new IllegalArgumentException("Invalid " + fieldName.toLowerCase() + ".");
+	private long parseNonNegativeLong(String value) {
+
+		try {
+			long result = Long.parseLong(value);
+
+			if (result < 0) {
+				throw new IllegalArgumentException("Value cannot be negative");
+			}
+
+			return result;
+
+		} catch (NumberFormatException ex) {
+			throw new IllegalArgumentException("Invalid numeric range value", ex);
 		}
 	}
 }

@@ -5,7 +5,6 @@ import java.io.OutputStream;
 
 import org.springframework.stereotype.Service;
 
-import com.app.core.exception.StorageException;
 import com.app.master.entity.MasterFile;
 import com.app.storage.factory.StorageFactory;
 import com.app.upload.service.UploadChunkReader;
@@ -25,92 +24,132 @@ public class FileTransferService {
 		this.storageFactory = storageFactory;
 	}
 
-	/**
-	 * Streams a requested logical range of a chunked file.
-	 *
-	 * The complete file is never assembled in memory.
-	 */
-	public void streamChunkedRange(MasterFile masterFile, ByteRange range, OutputStream outputStream) {
+	public boolean isChunked(MasterFile file) {
 
-		if (masterFile == null) {
-			throw new IllegalArgumentException("MasterFile cannot be null.");
-		}
+		return file != null && file.getUploadJobId() != null && !file.getUploadJobId().isBlank();
+	}
 
-		if (range == null) {
-			throw new IllegalArgumentException("Byte range cannot be null.");
-		}
+	public boolean isLegacy(MasterFile file) {
 
-		if (outputStream == null) {
-			throw new IllegalArgumentException("Output stream cannot be null.");
-		}
-
-		ChunkRangeService.ResolvedChunkRange resolved = chunkRangeService.resolve(masterFile,
-				RangeRequest.startEnd(range.getStart(), range.getEnd()));
-
-		long totalWritten = 0;
-
-		try {
-
-			for (ChunkRangeService.ChunkRange chunkRange : resolved.getChunks()) {
-
-				byte[] chunkData = uploadChunkReader.read(masterFile.getUploadJobId(), chunkRange.getChunkIndex());
-
-				int localStart = chunkRange.getLocalStart();
-
-				int localEnd = chunkRange.getLocalEnd();
-
-				int length = localEnd - localStart + 1;
-
-				outputStream.write(chunkData, localStart, length);
-
-				totalWritten += length;
-			}
-
-			outputStream.flush();
-
-		} catch (IOException ex) {
-
-			throw new StorageException("Failed while streaming file content: " + ex.getMessage());
-
-		} catch (RuntimeException ex) {
-
-			throw ex;
-
-		} catch (Exception ex) {
-
-			throw new StorageException("Failed while streaming file content.");
-		}
-
-		if (totalWritten != range.getLength()) {
-			throw new IllegalStateException("Transferred byte count does not match requested range. " + "Expected "
-					+ range.getLength() + " bytes but transferred " + totalWritten + " bytes.");
-		}
+		return file != null && !isChunked(file) && file.getFileId() != null && !file.getFileId().isBlank();
 	}
 
 	/**
-	 * Legacy storage path.
+	 * Streams the requested logical byte range.
 	 *
-	 * Existing files that have fileId but no uploadJobId continue using the
-	 * existing StorageFactory implementation.
+	 * For chunked files, only the required Telegram chunks are loaded.
+	 *
+	 * For legacy files, the existing storage abstraction is used and the required
+	 * range is copied from the returned byte array.
+	 */
+	public void streamRange(MasterFile file, ByteRange range, OutputStream outputStream) throws IOException {
+
+		if (file == null) {
+			throw new IllegalArgumentException("File cannot be null");
+		}
+
+		if (range == null) {
+			throw new IllegalArgumentException("Range cannot be null");
+		}
+
+		if (outputStream == null) {
+			throw new IllegalArgumentException("Output stream cannot be null");
+		}
+
+		if (isChunked(file)) {
+			streamChunkedRange(file, range, outputStream);
+			return;
+		}
+
+		if (isLegacy(file)) {
+			streamLegacyRange(file, range, outputStream);
+			return;
+		}
+
+		throw new IllegalArgumentException("File has no valid storage reference: " + file.getId());
+	}
+
+	/**
+	 * Streams a logical range from chunked storage.
+	 */
+	private void streamChunkedRange(MasterFile file, ByteRange range, OutputStream outputStream) throws IOException {
+
+		ChunkRangeService.ResolvedChunkRange resolved = chunkRangeService.resolve(file,
+				RangeRequest.startEnd(range.getStart(), range.getEnd()));
+
+		long totalWritten = 0L;
+
+		for (ChunkRangeService.ChunkRange chunk : resolved.getChunks()) {
+
+			byte[] chunkData = uploadChunkReader.read(file.getUploadJobId(), chunk.getChunkIndex());
+
+			if (chunkData == null) {
+				throw new IOException("Chunk data is null for chunk " + chunk.getChunkIndex());
+			}
+
+			long localStart = chunk.getLocalStart();
+			long localEnd = chunk.getLocalEnd();
+
+			if (localStart < 0 || localEnd < localStart || localEnd >= chunkData.length) {
+
+				throw new IOException("Invalid local chunk range for chunk " + chunk.getChunkIndex() + ": " + localStart
+						+ "-" + localEnd + " / " + chunkData.length);
+			}
+
+			int length = (int) (localEnd - localStart + 1L);
+
+			outputStream.write(chunkData, (int) localStart, length);
+
+			totalWritten += length;
+		}
+
+		if (totalWritten != range.getLength()) {
+			throw new IOException(
+					"Transferred byte count mismatch. Expected " + range.getLength() + " but wrote " + totalWritten);
+		}
+
+		outputStream.flush();
+	}
+
+	/**
+	 * Streams a legacy Telegram file range.
+	 *
+	 * Legacy storage still exposes byte[] through the existing storage abstraction.
+	 * We preserve that behavior for backward compatibility.
+	 */
+	private void streamLegacyRange(MasterFile file, ByteRange range, OutputStream outputStream) throws IOException {
+
+		byte[] content = storageFactory.get().download(file.getFileId());
+
+		if (content == null) {
+			throw new IOException("Legacy file content is null");
+		}
+
+		long actualFileSize = content.length;
+
+		if (range.getStart() < 0 || range.getEnd() >= actualFileSize || range.getStart() > range.getEnd()) {
+
+			throw new IOException("Requested range is outside legacy file");
+		}
+
+		int start = Math.toIntExact(range.getStart());
+
+		int length = Math.toIntExact(range.getLength());
+
+		outputStream.write(content, start, length);
+
+		outputStream.flush();
+	}
+
+	/**
+	 * Legacy full-file download compatibility method.
 	 */
 	public byte[] downloadLegacy(String fileId) {
 
 		if (fileId == null || fileId.isBlank()) {
-
-			throw new IllegalArgumentException("File ID cannot be empty.");
+			throw new IllegalArgumentException("File ID cannot be empty");
 		}
 
 		return storageFactory.get().download(fileId);
-	}
-
-	public boolean isChunked(MasterFile masterFile) {
-
-		return masterFile != null && masterFile.getUploadJobId() != null && !masterFile.getUploadJobId().isBlank();
-	}
-
-	public boolean isLegacy(MasterFile masterFile) {
-
-		return masterFile != null && !isChunked(masterFile) && masterFile.getFileId() != null
-				&& !masterFile.getFileId().isBlank();
 	}
 }

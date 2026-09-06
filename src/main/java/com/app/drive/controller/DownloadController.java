@@ -35,8 +35,8 @@ import com.app.share.repository.SharedResourceRepository;
 import com.app.storage.factory.StorageFactory;
 import com.app.transfer.ByteRange;
 import com.app.transfer.FileTransferService;
-import com.app.transfer.HttpRange;
 import com.app.transfer.HttpRangeParser;
+import com.app.transfer.RangeRequest;
 
 @RestController
 @RequestMapping("/download")
@@ -91,6 +91,10 @@ public class DownloadController {
 		 * ========================================================= CHUNKED FILE
 		 * =========================================================
 		 */
+		/*
+		 * ========================================================= CHUNKED FILE
+		 * =========================================================
+		 */
 		if (fileTransferService.isChunked(file)) {
 
 			if (file.getSize() == 0) {
@@ -100,17 +104,25 @@ public class DownloadController {
 						});
 			}
 
-			HttpRange resolvedRange;
+			ByteRange resolvedRange;
 
 			try {
 
 				if (rangeHeader == null || rangeHeader.isBlank()) {
 
-					resolvedRange = new HttpRange(0, file.getSize() - 1);
+					/*
+					 * No Range header = complete file.
+					 */
+					resolvedRange = new ByteRange(0, file.getSize() - 1);
 
 				} else {
 
-					resolvedRange = httpRangeParser.parse(rangeHeader, file.getSize());
+					/*
+					 * Range header = resolve requested HTTP range.
+					 */
+					RangeRequest rangeRequest = httpRangeParser.parse(rangeHeader);
+
+					resolvedRange = httpRangeParser.resolve(rangeRequest, file.getSize());
 				}
 
 			} catch (IllegalArgumentException ex) {
@@ -118,9 +130,10 @@ public class DownloadController {
 				return buildRangeNotSatisfiableResponse(file.getSize());
 			}
 
-			ByteRange byteRange = new ByteRange(resolvedRange.getStart(), resolvedRange.getEnd());
-
-			StreamingResponseBody body = outputStream -> fileTransferService.streamChunkedRange(file, byteRange,
+			/*
+			 * Stream only the requested logical range.
+			 */
+			StreamingResponseBody body = outputStream -> fileTransferService.streamRange(file, resolvedRange,
 					outputStream);
 
 			HttpHeaders headers = new HttpHeaders();
@@ -131,19 +144,21 @@ public class DownloadController {
 
 			headers.set(HttpHeaders.CONTENT_DISPOSITION, buildAttachment(file));
 
-			headers.setContentLength(byteRange.getLength());
+			headers.setContentLength(resolvedRange.getLength());
 
 			/*
-			 * No Range header means a normal 200 response. A valid Range header means 206
-			 * Partial Content.
+			 * No Range header = 200 OK.
 			 */
 			if (rangeHeader == null || rangeHeader.isBlank()) {
 
 				return ResponseEntity.ok().headers(headers).body(body);
 			}
 
+			/*
+			 * Valid Range = 206 Partial Content.
+			 */
 			headers.set(HttpHeaders.CONTENT_RANGE,
-					"bytes " + byteRange.getStart() + "-" + byteRange.getEnd() + "/" + file.getSize());
+					"bytes " + resolvedRange.getStart() + "-" + resolvedRange.getEnd() + "/" + file.getSize());
 
 			return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).headers(headers).body(body);
 		}
