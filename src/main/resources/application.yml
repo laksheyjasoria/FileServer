@@ -89,8 +89,12 @@ app:
 
   upload:
     max-file-size: 2147483648
-    chunk-size-mb: 50
     resumable: true
+    
+    chunk:
+      min-size-mb: 5
+      default-size-mb: 20
+      max-size-mb: 20
 
   storage:
     provider: telegram

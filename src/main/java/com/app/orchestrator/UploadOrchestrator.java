@@ -8,53 +8,95 @@ import com.app.master.repository.MasterFileRepository;
 import com.app.upload.dto.CreateUploadRequest;
 import com.app.upload.entity.UploadJob;
 import com.app.upload.repository.UploadJobRepository;
+import com.app.upload.service.ChunkSizeCalculator;
 
 @Component
 public class UploadOrchestrator {
 
-    private final UploadJobRepository uploadJobRepository;
-    private final MasterFileRepository masterFileRepository;
+	private final UploadJobRepository jobRepo;
+	private final MasterFileRepository masterFileRepo;
+	private final ChunkSizeCalculator chunkSizeCalculator;
 
-    public UploadOrchestrator(
-            UploadJobRepository uploadJobRepository,
-            MasterFileRepository masterFileRepository) {
+	public UploadOrchestrator(UploadJobRepository jobRepo, MasterFileRepository masterFileRepo,
+			ChunkSizeCalculator chunkSizeCalculator) {
 
-        this.uploadJobRepository = uploadJobRepository;
-        this.masterFileRepository = masterFileRepository;
-    }
+		this.jobRepo = jobRepo;
+		this.masterFileRepo = masterFileRepo;
+		this.chunkSizeCalculator = chunkSizeCalculator;
+	}
 
-    @Transactional
-    public UploadJob create(CreateUploadRequest request, String userId) {
+	@Transactional
+	public UploadJob create(CreateUploadRequest request, String userId) {
 
-        UploadJob job = new UploadJob();
+		validateRequest(request);
 
-        job.setFileName(request.getFileName());
-        job.setTotalSize(request.getTotalSize());
-        job.setTotalChunks(request.getTotalChunks());
-        job.setUserId(userId);
+		long totalSize = request.getTotalSize();
 
-        UploadJob savedJob = uploadJobRepository.save(job);
+		long chunkSize = chunkSizeCalculator.calculateChunkSize(totalSize);
 
-        MasterFile masterFile = new MasterFile();
+		int totalChunks = chunkSizeCalculator.calculateTotalChunks(totalSize, chunkSize);
 
-        masterFile.setUserId(userId);
-        masterFile.setName(request.getFileName());
-        masterFile.setUploadJobId(savedJob.getId());
-        masterFile.setSize(request.getTotalSize());
-        masterFile.setContentType(request.getContentType());
-        masterFile.setParentId(request.getParentId());
+		/*
+		 * Backward compatibility:
+		 *
+		 * If the old frontend still sends totalChunks, validate it rather than trusting
+		 * it.
+		 */
+		if (request.getTotalChunks() != null && request.getTotalChunks() != totalChunks) {
 
-        /*
-         * This is an incomplete upload session.
-         * It must not appear as a completed Drive file until
-         * all chunks have been successfully stored.
-         */
-        masterFile.setDriveType("FILE");
-        masterFile.setAccessType("PUBLIC");
-        masterFile.setActive(false);
+			throw new IllegalArgumentException("Client supplied totalChunks=" + request.getTotalChunks()
+					+ " but server calculated " + totalChunks + ".");
+		}
 
-        masterFileRepository.save(masterFile);
+		UploadJob job = new UploadJob();
 
-        return savedJob;
-    }
+		job.setUserId(userId);
+		job.setFileName(request.getFileName());
+		job.setTotalSize(totalSize);
+		job.setChunkSize((int) chunkSize);
+		job.setTotalChunks(totalChunks);
+		job.setUploadedChunks(0);
+		job.setUploadedBytes(0L);
+
+		UploadJob savedJob = jobRepo.save(job);
+
+		/*
+		 * Phase-1 MasterFile association.
+		 *
+		 * Incomplete files remain inactive until every chunk has been acknowledged.
+		 */
+		MasterFile masterFile = new MasterFile();
+
+		masterFile.setUserId(userId);
+		masterFile.setName(request.getFileName());
+		masterFile.setUploadJobId(savedJob.getId());
+		masterFile.setSize(totalSize);
+		masterFile.setContentType(request.getContentType());
+
+		masterFile.setParentId(request.getParentId());
+
+		masterFile.setDriveType("FILE");
+		masterFile.setActive(false);
+
+		masterFileRepo.save(masterFile);
+
+		return savedJob;
+	}
+
+	private void validateRequest(CreateUploadRequest request) {
+
+		if (request == null) {
+			throw new IllegalArgumentException("Upload request cannot be null.");
+		}
+
+		if (request.getFileName() == null || request.getFileName().isBlank()) {
+
+			throw new IllegalArgumentException("File name is required.");
+		}
+
+		if (request.getTotalSize() == null || request.getTotalSize() < 0) {
+
+			throw new IllegalArgumentException("File size must be zero or greater.");
+		}
+	}
 }

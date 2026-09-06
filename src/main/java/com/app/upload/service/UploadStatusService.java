@@ -10,22 +10,25 @@ import com.app.upload.repository.UploadJobRepository;
 @Service
 public class UploadStatusService {
 
-    private final UploadJobRepository repo;
+	private final UploadJobRepository repo;
 
-    public UploadStatusService(UploadJobRepository repo) {
-        this.repo = repo;
-    }
+	public UploadStatusService(UploadJobRepository repo) {
+		this.repo = repo;
+	}
 
-    public ChunkUploadResponse getStatus(String uploadId) {
+	public ChunkUploadResponse getStatus(String uploadId, String userId) {
 
-        UploadJob job = repo.findById(uploadId)
-                .orElseThrow(UploadNotFoundException::new);
+		UploadJob job = repo.findByIdAndUserId(uploadId, userId).orElseThrow(UploadNotFoundException::new);
 
-        return new ChunkUploadResponse(
-                job.getId(),
-                job.getUploadedChunks(),
-                job.getTotalChunks(),
-                job.getStatus().name()
-        );
-    }
+		double progress = 0.0;
+
+		if (job.getTotalSize() != null && job.getTotalSize() > 0) {
+
+			progress = (job.getUploadedBytes() * 100.0) / job.getTotalSize();
+		}
+
+		return new ChunkUploadResponse(job.getId(), job.getFileName(), job.getTotalSize(), job.getChunkSize(),
+				job.getUploadedChunks(), job.getTotalChunks(), job.getUploadedBytes(), progress,
+				job.getStatus().name());
+	}
 }
