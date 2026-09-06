@@ -20,24 +20,48 @@ public class UploadJob {
 
     private Integer totalChunks;
 
+    /**
+     * Server-authoritative logical chunk size in bytes.
+     */
+    private Integer chunkSize;
+
     private Integer uploadedChunks;
+
+    /**
+     * Server-authoritative number of successfully stored bytes.
+     */
+    private Long uploadedBytes;
 
     @Enumerated(EnumType.STRING)
     private UploadStatus status;
 
     private LocalDateTime createdAt;
 
+    private LocalDateTime updatedAt;
+
     @PrePersist
     public void prePersist() {
-        createdAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+
+        createdAt = now;
+        updatedAt = now;
 
         if (uploadedChunks == null) {
             uploadedChunks = 0;
         }
 
+        if (uploadedBytes == null) {
+            uploadedBytes = 0L;
+        }
+
         if (status == null) {
             status = UploadStatus.IN_PROGRESS;
         }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 
     public String getId() {
@@ -80,12 +104,28 @@ public class UploadJob {
         this.totalChunks = totalChunks;
     }
 
+    public Integer getChunkSize() {
+        return chunkSize;
+    }
+
+    public void setChunkSize(Integer chunkSize) {
+        this.chunkSize = chunkSize;
+    }
+
     public Integer getUploadedChunks() {
         return uploadedChunks;
     }
 
     public void setUploadedChunks(Integer uploadedChunks) {
         this.uploadedChunks = uploadedChunks;
+    }
+
+    public Long getUploadedBytes() {
+        return uploadedBytes;
+    }
+
+    public void setUploadedBytes(Long uploadedBytes) {
+        this.uploadedBytes = uploadedBytes;
     }
 
     public UploadStatus getStatus() {
@@ -98,5 +138,9 @@ public class UploadJob {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
 }

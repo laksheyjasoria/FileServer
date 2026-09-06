@@ -25,6 +25,15 @@ public class MasterFile {
 
 	private String fileId;
 
+	/**
+	 * Identifies a file whose physical storage is composed of
+	 * Telegram chunks managed by an UploadJob.
+	 *
+	 * Legacy files continue to use fileId with uploadJobId == null.
+	 */
+	@Column(name = "upload_job_id")
+	private String uploadJobId;
+
 	private Long size;
 
 	private String contentType;
@@ -53,7 +62,6 @@ public class MasterFile {
 		createdAt = LocalDateTime.now();
 	}
 
-	// Getters and setters (already present)
 	public String getId() {
 		return id;
 	}
@@ -84,6 +92,14 @@ public class MasterFile {
 
 	public void setFileId(String fileId) {
 		this.fileId = fileId;
+	}
+
+	public String getUploadJobId() {
+		return uploadJobId;
+	}
+
+	public void setUploadJobId(String uploadJobId) {
+		this.uploadJobId = uploadJobId;
 	}
 
 	public Long getSize() {
