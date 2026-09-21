@@ -1,11 +1,16 @@
 spring:
   application:
-    name: File Server
+    name: ${APP_NAME:File Server}
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/fileserver
-    username: fileserver
-    password: fileserver123
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fileserverV2}
+    username: ${SPRING_DATASOURCE_USERNAME:fileserver}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:30000}
+      validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:5000}
 
   jpa:
     hibernate:
@@ -13,112 +18,164 @@ spring:
     properties:
       hibernate:
         format_sql: false
+        jdbc:
+          batch_size: 50
     open-in-view: false
 
   servlet:
     multipart:
-      max-file-size: 2GB
-      max-request-size: 2GB
+      max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:2GB}
+      max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:2GB}
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${SPRING_MAIL_USERNAME:moviezon99@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:jjgc pnnm uxoq xkgi}
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+          connectiontimeout: ${MAIL_CONNECTION_TIMEOUT_MS:10000}
+          timeout: ${MAIL_TIMEOUT_MS:20000}
+          writetimeout: ${MAIL_WRITE_TIMEOUT_MS:20000}
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
 
   security:
     oauth2:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID:1087228327999-3cbvn3ljm9qd67l9jk5hjfqccgl6v9g3.apps.googleusercontent.com}
-            client-secret: ${GOOGLE_CLIENT_SECRET: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}
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope:
               - email
               - profile
+
   flyway:
-    enabled: true
+    enabled: ${FLYWAY_ENABLED:true}
     baseline-on-migrate: true
-    baseline-version: 1.0.0
+    baseline-version: ${FLYWAY_BASELINE_VERSION:1.0.0}
+
+server:
+  shutdown: graceful
+  compression:
+    enabled: true
+  tomcat:
+    connection-timeout: ${SERVER_CONNECTION_TIMEOUT:30s}
+    threads:
+      max: ${SERVER_MAX_THREADS:200}
+      min-spare: ${SERVER_MIN_THREADS:10}
 
 app:
-  name: File Server
-  environment: dev
-  frontend-url: http://localhost:8080
-  redis-enabled: false
-  swagger-enabled: true
+  name: ${APP_NAME:File Server}
+  environment: ${APP_ENVIRONMENT:dev}
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:8080}
+  redis-enabled: ${APP_REDIS_ENABLED:false}
+  swagger-enabled: ${APP_SWAGGER_ENABLED:true}
 
   logger:
+    name: ${APP_LOGGER_NAME:File Server}
     level:
-      info: true
-      warn: true
-      error: true
-      debug: false
+      info: ${APP_LOGGER_INFO:true}
+      warn: ${APP_LOGGER_WARN:true}
+      error: ${APP_LOGGER_ERROR:true}
+      debug: ${APP_LOGGER_DEBUG:false}
 
   security:
     master:
-      key: ${APP_SECURITY_MASTER_KEY:dsklgjldfsgjbdjlzdrghaergk}
-
+      key: ${APP_SECURITY_MASTER_KEY:}
     jwt:
-      secret: ${APP_SECURITY_JWT_SECRET:VERY_LONG_SECRET_KEY_123456789012345678901234567890}
-      access-token-validity: 43200000
-      remember-me-validity: 604800000
-      reset-token-validity: 900000
-      redis-enabled: false
+      secret: ${APP_SECURITY_JWT_SECRET:}
+      access-token-validity: ${APP_SECURITY_JWT_ACCESS_VALIDITY_MS:43200000}
+      remember-me-validity: ${APP_SECURITY_JWT_REMEMBER_ME_VALIDITY_MS:604800000}
+      reset-token-validity: ${APP_SECURITY_JWT_RESET_VALIDITY_MS:900000}
+      redis-enabled: ${APP_SECURITY_JWT_REDIS_ENABLED:false}
 
   telegram:
     storage:
-      bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN:8700206876:AAFuMcdfMzQufISHQouEuDObjBQWnF9HqMM}
-      chat-id: ${TELEGRAM_STORAGE_CHAT_ID:1379405363}
+      bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN:}
+      chat-id: ${TELEGRAM_STORAGE_CHAT_ID:}
 
   admin:
     email: ${APP_ADMIN_EMAIL:admin@example.com}
-    password: ${APP_ADMIN_PASSWORD:change-me}
+    password: ${APP_ADMIN_PASSWORD:}
     name: ${APP_ADMIN_NAME:Admin}
 
   upload:
-    max-file-size: 2147483648
-    resumable: true
-    
+    max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE_BYTES:2147483648}
+    resumable: ${APP_UPLOAD_RESUMABLE:true}
+    max-active-uploads-per-user: ${APP_UPLOAD_MAX_ACTIVE_PER_USER:3}
+    max-parallel-chunks-per-upload: ${APP_UPLOAD_MAX_PARALLEL_CHUNKS:4}
     chunk:
-      min-size-mb: 1
-      default-size-mb: 5
-      max-size-mb: 5
+      min-size-mb: ${APP_UPLOAD_CHUNK_MIN_SIZE_MB:1}
+      default-size-mb: ${APP_UPLOAD_CHUNK_DEFAULT_SIZE_MB:5}
+      max-size-mb: ${APP_UPLOAD_CHUNK_MAX_SIZE_MB:50}
+      target-count: ${APP_UPLOAD_CHUNK_TARGET_COUNT:32}
 
   storage:
-    provider: telegram
+    provider: ${APP_STORAGE_PROVIDER:telegram}
+    streaming:
+      buffer-size-bytes: ${APP_STORAGE_STREAM_BUFFER_BYTES:1048576}
+
+  transfer:
+    max-active-downloads-per-user: ${APP_TRANSFER_MAX_ACTIVE_DOWNLOADS:3}
+    max-range-bytes: ${APP_TRANSFER_MAX_RANGE_BYTES:104857600}
+    download-token-validity-seconds: ${APP_TRANSFER_DOWNLOAD_TOKEN_VALIDITY_SECONDS:300}
+
+  billing:
+    enabled: ${APP_BILLING_ENABLED:true}
+    plans-from-database: true
+
+  email:
+    enabled: ${APP_EMAIL_ENABLED:true}
+    async: ${APP_EMAIL_ASYNC:true}
+    max-attempts: ${APP_EMAIL_MAX_ATTEMPTS:5}
 
   scheduler:
-    enabled: true
+    enabled: ${APP_SCHEDULER_ENABLED:true}
+    upload-cleanup:
+      enabled: ${APP_SCHEDULER_UPLOAD_CLEANUP_ENABLED:true}
+      cron: ${APP_SCHEDULER_UPLOAD_CLEANUP_CRON:0 */10 * * * *}
+    trash-cleanup:
+      enabled: ${APP_SCHEDULER_TRASH_CLEANUP_ENABLED:true}
+      cron: ${APP_SCHEDULER_TRASH_CLEANUP_CRON:0 0 3 * * *}
+    email-retry:
+      enabled: ${APP_SCHEDULER_EMAIL_RETRY_ENABLED:true}
+      cron: ${APP_SCHEDULER_EMAIL_RETRY_CRON:0 */2 * * * *}
+    storage-reconciliation:
+      enabled: ${APP_SCHEDULER_STORAGE_RECONCILIATION_ENABLED:true}
+      cron: ${APP_SCHEDULER_STORAGE_RECONCILIATION_CRON:0 0 */6 * * *}
 
   file:
     token:
-      validity-seconds: 2592000 # 30 days (30 * 24 * 60 * 60)
+      validity-seconds: ${APP_FILE_TOKEN_VALIDITY_SECONDS:1800}
 
 telegram:
   logger:
-    enabled: true
-    bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN:8199363389:AAHwJxIGiq4eY2TW2Rw1_h4g0oTomETjPCE}
-    chat-id: ${TELEGRAM_LOGGER_CHAT_ID:1379405363}
+    enabled: ${TELEGRAM_LOGGER_ENABLED:false}
+    bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN:}
+    chat-id: ${TELEGRAM_LOGGER_CHAT_ID:}
 
 logging:
   level:
-    com.app: INFO
-    org.springframework.web: INFO
+    com.app: ${APP_LOG_LEVEL:INFO}
+    org.springframework.web: ${SPRING_WEB_LOG_LEVEL:INFO}
+    org.springframework.security: ${SPRING_SECURITY_LOG_LEVEL:WARN}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
