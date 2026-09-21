@@ -1,0 +1,27 @@
+name: Package Production V2 Source
+
+on:
+  push:
+    branches:
+      - production-v2
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: production-v2
+      - name: Create source archive
+        run: |
+          zip -r FileServer-production-v2-source.zip . -x ".git/*" ".metadata/*" "target/*"
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileServer-production-v2-source
+          path: FileServer-production-v2-source.zip
+          retention-days: 7
