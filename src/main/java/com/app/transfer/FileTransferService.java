@@ -81,26 +81,18 @@ public class FileTransferService {
 
 		for (ChunkRangeService.ChunkRange chunk : resolved.getChunks()) {
 
-			byte[] chunkData = uploadChunkReader.read(file.getUploadJobId(), chunk.getChunkIndex());
-
-			if (chunkData == null) {
-				throw new IOException("Chunk data is null for chunk " + chunk.getChunkIndex());
-			}
-
 			long localStart = chunk.getLocalStart();
 			long localEnd = chunk.getLocalEnd();
-
-			if (localStart < 0 || localEnd < localStart || localEnd >= chunkData.length) {
-
-				throw new IOException("Invalid local chunk range for chunk " + chunk.getChunkIndex() + ": " + localStart
-						+ "-" + localEnd + " / " + chunkData.length);
+			if (localStart < 0 || localEnd < localStart) {
+				throw new IOException("Invalid local chunk range for chunk " + chunk.getChunkIndex());
 			}
-
-			int length = (int) (localEnd - localStart + 1L);
-
-			outputStream.write(chunkData, (int) localStart, length);
-
-			totalWritten += length;
+			long length = localEnd - localStart + 1L;
+			long written = uploadChunkReader.stream(file.getUploadJobId(), chunk.getChunkIndex(),
+					localStart, length, outputStream);
+			if (written != length) {
+				throw new IOException("Telegram chunk stream ended early for chunk " + chunk.getChunkIndex());
+			}
+			totalWritten += written;
 		}
 
 		if (totalWritten != range.getLength()) {
