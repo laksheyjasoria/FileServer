@@ -182,6 +182,22 @@ public class TelegramClient {
 		return restTemplate.getForObject(downloadUrl, byte[].class);
 	}
 
+	public <T> T executeFileDownload(TelegramConnection connection, String fileId,
+			org.springframework.http.HttpMethod method,
+			org.springframework.web.client.ResponseExtractor<T> extractor) {
+		String getFileUrl = BOT_API + connection.getBotToken() + "/getFile?file_id=" + fileId;
+		ResponseEntity<Map> response = restTemplate.getForEntity(getFileUrl, Map.class);
+		Map<?, ?> body = response.getBody();
+		if (!response.getStatusCode().is2xxSuccessful() || body == null || !Boolean.TRUE.equals(body.get("ok"))) {
+			throw new IllegalStateException("Unable to obtain Telegram file.");
+		}
+		Map<?, ?> result = (Map<?, ?>) body.get("result");
+		String filePath = result == null ? null : (String) result.get("file_path");
+		if (filePath == null || filePath.isBlank()) throw new IllegalStateException("Telegram file path missing.");
+		String downloadUrl = FILE_API + connection.getBotToken() + "/" + filePath;
+		return restTemplate.execute(downloadUrl, method, null, extractor);
+	}
+
 	private boolean isSuccessful(ResponseEntity<Map> response) {
 
 		if (response == null || !response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
