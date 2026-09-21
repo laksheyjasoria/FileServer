@@ -1,6 +1,5 @@
 package com.app.drive.controller;
 
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -32,7 +31,6 @@ import com.app.master.entity.MasterFile;
 import com.app.master.repository.MasterFileRepository;
 import com.app.share.entity.SharedResource;
 import com.app.share.repository.SharedResourceRepository;
-import com.app.storage.factory.StorageFactory;
 import com.app.transfer.ByteRange;
 import com.app.transfer.FileTransferService;
 import com.app.transfer.HttpRangeParser;
@@ -46,34 +44,87 @@ public class DownloadController {
 
 	private final DownloadService service;
 	private final MasterFileRepository repository;
-	private final StorageFactory storageFactory;
 	private final SharedResourceRepository shareRepository;
 	private final FileTransferService fileTransferService;
 	private final HttpRangeParser httpRangeParser;
 
-	public DownloadController(DownloadService service, MasterFileRepository repository, StorageFactory storageFactory,
+	public DownloadController(DownloadService service, MasterFileRepository repository,
 			SharedResourceRepository shareRepository, FileTransferService fileTransferService,
 			HttpRangeParser httpRangeParser) {
 
 		this.service = service;
 		this.repository = repository;
-		this.storageFactory = storageFactory;
 		this.shareRepository = shareRepository;
 		this.fileTransferService = fileTransferService;
 		this.httpRangeParser = httpRangeParser;
 	}
 
+	/**
+	 * ============================================================ FILE DOWNLOAD
+	 * ============================================================
+	 *
+	 * This endpoint is intentionally typed as
+	 * ResponseEntity<StreamingResponseBody>.
+	 *
+	 * Do NOT change this back to ResponseEntity<?>.
+	 */
 	@GetMapping("/{id}")
-	public ResponseEntity<?> get(@PathVariable String id, Authentication auth,
-			@RequestParam(defaultValue = "false") boolean metadata,
+	public ResponseEntity<StreamingResponseBody> get(@PathVariable String id, Authentication auth,
 			@RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
 
 		MasterFile file = repository.findByIdAndUserIdAndActiveTrue(id, auth.getName())
 				.orElseThrow(com.app.core.exception.FileNotFoundException::new);
 
-		if (metadata) {
-			return ResponseEntity.ok(file);
+		validateDownloadableFile(file);
+
+		MediaType contentType = resolveContentType(file.getContentType());
+
+		/*
+		 * -------------------------------------------------------- CHUNKED FILE
+		 * --------------------------------------------------------
+		 */
+		if (fileTransferService.isChunked(file)) {
+
+			return downloadChunkedFile(file, contentType, rangeHeader);
 		}
+
+		/*
+		 * -------------------------------------------------------- LEGACY FILE
+		 * --------------------------------------------------------
+		 */
+		if (fileTransferService.isLegacy(file)) {
+
+			return downloadLegacyFile(file, contentType);
+		}
+
+		throw new IllegalStateException("Storage reference missing for file: " + file.getName());
+	}
+
+	/**
+	 * ============================================================ METADATA
+	 * ============================================================
+	 *
+	 * Use:
+	 *
+	 * GET /download/{id}/metadata
+	 *
+	 * This is intentionally a separate endpoint so the actual download endpoint has
+	 * exactly one response-body type.
+	 */
+	@GetMapping("/{id}/metadata")
+	public ResponseEntity<MasterFile> metadata(@PathVariable String id, Authentication auth) {
+
+		MasterFile file = repository.findByIdAndUserIdAndActiveTrue(id, auth.getName())
+				.orElseThrow(com.app.core.exception.FileNotFoundException::new);
+
+		return ResponseEntity.ok(file);
+	}
+
+	/**
+	 * ============================================================ VALIDATION
+	 * ============================================================
+	 */
+	private void validateDownloadableFile(MasterFile file) {
 
 		if (!"FILE".equalsIgnoreCase(file.getDriveType())) {
 
@@ -84,111 +135,147 @@ public class DownloadController {
 
 			throw new IllegalStateException("File size is missing or invalid.");
 		}
+	}
 
-		MediaType contentType = resolveContentType(file.getContentType());
+	/**
+	 * ============================================================ CHUNKED DOWNLOAD
+	 * ============================================================
+	 */
+	private ResponseEntity<StreamingResponseBody> downloadChunkedFile(MasterFile file, MediaType contentType,
+			String rangeHeader) {
 
 		/*
-		 * ========================================================= CHUNKED FILE
-		 * =========================================================
+		 * -------------------------------------------------------- EMPTY FILE
+		 * --------------------------------------------------------
 		 */
-		/*
-		 * ========================================================= CHUNKED FILE
-		 * =========================================================
-		 */
-		if (fileTransferService.isChunked(file)) {
+		if (file.getSize() == 0) {
 
-			if (file.getSize() == 0) {
-				return ResponseEntity.ok().contentType(contentType).header(HttpHeaders.ACCEPT_RANGES, "bytes")
-						.header(HttpHeaders.CONTENT_DISPOSITION, buildAttachment(file)).contentLength(0)
-						.body((StreamingResponseBody) outputStream -> {
-						});
-			}
+			StreamingResponseBody body = outputStream -> {
+				// Empty file: nothing to write.
+			};
 
-			ByteRange resolvedRange;
+			HttpHeaders headers = createDownloadHeaders(file, contentType);
 
-			try {
+			headers.setContentLength(0);
 
-				if (rangeHeader == null || rangeHeader.isBlank()) {
-
-					/*
-					 * No Range header = complete file.
-					 */
-					resolvedRange = new ByteRange(0, file.getSize() - 1);
-
-				} else {
-
-					/*
-					 * Range header = resolve requested HTTP range.
-					 */
-					RangeRequest rangeRequest = httpRangeParser.parse(rangeHeader);
-
-					resolvedRange = httpRangeParser.resolve(rangeRequest, file.getSize());
-				}
-
-			} catch (IllegalArgumentException ex) {
-
-				return buildRangeNotSatisfiableResponse(file.getSize());
-			}
-
-			/*
-			 * Stream only the requested logical range.
-			 */
-			StreamingResponseBody body = outputStream -> fileTransferService.streamRange(file, resolvedRange,
-					outputStream);
-
-			HttpHeaders headers = new HttpHeaders();
-
-			headers.setContentType(contentType);
-
-			headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
-
-			headers.set(HttpHeaders.CONTENT_DISPOSITION, buildAttachment(file));
-
-			headers.setContentLength(resolvedRange.getLength());
-
-			/*
-			 * No Range header = 200 OK.
-			 */
-			if (rangeHeader == null || rangeHeader.isBlank()) {
-
-				return ResponseEntity.ok().headers(headers).body(body);
-			}
-
-			/*
-			 * Valid Range = 206 Partial Content.
-			 */
-			headers.set(HttpHeaders.CONTENT_RANGE,
-					"bytes " + resolvedRange.getStart() + "-" + resolvedRange.getEnd() + "/" + file.getSize());
-
-			return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).headers(headers).body(body);
+			return ResponseEntity.ok().headers(headers).body(body);
 		}
 
 		/*
-		 * ========================================================= LEGACY FILE
-		 * =========================================================
-		 *
-		 * Existing files continue using the old storage path.
+		 * -------------------------------------------------------- RANGE RESOLUTION
+		 * --------------------------------------------------------
 		 */
-		if (!fileTransferService.isLegacy(file)) {
+		ByteRange resolvedRange;
 
-			throw new RuntimeException("Storage reference missing for file: " + file.getName());
+		boolean partialRequest = rangeHeader != null && !rangeHeader.isBlank();
+
+		try {
+
+			if (!partialRequest) {
+
+				/*
+				 * Complete file.
+				 */
+				resolvedRange = new ByteRange(0L, file.getSize() - 1L);
+
+			} else {
+
+				/*
+				 * Partial file.
+				 */
+				RangeRequest rangeRequest = httpRangeParser.parse(rangeHeader);
+
+				resolvedRange = httpRangeParser.resolve(rangeRequest, file.getSize());
+			}
+
+		} catch (IllegalArgumentException ex) {
+
+			return buildRangeNotSatisfiableResponse(file.getSize());
 		}
+
+		/*
+		 * -------------------------------------------------------- STREAMING RESPONSE
+		 * --------------------------------------------------------
+		 */
+		final ByteRange finalRange = resolvedRange;
+
+		StreamingResponseBody body = outputStream -> {
+
+			fileTransferService.streamRange(file, finalRange, outputStream);
+
+			outputStream.flush();
+		};
+
+		HttpHeaders headers = createDownloadHeaders(file, contentType);
+
+		headers.setContentLength(finalRange.getLength());
+
+		/*
+		 * -------------------------------------------------------- COMPLETE FILE = 200
+		 * --------------------------------------------------------
+		 */
+		if (!partialRequest) {
+
+			return ResponseEntity.ok().headers(headers).body(body);
+		}
+
+		/*
+		 * -------------------------------------------------------- PARTIAL FILE = 206
+		 * --------------------------------------------------------
+		 */
+		headers.set(HttpHeaders.CONTENT_RANGE,
+				"bytes " + finalRange.getStart() + "-" + finalRange.getEnd() + "/" + file.getSize());
+
+		return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).headers(headers).body(body);
+	}
+
+	/**
+	 * ============================================================ LEGACY DOWNLOAD
+	 * ============================================================
+	 *
+	 * Current legacy FileTransferService API returns byte[].
+	 *
+	 * This keeps compatibility with the existing implementation.
+	 */
+	private ResponseEntity<StreamingResponseBody> downloadLegacyFile(MasterFile file, MediaType contentType) {
 
 		byte[] content = fileTransferService.downloadLegacy(file.getFileId());
 
-		/*
-		 * Legacy range support is intentionally not implemented through the old byte[]
-		 * storage path.
-		 *
-		 * The chunked transfer architecture owns production Range handling. Legacy
-		 * files retain backward compatibility.
-		 */
-		return ResponseEntity.ok().contentType(contentType)
-				.header(HttpHeaders.CONTENT_DISPOSITION, buildAttachment(file))
-				.header(HttpHeaders.ACCEPT_RANGES, "bytes").contentLength(content.length).body(content);
+		StreamingResponseBody body = outputStream -> {
+
+			outputStream.write(content);
+			outputStream.flush();
+		};
+
+		HttpHeaders headers = createDownloadHeaders(file, contentType);
+
+		headers.setContentLength(content.length);
+
+		return ResponseEntity.ok().headers(headers).body(body);
 	}
 
-	private ResponseEntity<Void> buildRangeNotSatisfiableResponse(long fileSize) {
+	/**
+	 * ============================================================ DOWNLOAD HEADERS
+	 * ============================================================
+	 */
+	private HttpHeaders createDownloadHeaders(MasterFile file, MediaType contentType) {
+
+		HttpHeaders headers = new HttpHeaders();
+
+		headers.setContentType(contentType);
+
+		headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+
+		headers.set(HttpHeaders.CONTENT_DISPOSITION, buildAttachment(file));
+
+		return headers;
+	}
+
+	/**
+	 * ============================================================ HTTP 416
+	 * ============================================================
+	 */
+	private ResponseEntity<StreamingResponseBody> buildRangeNotSatisfiableResponse(long fileSize) {
 
 		HttpHeaders headers = new HttpHeaders();
 
@@ -199,11 +286,19 @@ public class DownloadController {
 		return ResponseEntity.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE).headers(headers).build();
 	}
 
+	/**
+	 * ============================================================ CONTENT
+	 * DISPOSITION ============================================================
+	 */
 	private String buildAttachment(MasterFile file) {
 
 		return ContentDisposition.attachment().filename(file.getName()).build().toString();
 	}
 
+	/**
+	 * ============================================================ CONTENT TYPE
+	 * ============================================================
+	 */
 	private MediaType resolveContentType(String contentTypeValue) {
 
 		if (contentTypeValue == null || contentTypeValue.isBlank()) {
@@ -221,24 +316,35 @@ public class DownloadController {
 		}
 	}
 
+	/*
+	 * ============================================================ BULK DOWNLOAD
+	 * ============================================================
+	 */
+
 	@PostMapping("/bulk")
 	public ResponseEntity<StreamingResponseBody> downloadBulk(@RequestBody List<String> ids, Authentication auth) {
 
 		List<ZipEntryInfo> allEntries = new ArrayList<>();
 
 		for (String id : ids) {
+
 			collectFilesRecursivelyAuth(id, allEntries, auth, "");
 		}
 
 		return buildZipResponseStream(allEntries);
 	}
 
+	/*
+	 * ============================================================ BULK SHARED
+	 * DOWNLOAD ============================================================
+	 */
+
 	@PostMapping("/bulk/shared")
 	public ResponseEntity<StreamingResponseBody> downloadBulkShared(@RequestBody List<String> ids,
 			@RequestParam String token) {
 
 		SharedResource share = shareRepository.findByToken(token)
-				.orElseThrow(() -> new RuntimeException("Invalid share token"));
+				.orElseThrow(() -> new IllegalArgumentException("Invalid share token"));
 
 		List<String> validRootIds = share.getFileIds();
 
@@ -253,7 +359,7 @@ public class DownloadController {
 
 			if (!isUnderSharedRoot(id, validRootIds)) {
 
-				throw new RuntimeException("Access denied: one or more items " + "are not part of this share");
+				throw new IllegalArgumentException("Access denied: one or more items " + "are not part of this share");
 			}
 
 			collectFilesRecursivelyShared(id, allFiles, validRootIds, "");
@@ -264,6 +370,11 @@ public class DownloadController {
 
 	private record ZipEntryInfo(MasterFile file, String relativePath) {
 	}
+
+	/*
+	 * ============================================================ AUTHENTICATED
+	 * ZIP TREE ============================================================
+	 */
 
 	private void collectFilesRecursivelyAuth(String id, List<ZipEntryInfo> accumulator, Authentication auth,
 			String currentPath) {
@@ -276,12 +387,13 @@ public class DownloadController {
 
 		if ("FILE".equalsIgnoreCase(item.getDriveType())) {
 
-			if (item.getFileId() != null && !item.getFileId().isBlank()) {
+			if (fileTransferService.isChunked(item) || fileTransferService.isLegacy(item)) {
 
 				accumulator.add(new ZipEntryInfo(item, currentPath + item.getName()));
 
 			} else {
-				logger.warn("Skipping file '{}' because fileId is missing", item.getName());
+
+				logger.warn("Skipping file '{}' because no " + "storage reference exists", item.getName());
 			}
 
 		} else if ("FOLDER".equalsIgnoreCase(item.getDriveType())) {
@@ -298,6 +410,11 @@ public class DownloadController {
 			}
 		}
 	}
+
+	/*
+	 * ============================================================ SHARED ZIP TREE
+	 * ============================================================
+	 */
 
 	private void collectFilesRecursivelyShared(String id, List<ZipEntryInfo> accumulator, List<String> validRootIds,
 			String currentPath) {
@@ -319,12 +436,13 @@ public class DownloadController {
 
 		if ("FILE".equalsIgnoreCase(item.getDriveType())) {
 
-			if (item.getFileId() != null && !item.getFileId().isBlank()) {
+			if (fileTransferService.isChunked(item) || fileTransferService.isLegacy(item)) {
 
 				accumulator.add(new ZipEntryInfo(item, currentPath + item.getName()));
 
 			} else {
-				logger.warn("Skipping shared file '{}' because fileId is missing", item.getName());
+
+				logger.warn("Skipping shared file '{}' because " + "no storage reference exists", item.getName());
 			}
 
 		} else if ("FOLDER".equalsIgnoreCase(item.getDriveType())) {
@@ -341,6 +459,11 @@ public class DownloadController {
 			}
 		}
 	}
+
+	/*
+	 * ============================================================ SHARED ROOT
+	 * VALIDATION ============================================================
+	 */
 
 	private boolean isUnderSharedRoot(String itemId, List<String> validRootIds) {
 
@@ -361,6 +484,11 @@ public class DownloadController {
 	}
 
 	private boolean isUnderSharedRoot(String itemId, String sharedRootId) {
+
+		if (itemId == null || sharedRootId == null) {
+
+			return false;
+		}
 
 		if (itemId.equals(sharedRootId)) {
 			return true;
@@ -396,9 +524,14 @@ public class DownloadController {
 		return false;
 	}
 
+	/*
+	 * ============================================================ ZIP STREAM
+	 * ============================================================
+	 */
+
 	private ResponseEntity<StreamingResponseBody> buildZipResponseStream(List<ZipEntryInfo> entries) {
 
-		StreamingResponseBody stream = (OutputStream outputStream) -> {
+		StreamingResponseBody stream = outputStream -> {
 
 			try (ZipOutputStream zos = new ZipOutputStream(outputStream)) {
 
@@ -406,13 +539,16 @@ public class DownloadController {
 
 					if (entryInfo.file() != null) {
 
-						byte[] content = storageFactory.get().download(entryInfo.file().getFileId());
+						MasterFile file = entryInfo.file();
 
 						ZipEntry entry = new ZipEntry(entryInfo.relativePath());
 
 						zos.putNextEntry(entry);
 
-						zos.write(content);
+						if (file.getSize() != null && file.getSize() > 0) {
+
+							fileTransferService.streamRange(file, new ByteRange(0L, file.getSize() - 1L), zos);
+						}
 
 						zos.closeEntry();
 

@@ -42,6 +42,8 @@ public interface MasterFileRepository extends JpaRepository<MasterFile, String> 
 
 	Optional<MasterFile> findByIdAndUserIdAndActiveTrue(String id, String userId);
 
+	Optional<MasterFile> findByIdAndActiveTrue(String id);
+
 	Optional<MasterFile> findByIdAndUserIdAndActiveFalse(String id, String userId);
 
 	List<MasterFile> findByUserIdAndActiveFalseAndDeletedAtIsNotNull(String userId);

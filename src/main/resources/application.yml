@@ -92,9 +92,9 @@ app:
     resumable: true
     
     chunk:
-      min-size-mb: 5
-      default-size-mb: 20
-      max-size-mb: 20
+      min-size-mb: 1
+      default-size-mb: 5
+      max-size-mb: 5
 
   storage:
     provider: telegram

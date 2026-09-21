@@ -62,7 +62,7 @@ public class SecurityConfig {
 								"/master.html", "/logger.html", "/trash.html", "admin-users.html", "/favicon.ico",
 								"/css/**", "/js/**", "/js2/**", "/auth/**", "/logger/log", "/logger/error",
 								"/download/bulk/shared", "/assets/**", "/forgot-password.html", "/auth/forgot-password",
-								"/reset-password.html", "/auth/reset-password")
+								"/reset-password.html", "/auth/reset-password","/Test.html","/FileServer_Chunked_Transfer_Test_Console.html")
 						.permitAll()
 
 						// 🔐 Authenticated share endpoints
@@ -72,6 +72,7 @@ public class SecurityConfig {
 						// Public share viewing/streaming/downloading
 						.requestMatchers("/share/**").permitAll()
 						.requestMatchers("/api/files/stream/**").permitAll()
+						.requestMatchers("/api/files/drive/stream/**").permitAll()
 
 						.anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)

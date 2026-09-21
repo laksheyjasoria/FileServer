@@ -39,6 +39,12 @@ public class UploadChunkReader {
 		UploadChunk chunk = chunkRepository.findByUploadJobIdAndChunkIndex(uploadId, chunkIndex)
 				.orElseThrow(UploadNotFoundException::new);
 
+		if (chunk.getStatus() != com.app.upload.entity.UploadChunkStatus.COMPLETED) {
+
+			throw new IllegalStateException(
+					"Upload chunk " + chunkIndex + " is not completed.");
+		}
+
 		if (chunk.getTelegramFileId() == null || chunk.getTelegramFileId().isBlank()) {
 
 			throw new IllegalStateException("Upload chunk has no Telegram storage reference.");

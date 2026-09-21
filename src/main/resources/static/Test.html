@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FileServer – Chunked Upload Test</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, sans-serif; }
+    body { background: #f6f8fa; margin: 0; padding: 20px; color: #24292f; }
+    .container { max-width: 900px; margin: 0 auto; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    h2 { margin-top: 0; font-weight: 500; }
+    label { display: block; margin-bottom: 6px; font-weight: 500; }
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .btn {
+      background: #2da44e;
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .btn:hover { background: #2c974b; }
+    .btn-secondary { background: #6e7781; }
+    .btn-secondary:hover { background: #57606a; }
+    .btn-danger { background: #cf222e; }
+    .btn-danger:hover { background: #a0111f; }
+    .btn-outline { background: transparent; color: #2da44e; border: 1px solid #2da44e; }
+    .btn:disabled { opacity: 0.5; pointer-events: none; }
+    .progress-wrap {
+      background: #e9ecef;
+      border-radius: 20px;
+      height: 24px;
+      margin: 12px 0;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #2da44e;
+      transition: width 0.15s;
+      border-radius: 20px;
+    }
+    .progress-text {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: #24292f;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+    }
+    .stats { font-size: 14px; color: #57606a; margin: 6px 0; }
+    .file-list { margin-top: 12px; }
+    .file-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid #e1e4e8;
+    }
+    .file-item:last-child { border-bottom: none; }
+    .badge {
+      background: #d0d7de;
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-size: 12px;
+    }
+    .status-msg { padding: 8px 12px; border-radius: 6px; margin: 8px 0; }
+    .status-msg.error { background: #ffebe9; color: #a0111f; }
+    .status-msg.success { background: #dafbe1; color: #116329; }
+    .status-msg.info { background: #ddf4ff; color: #0550ae; }
+    .flex { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .mt-8 { margin-top: 8px; }
+    .mb-8 { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Auth -->
+  <div class="card">
+    <h2>🔑 Authentication</h2>
+    <div class="row">
+      <div style="flex:1">
+        <label>Backend Base URL</label>
+        <input type="text" id="baseUrl" value="http://localhost:8080" placeholder="http://localhost:8080">
+      </div>
+      <div style="flex:1">
+        <label>JWT Bearer Token</label>
+        <input type="text" id="jwtToken" placeholder="eyJhbGciOiJIUzI1NiIs...">
+      </div>
+    </div>
+    <div class="flex">
+      <button class="btn" id="saveTokenBtn">💾 Save Token</button>
+      <button class="btn btn-secondary" id="clearTokenBtn">🗑️ Clear Token</button>
+      <span id="authStatus" style="font-size:14px; color:#57606a; margin-left:12px;"></span>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card">
+    <h2>⬆️ Upload a File (Chunked)</h2>
+    <div class="row">
+      <div style="flex:2">
+        <input type="file" id="fileInput">
+      </div>
+      <button class="btn" id="uploadBtn">🚀 Upload</button>
+      <button class="btn btn-secondary" id="pauseBtn" disabled>⏸️ Pause</button>
+      <button class="btn btn-secondary" id="resumeBtn" disabled>▶️ Resume</button>
+      <button class="btn btn-danger" id="cancelBtn" disabled>✖️ Cancel</button>
+    </div>
+    <div id="uploadStatus" class="status-msg info">Ready</div>
+
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      <div class="progress-text" id="progressText">0%</div>
+    </div>
+
+    <div class="stats" id="stats">
+      <span id="bytesInfo">0 B / 0 B</span> &bull; 
+      <span id="speedInfo">0 MB/s</span> &bull; 
+      <span id="etaInfo">--</span>
+    </div>
+
+    <div class="flex mt-8">
+      <span id="chunkInfo" style="font-size:13px; color:#57606a;">Chunks: 0 / 0</span>
+      <button class="btn btn-outline" id="retryFailedBtn" disabled>🔁 Retry Failed</button>
+    </div>
+  </div>
+
+  <!-- File Actions (Download / Preview / Stream) -->
+  <div class="card">
+    <h2>📂 File Actions</h2>
+    <div class="row">
+      <div style="flex:1">
+        <label>File ID (UUID)</label>
+        <input type="text" id="fileIdInput" placeholder="e.g. 123e4567-e89b...">
+      </div>
+      <button class="btn" id="downloadBtn">⬇️ Download</button>
+      <button class="btn btn-secondary" id="previewBtn">👁️ Preview</button>
+      <button class="btn btn-secondary" id="streamBtn">🎬 Stream</button>
+    </div>
+    <div id="actionStatus" class="status-msg info" style="margin-top:12px;">Enter a file ID and click an action.</div>
+  </div>
+
+  <!-- Uploaded Files (manual list) -->
+  <div class="card">
+    <h2>📋 My Files (manual refresh)</h2>
+    <div class="flex">
+      <button class="btn btn-secondary" id="listFilesBtn">🔄 List Files</button>
+      <span style="font-size:13px; color:#57606a;">(uses /drive/list – if available)</span>
+    </div>
+    <div id="fileListContainer" class="file-list">
+      <div class="status-msg info">No files loaded yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // ----- State -----
+  const state = {
+    baseUrl: '',
+    token: '',
+    uploadId: null,
+    fileName: '',
+    fileSize: 0,
+    chunkSize: 10 * 1024 * 1024, // fallback 10 MB
+    totalChunks: 0,
+    uploadedChunks: new Set(),
+    failedChunks: new Set(),
+    uploadedBytes: 0,
+    totalBytes: 0,
+    status: 'idle', // idle | uploading | paused | cancelled | completed | error
+    abortController: null,
+    isPausing: false,
+    startTime: 0,
+    lastBytes: 0,
+    lastTime: 0,
+    speed: 0,
+    eta: Infinity,
+  };
+
+  // ----- DOM refs -----
+  const baseUrlInput = document.getElementById('baseUrl');
+  const jwtTokenInput = document.getElementById('jwtToken');
+  const saveTokenBtn = document.getElementById('saveTokenBtn');
+  const clearTokenBtn = document.getElementById('clearTokenBtn');
+  const authStatus = document.getElementById('authStatus');
+
+  const fileInput = document.getElementById('fileInput');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const retryFailedBtn = document.getElementById('retryFailedBtn');
+  const uploadStatus = document.getElementById('uploadStatus');
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+  const bytesInfo = document.getElementById('bytesInfo');
+  const speedInfo = document.getElementById('speedInfo');
+  const etaInfo = document.getElementById('etaInfo');
+  const chunkInfo = document.getElementById('chunkInfo');
+
+  const fileIdInput = document.getElementById('fileIdInput');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const previewBtn = document.getElementById('previewBtn');
+  const streamBtn = document.getElementById('streamBtn');
+  const actionStatus = document.getElementById('actionStatus');
+
+  const listFilesBtn = document.getElementById('listFilesBtn');
+  const fileListContainer = document.getElementById('fileListContainer');
+
+  // ----- Helpers -----
+  function getHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (state.token) {
+      headers['Authorization'] = 'Bearer ' + state.token;
+    }
+    return headers;
+  }
+
+  function getBaseUrl() {
+    let url = state.baseUrl || baseUrlInput.value.trim();
+    if (url.endsWith('/')) url = url.slice(0, -1);
+    return url;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function formatSpeed(bytesPerSec) {
+    if (bytesPerSec < 1024) return bytesPerSec.toFixed(0) + ' B/s';
+    const k = 1024;
+    const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+    const i = Math.floor(Math.log(bytesPerSec) / Math.log(k));
+    return parseFloat((bytesPerSec / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function formatETA(seconds) {
+    if (!isFinite(seconds) || seconds <= 0) return '--';
+    if (seconds < 60) return Math.round(seconds) + 's';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return mins + 'm ' + secs + 's';
+  }
+
+  function setStatus(container, msg, type = 'info') {
+    container.textContent = msg;
+    container.className = 'status-msg ' + type;
+  }
+
+  function updateProgress() {
+    const pct = state.totalBytes > 0 ? (state.uploadedBytes / state.totalBytes * 100) : 0;
+    progressBar.style.width = Math.min(pct, 100) + '%';
+    progressText.textContent = Math.round(pct) + '%';
+    bytesInfo.textContent = formatBytes(state.uploadedBytes) + ' / ' + formatBytes(state.totalBytes);
+    chunkInfo.textContent = 'Chunks: ' + state.uploadedChunks.size + ' / ' + state.totalChunks + 
+      (state.failedChunks.size > 0 ? ' (failed: ' + state.failedChunks.size + ')' : '');
+  }
+
+  function updateStats() {
+    const now = Date.now();
+    const elapsed = (now - state.startTime) / 1000;
+    if (elapsed > 0.5 && state.uploadedBytes > 0) {
+      const bytesDelta = state.uploadedBytes - state.lastBytes;
+      const timeDelta = (now - state.lastTime) / 1000;
+      if (timeDelta > 0.5) {
+        state.speed = bytesDelta / timeDelta;
+        state.lastBytes = state.uploadedBytes;
+        state.lastTime = now;
+      }
+      const remaining = state.totalBytes - state.uploadedBytes;
+      state.eta = state.speed > 0 ? remaining / state.speed : Infinity;
+    }
+    speedInfo.textContent = formatSpeed(state.speed);
+    etaInfo.textContent = 'ETA: ' + formatETA(state.eta);
+  }
+
+  // ----- API Calls -----
+  async function apiCall(method, path, body = null, extraHeaders = {}) {
+    const url = getBaseUrl() + path;
+    const options = {
+      method,
+      headers: { ...getHeaders(), ...extraHeaders },
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      let errorMsg = response.status + ' ' + response.statusText;
+      try {
+        const text = await response.text();
+        if (text) errorMsg += ' - ' + text;
+      } catch (_) {}
+      throw new Error(errorMsg);
+    }
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await response.json();
+    } else {
+      return await response.text();
+    }
+  }
+
+  async function createUpload(fileName, totalSize) {
+    const body = { fileName, totalSize };
+    return await apiCall('POST', '/chunk-upload/create', body);
+  }
+
+  // CHUNK UPLOAD – uses 'file' as the part name
+  async function uploadChunk(uploadId, chunkIndex, chunkData) {
+    const url = getBaseUrl() + `/chunk-upload/${uploadId}/${chunkIndex}`;
+    const formData = new FormData();
+    // Use the part name expected by the server (from your logs it's 'file')
+    formData.append('file', chunkData);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + state.token },
+      body: formData,
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`Chunk ${chunkIndex} failed:`, response.status, text);
+      throw new Error(`Chunk ${chunkIndex} failed: ${response.status} ${text}`);
+    }
+    return await response.json();
+  }
+
+  async function getUploadStatus(uploadId) {
+    return await apiCall('GET', `/chunk-upload/${uploadId}/status`);
+  }
+
+  async function getResumeInfo(uploadId) {
+    return await apiCall('GET', `/chunk-upload/${uploadId}/resume`);
+  }
+
+  async function cancelUpload(uploadId) {
+    return await apiCall('DELETE', `/chunk-upload/${uploadId}`);
+  }
+
+  async function listFiles() {
+    try {
+      return await apiCall('GET', '/drive/list');
+    } catch (e) {
+      throw new Error('List endpoint not available. Use file ID manually.');
+    }
+  }
+
+  // ----- Upload Logic -----
+  async function startUpload(file) {
+    // Reset state
+    state.fileName = file.name;
+    state.fileSize = file.size;
+    state.totalBytes = file.size;
+    state.uploadedBytes = 0;
+    state.uploadedChunks.clear();
+    state.failedChunks.clear();
+    state.status = 'uploading';
+    state.startTime = Date.now();
+    state.lastBytes = 0;
+    state.lastTime = Date.now();
+    state.speed = 0;
+    state.eta = Infinity;
+    updateProgress();
+    setStatus(uploadStatus, 'Creating upload session...', 'info');
+    uploadBtn.disabled = true;
+    pauseBtn.disabled = false;
+    cancelBtn.disabled = false;
+    resumeBtn.disabled = true;
+    retryFailedBtn.disabled = true;
+
+    try {
+      // 1. Create upload
+      const createResp = await createUpload(state.fileName, state.fileSize);
+      state.uploadId = createResp.uploadId || createResp.id;
+      // If server returns chunkSize/totalChunks, use them; otherwise compute fallback
+      if (createResp.chunkSize && createResp.totalChunks) {
+        state.chunkSize = createResp.chunkSize;
+        state.totalChunks = createResp.totalChunks;
+      } else {
+        // Fallback: compute from file size (10 MB chunks)
+        state.chunkSize = 10 * 1024 * 1024; // 10 MB
+        state.totalChunks = Math.ceil(state.fileSize / state.chunkSize);
+        console.warn('Server did not return chunk size; using fallback: chunkSize=' + state.chunkSize + ', totalChunks=' + state.totalChunks);
+      }
+      if (!state.totalChunks || state.totalChunks === 0) {
+        state.totalChunks = Math.ceil(state.fileSize / state.chunkSize);
+      }
+      setStatus(uploadStatus, `Upload created: ${state.uploadId}`, 'success');
+
+      // 2. Upload all chunks
+      await uploadAllChunks();
+
+    } catch (err) {
+      if (state.status === 'cancelled') {
+        setStatus(uploadStatus, 'Upload cancelled.', 'info');
+      } else if (state.status === 'paused') {
+        setStatus(uploadStatus, 'Upload paused. Click Resume to continue.', 'info');
+      } else {
+        setStatus(uploadStatus, 'Upload error: ' + err.message, 'error');
+        console.error(err);
+      }
+      uploadBtn.disabled = false;
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = (state.status === 'paused');
+      cancelBtn.disabled = false;
+      retryFailedBtn.disabled = (state.failedChunks.size === 0);
+    }
+  }
+
+  async function uploadAllChunks() {
+    // Get already uploaded chunks from server (resume)
+    let alreadyUploaded = new Set();
+    try {
+      const resumeData = await getResumeInfo(state.uploadId);
+      if (resumeData && resumeData.uploadedChunks) {
+        alreadyUploaded = new Set(resumeData.uploadedChunks.map(Number));
+        state.uploadedBytes = resumeData.uploadedBytes || 0;
+        state.uploadedChunks = alreadyUploaded;
+      }
+    } catch (e) {
+      console.warn('Could not fetch resume info, assuming no chunks uploaded.', e);
+    }
+
+    // Combine failed chunks with pending ones
+    const allIndices = Array.from({ length: state.totalChunks }, (_, i) => i);
+    const pending = allIndices.filter(i => !alreadyUploaded.has(i) && !state.failedChunks.has(i));
+    const toUpload = [...pending, ...state.failedChunks];
+    state.failedChunks.clear();
+
+    if (toUpload.length === 0) {
+      // All chunks already uploaded – finalize
+      await finalizeUpload();
+      return;
+    }
+
+    setStatus(uploadStatus, `Uploading ${toUpload.length} chunks...`, 'info');
+
+    for (let idx of toUpload) {
+      if (state.status === 'paused' || state.status === 'cancelled') {
+        // Stop the loop, but keep state as paused/cancelled
+        return;
+      }
+
+      const start = idx * state.chunkSize;
+      const end = Math.min(start + state.chunkSize, state.fileSize);
+      const chunk = fileInput.files[0].slice(start, end);
+      try {
+        await uploadChunk(state.uploadId, idx, chunk);
+        // Success: mark as uploaded
+        state.uploadedChunks.add(idx);
+        state.uploadedBytes += (end - start);
+        updateProgress();
+        updateStats();
+        setStatus(uploadStatus, `Uploaded chunk ${idx+1}/${state.totalChunks}`, 'success');
+      } catch (err) {
+        // Mark as failed
+        state.failedChunks.add(idx);
+        setStatus(uploadStatus, `Chunk ${idx+1} failed: ${err.message}`, 'error');
+        // Continue to next chunk; we'll retry failed later
+      }
+    }
+
+    // After loop, check if all chunks uploaded
+    const allUploaded = state.uploadedChunks.size === state.totalChunks;
+    if (allUploaded) {
+      await finalizeUpload();
+    } else {
+      if (state.failedChunks.size > 0) {
+        retryFailedBtn.disabled = false;
+        setStatus(uploadStatus, `Upload completed with ${state.failedChunks.size} failed chunks. Click "Retry Failed".`, 'error');
+      } else {
+        // Possibly paused/cancelled – allow resume
+        if (state.status === 'uploading') {
+          // Still some chunks missing but not failed – maybe they were skipped? Actually shouldn't happen.
+          setStatus(uploadStatus, 'Upload incomplete – click Resume to continue.', 'info');
+          resumeBtn.disabled = false;
+        }
+      }
+    }
+  }
+
+  async function finalizeUpload() {
+    // Check if server marks it as completed
+    const statusData = await getUploadStatus(state.uploadId);
+    if (statusData.status === 'COMPLETED') {
+      setStatus(uploadStatus, '✅ Upload completed successfully!', 'success');
+      state.status = 'completed';
+      uploadBtn.disabled = false;
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = true;
+      cancelBtn.disabled = true;
+      retryFailedBtn.disabled = true;
+      progressBar.style.width = '100%';
+      progressText.textContent = '100%';
+      if (statusData.fileId) {
+        fileIdInput.value = statusData.fileId;
+        setStatus(actionStatus, `Upload complete! File ID: ${statusData.fileId}`, 'success');
+      }
+    } else {
+      // Still not complete – maybe some chunks missing
+      setStatus(uploadStatus, 'Server reports not complete. Try resume or retry.', 'info');
+      state.status = 'paused';
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = false;
+      cancelBtn.disabled = false;
+    }
+  }
+
+  // ----- Control functions -----
+  function pauseUpload() {
+    if (state.status === 'uploading') {
+      state.status = 'paused';
+      setStatus(uploadStatus, '⏸️ Paused.', 'info');
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = false;
+      cancelBtn.disabled = false;
+    }
+  }
+
+  function resumeUpload() {
+    if (state.status === 'paused') {
+      state.status = 'uploading';
+      setStatus(uploadStatus, '▶️ Resuming...', 'info');
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+      uploadAllChunks(); // continue
+    }
+  }
+
+  async function cancelUploadAction() {
+    if (state.uploadId && (state.status === 'uploading' || state.status === 'paused')) {
+      state.status = 'cancelled';
+      try {
+        await cancelUpload(state.uploadId);
+        setStatus(uploadStatus, '✖️ Cancelled.', 'info');
+      } catch (err) {
+        setStatus(uploadStatus, 'Cancel error: ' + err.message, 'error');
+      }
+      // Reset UI
+      uploadBtn.disabled = false;
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = true;
+      cancelBtn.disabled = true;
+      retryFailedBtn.disabled = true;
+      state.uploadId = null;
+    }
+  }
+
+  function retryFailed() {
+    if (state.failedChunks.size > 0 && state.uploadId) {
+      setStatus(uploadStatus, `Retrying ${state.failedChunks.size} failed chunks...`, 'info');
+      state.status = 'uploading';
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+      cancelBtn.disabled = false;
+      retryFailedBtn.disabled = true;
+      uploadAllChunks();
+    }
+  }
+
+  // ----- File Actions -----
+  function performAction(action, openNewWindow = false) {
+    const fileId = fileIdInput.value.trim();
+    if (!fileId) {
+      setStatus(actionStatus, 'Please enter a File ID.', 'error');
+      return;
+    }
+    const url = getBaseUrl() + '/' + action + '/' + fileId;
+    if (openNewWindow) {
+      window.open(url, '_blank');
+      setStatus(actionStatus, `Opened ${action} in new tab.`, 'success');
+    } else {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setStatus(actionStatus, `Downloading ${fileId}...`, 'info');
+    }
+  }
+
+  // ----- List Files -----
+  async function listFilesAction() {
+    try {
+      const data = await listFiles();
+      let html = '';
+      if (data && data.content && data.content.length > 0) {
+        data.content.forEach(item => {
+          const name = item.name || item.fileName || 'Unnamed';
+          const id = item.id || item.fileId;
+          const size = item.size || 0;
+          html += `<div class="file-item">
+            <span><strong>${name}</strong> (${formatBytes(size)})</span>
+            <span>
+              <button class="btn btn-secondary" onclick="document.getElementById('fileIdInput').value='${id}'; document.getElementById('actionStatus').textContent='File ID set'; document.getElementById('actionStatus').className='status-msg success'">Select</button>
+            </span>
+          </div>`;
+        });
+      } else {
+        html = '<div class="status-msg info">No files found or list endpoint not supported.</div>';
+      }
+      fileListContainer.innerHTML = html;
+    } catch (err) {
+      fileListContainer.innerHTML = `<div class="status-msg error">${err.message}</div>`;
+    }
+  }
+
+  // ----- Event Listeners -----
+  saveTokenBtn.addEventListener('click', function() {
+    state.token = jwtTokenInput.value.trim();
+    state.baseUrl = baseUrlInput.value.trim();
+    localStorage.setItem('fileserver_token', state.token);
+    localStorage.setItem('fileserver_baseurl', state.baseUrl);
+    authStatus.textContent = '✅ Token and base URL saved.';
+  });
+
+  clearTokenBtn.addEventListener('click', function() {
+    state.token = '';
+    state.baseUrl = '';
+    jwtTokenInput.value = '';
+    baseUrlInput.value = '';
+    localStorage.removeItem('fileserver_token');
+    localStorage.removeItem('fileserver_baseurl');
+    authStatus.textContent = '🗑️ Cleared.';
+  });
+
+  // Load saved token and base URL
+  const savedToken = localStorage.getItem('fileserver_token');
+  const savedBaseUrl = localStorage.getItem('fileserver_baseurl');
+  if (savedToken) {
+    jwtTokenInput.value = savedToken;
+    state.token = savedToken;
+  }
+  if (savedBaseUrl) {
+    baseUrlInput.value = savedBaseUrl;
+    state.baseUrl = savedBaseUrl;
+  }
+  if (state.token) authStatus.textContent = '✅ Token loaded from storage.';
+
+  uploadBtn.addEventListener('click', function() {
+    const file = fileInput.files[0];
+    if (!file) {
+      setStatus(uploadStatus, 'Please select a file.', 'error');
+      return;
+    }
+    if (!state.token) {
+      setStatus(uploadStatus, 'Please set your JWT token first.', 'error');
+      return;
+    }
+    startUpload(file);
+  });
+
+  pauseBtn.addEventListener('click', pauseUpload);
+  resumeBtn.addEventListener('click', resumeUpload);
+  cancelBtn.addEventListener('click', cancelUploadAction);
+  retryFailedBtn.addEventListener('click', retryFailed);
+
+  downloadBtn.addEventListener('click', function() { performAction('download', false); });
+  previewBtn.addEventListener('click', function() { performAction('preview', true); });
+  streamBtn.addEventListener('click', function() { performAction('stream', true); });
+
+  listFilesBtn.addEventListener('click', listFilesAction);
+
+  // Auto-refresh progress/stats periodically
+  setInterval(() => {
+    if (state.status === 'uploading') {
+      updateStats();
+    }
+  }, 500);
+
+})();
+</script>
+</body>
+</html>

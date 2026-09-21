@@ -16,7 +16,6 @@ import org.springframework.web.multipart.MultipartFile;
 import com.app.orchestrator.UploadOrchestrator;
 import com.app.upload.dto.ChunkUploadResponse;
 import com.app.upload.dto.CreateUploadRequest;
-import com.app.upload.entity.UploadChunk;
 import com.app.upload.entity.UploadJob;
 import com.app.upload.service.CancelService;
 import com.app.upload.service.ChunkService;
@@ -50,7 +49,9 @@ public class ChunkUploadController {
 	@PostMapping("/create")
 	public UploadJob create(@RequestBody CreateUploadRequest request, Authentication auth) {
 
-		return orchestrator.create(request, auth.getName());
+		boolean admin = auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+
+		return orchestrator.create(request, auth.getName(), admin);
 	}
 
 	@PostMapping("/{uploadId}/{chunkIndex}")
@@ -61,8 +62,7 @@ public class ChunkUploadController {
 	}
 
 	@GetMapping("/{uploadId}/resume")
-	public List<UploadChunk> resume(@PathVariable String uploadId, Authentication auth) {
-
+	public List<Integer> resume(@PathVariable String uploadId, Authentication auth) {
 		return resumeService.resume(uploadId, auth.getName());
 	}
 
@@ -79,8 +79,7 @@ public class ChunkUploadController {
 	}
 
 	@PostMapping("/{uploadId}/resume")
-	public List<UploadChunk> resumePost(@PathVariable String uploadId, Authentication auth) {
-
+	public List<Integer> resumePost(@PathVariable String uploadId, Authentication auth) {
 		return resumeService.resume(uploadId, auth.getName());
 	}
 

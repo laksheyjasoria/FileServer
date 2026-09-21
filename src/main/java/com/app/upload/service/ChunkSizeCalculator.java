@@ -11,82 +11,79 @@ public class ChunkSizeCalculator {
     private final long minChunkSize;
     private final long defaultChunkSize;
     private final long maxChunkSize;
+    private final long targetChunkCount;
 
     public ChunkSizeCalculator(
             @Value("${app.upload.chunk.min-size-mb:5}") long minSizeMb,
-            @Value("${app.upload.chunk.default-size-mb:20}") long defaultSizeMb,
-            @Value("${app.upload.chunk.max-size-mb:20}") long maxSizeMb) {
+            @Value("${app.upload.chunk.default-size-mb:10}") long defaultSizeMb,
+            @Value("${app.upload.chunk.max-size-mb:20}") long maxSizeMb,
+            @Value("${app.upload.chunk.target-count:50}") long targetCount) {
 
-        if (minSizeMb <= 0 || defaultSizeMb <= 0 || maxSizeMb <= 0) {
-            throw new IllegalArgumentException(
-                    "Upload chunk sizes must be greater than zero.");
+        if (minSizeMb <= 0 || defaultSizeMb <= 0 || maxSizeMb <= 0 || targetCount <= 0) {
+            throw new IllegalArgumentException("Upload chunk configuration must be greater than zero.");
         }
 
         if (minSizeMb > defaultSizeMb) {
-            throw new IllegalArgumentException(
-                    "Minimum chunk size cannot exceed default chunk size.");
+            throw new IllegalArgumentException("Minimum chunk size cannot exceed default chunk size.");
         }
 
         if (defaultSizeMb > maxSizeMb) {
-            throw new IllegalArgumentException(
-                    "Default chunk size cannot exceed maximum chunk size.");
+            throw new IllegalArgumentException("Default chunk size cannot exceed maximum chunk size.");
         }
 
         this.minChunkSize = minSizeMb * MB;
         this.defaultChunkSize = defaultSizeMb * MB;
         this.maxChunkSize = maxSizeMb * MB;
+        this.targetChunkCount = targetCount;
     }
 
+    /**
+     * Calculates a server-authoritative adaptive chunk size.
+     *
+     * Small files are kept as a single chunk up to the configured default size.
+     * Larger files target a bounded number of logical chunks while respecting the
+     * Telegram Bot API download ceiling used by this application.
+     */
     public long calculateChunkSize(long totalSize) {
 
         if (totalSize < 0) {
-            throw new IllegalArgumentException(
-                    "File size cannot be negative.");
+            throw new IllegalArgumentException("File size cannot be negative.");
         }
 
         if (totalSize == 0) {
             return minChunkSize;
         }
 
-        /*
-         * Files that fit inside the configured maximum are kept
-         * as a single logical chunk.
-         */
-        if (totalSize <= maxChunkSize) {
+        if (totalSize <= defaultChunkSize) {
             return Math.max(minChunkSize, totalSize);
         }
 
-        /*
-         * For large files the standard Telegram Bot API requires
-         * chunks that can subsequently be retrieved through getFile.
-         *
-         * The configured default is normally 20 MB and the maximum
-         * is also capped at 20 MB.
-         */
-        return Math.min(defaultChunkSize, maxChunkSize);
+        long ideal = divideCeiling(totalSize, targetChunkCount);
+
+        // Round up to a whole MiB so browser/server chunk boundaries stay simple.
+        long rounded = divideCeiling(ideal, MB) * MB;
+
+        return Math.min(maxChunkSize, Math.max(minChunkSize, rounded));
     }
 
     public int calculateTotalChunks(long totalSize, long chunkSize) {
 
         if (totalSize < 0) {
-            throw new IllegalArgumentException(
-                    "File size cannot be negative.");
+            throw new IllegalArgumentException("File size cannot be negative.");
         }
 
         if (chunkSize <= 0) {
-            throw new IllegalArgumentException(
-                    "Chunk size must be greater than zero.");
+            throw new IllegalArgumentException("Chunk size must be greater than zero.");
         }
 
         if (totalSize == 0) {
             return 1;
         }
 
-        long chunks = (totalSize + chunkSize - 1) / chunkSize;
+        long chunks = divideCeiling(totalSize, chunkSize);
 
         if (chunks > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException(
-                    "File requires too many chunks.");
+            throw new IllegalArgumentException("File requires too many chunks.");
         }
 
         return (int) chunks;
@@ -94,5 +91,9 @@ public class ChunkSizeCalculator {
 
     public long getMaxChunkSize() {
         return maxChunkSize;
+    }
+
+    private long divideCeiling(long value, long divisor) {
+        return (value / divisor) + (value % divisor == 0 ? 0 : 1);
     }
 }

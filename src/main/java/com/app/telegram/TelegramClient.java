@@ -7,6 +7,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -23,6 +24,9 @@ public class TelegramClient {
 	private final RestTemplate restTemplate;
 
 	public TelegramClient() {
+		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+		factory.setConnectTimeout(30000); // 30 seconds to establish connection
+		factory.setReadTimeout(120000); // 2 minutes to read the response (adjust as needed)
 		this.restTemplate = new RestTemplate();
 	}
 
@@ -67,6 +71,9 @@ public class TelegramClient {
 
 		} catch (Exception ex) {
 
+			ex.printStackTrace();
+
+			System.out.println(ex.getMessage());
 			return false;
 		}
 	}
@@ -84,7 +91,7 @@ public class TelegramClient {
 		form.add("chat_id", connection.getChatId());
 
 		form.add("text", message);
-		
+
 		form.add("parse_mode", "HTML");
 
 		HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(form, headers);
