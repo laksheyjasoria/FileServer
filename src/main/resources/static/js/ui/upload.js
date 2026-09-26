@@ -257,9 +257,11 @@ function uploadOneChunk(uploadItem, chunkIndex) {
   const end = Math.min(uploadItem.file.size, start + uploadItem.chunkSize);
   const chunkBlob = uploadItem.file.slice(start, end, uploadItem.file.type || "application/octet-stream");
 
+  const requestEntry = { xhr: null, promise: null };
   const promise = new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    uploadItem.activeRequests.set(chunkIndex, { xhr, promise });
+    requestEntry.xhr = xhr;
+    uploadItem.activeRequests.set(chunkIndex, requestEntry);
 
     xhr.upload.addEventListener("progress", (event) => {
       if (!event.lengthComputable) return;
@@ -311,6 +313,8 @@ function uploadOneChunk(uploadItem, chunkIndex) {
     xhr.send(formData);
   });
 
+  requestEntry.promise = promise;
+  uploadItem.activeRequests.set(chunkIndex, requestEntry);
   return promise;
 }
 
