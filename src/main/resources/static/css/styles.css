@@ -1532,3 +1532,56 @@ a {
     max-width: calc(100% - 16px);
   }
 }
+
+
+/* ---------- Production chunk upload progress ---------- */
+.upload-progress-meta,
+.upload-progress-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #5f6368;
+}
+
+.upload-progress-percent {
+  font-weight: 600;
+  color: #202124;
+}
+
+.upload-progress-details {
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+.upload-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pause-upload,
+.resume-upload {
+  background: #f1f3f4;
+  color: #202124;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pause-upload:hover,
+.resume-upload:hover {
+  background: #e8eaed;
+}
+
+.upload-item .progress-bar {
+  height: 9px;
+}
+
+.upload-item .progress-fill {
+  transition: width 0.15s linear;
+}
