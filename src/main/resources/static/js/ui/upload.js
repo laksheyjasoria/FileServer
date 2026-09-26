@@ -252,95 +252,111 @@ async function uploadRemainingChunks(uploadItem) {
   }
 }
 
-function uploadOneChunk(uploadItem, chunkIndex) {
+async function uploadOneChunk(uploadItem, chunkIndex) {
   const start = chunkIndex * uploadItem.chunkSize;
   const end = Math.min(uploadItem.file.size, start + uploadItem.chunkSize);
-  const chunkBlob = uploadItem.file.slice(start, end, uploadItem.file.type || "application/octet-stream");
+  const chunkBlob = uploadItem.file.slice(
+    start,
+    end,
+    uploadItem.file.type || "application/octet-stream",
+  );
 
-  const requestEntry = { xhr: null, promise: null };
-  const promise = new Promise((resolve, reject) => {
+  for (let attempt = 1; attempt <= UPLOAD_MAX_RETRIES + 1; attempt++) {
+    if (uploadItem.cancelled || uploadItem.paused) return;
+
+    try {
+      await sendChunkAttempt(uploadItem, chunkIndex, chunkBlob, start, end);
+      uploadItem.completedChunks.add(chunkIndex);
+      uploadItem.uploadedBytes = calculateCompletedBytes(uploadItem);
+      uploadItem.retryCounts.delete(chunkIndex);
+      updateUploadProgress(uploadItem.id);
+      return;
+    } catch (error) {
+      if (uploadItem.cancelled || uploadItem.paused) return;
+
+      if (attempt > UPLOAD_MAX_RETRIES) {
+        throw new Error(
+          `${error.message || `Chunk ${chunkIndex + 1} failed`} after ${UPLOAD_MAX_RETRIES} retries.`,
+        );
+      }
+
+      uploadItem.retryCounts.set(chunkIndex, attempt);
+      updateUploadStatus(
+        uploadItem.id,
+        `Retrying chunk ${chunkIndex + 1} (${attempt}/${UPLOAD_MAX_RETRIES})…`,
+        false,
+      );
+      await new Promise((resolve) =>
+        setTimeout(resolve, UPLOAD_RETRY_BASE_MS * Math.pow(2, attempt - 1)),
+      );
+    }
+  }
+}
+
+function sendChunkAttempt(uploadItem, chunkIndex, chunkBlob, start, end) {
+  return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    requestEntry.xhr = xhr;
-    uploadItem.activeRequests.set(chunkIndex, requestEntry);
+    const requestEntry = {
+      xhr,
+      promise: null,
+      uploadedBytes: 0,
+    };
 
-    xhr.upload.addEventListener("progress", (event) => {
-      if (!event.lengthComputable) return;
-      const inFlightBytes = Array.from(uploadItem.activeRequests.entries()).reduce((sum, [index, entry]) => {
-        if (index === chunkIndex) return sum + Math.min(event.loaded, end - start);
-        return sum + (entry.uploadedBytes || 0);
-      }, 0);
-      updateUploadProgress(uploadItem.id, inFlightBytes);
+    const requestPromise = new Promise((resolveRequest, rejectRequest) => {
+      const token = localStorage.getItem("jwtToken");
+      const formData = new FormData();
+      formData.append("file", chunkBlob, uploadItem.file.name);
+
+      xhr.upload.addEventListener("progress", (event) => {
+        if (!event.lengthComputable) return;
+
+        requestEntry.uploadedBytes = Math.min(event.loaded, end - start);
+        updateUploadProgress(uploadItem.id, requestEntry.uploadedBytes);
+      });
+
+      xhr.onload = async () => {
+        uploadItem.activeRequests.delete(chunkIndex);
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolveRequest();
+          return;
+        }
+
+        rejectRequest(
+          await xhrErrorMessage(xhr, `Chunk ${chunkIndex + 1} failed`),
+        );
+      };
+
+      xhr.onerror = () => {
+        uploadItem.activeRequests.delete(chunkIndex);
+        rejectRequest(new Error("Network error"));
+      };
+
+      xhr.onabort = () => {
+        uploadItem.activeRequests.delete(chunkIndex);
+
+        if (uploadItem.paused || uploadItem.cancelled) {
+          resolveRequest();
+        } else {
+          rejectRequest(new Error("Upload request aborted"));
+        }
+      };
+
+      xhr.open(
+        "POST",
+        `${API_URL}/chunk-upload/${encodeURIComponent(uploadItem.uploadJobId)}/${chunkIndex}`,
+      );
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.send(formData);
     });
 
-    xhr.onload = async () => {
-      uploadItem.activeRequests.delete(chunkIndex);
-      if (xhr.status >= 200 && xhr.status < 300) {
-        uploadItem.completedChunks.add(chunkIndex);
-        uploadItem.uploadedBytes = calculateCompletedBytes(uploadItem);
-        uploadItem.retryCounts.delete(chunkIndex);
-        updateUploadProgress(uploadItem.id);
-        resolve();
-        return;
-      }
+    requestEntry.promise = requestPromise;
+    uploadItem.activeRequests.set(chunkIndex, requestEntry);
 
-      const message = await xhrErrorMessage(xhr, `Chunk ${chunkIndex + 1} failed`);
-      retryChunkOrFail(uploadItem, chunkIndex, message, reject);
-    };
-
-    xhr.onerror = () => {
-      uploadItem.activeRequests.delete(chunkIndex);
-      retryChunkOrFail(uploadItem, chunkIndex, "Network error", reject);
-    };
-
-    xhr.onabort = () => {
-      uploadItem.activeRequests.delete(chunkIndex);
-      if (uploadItem.paused || uploadItem.cancelled) {
-        resolve();
-      } else {
-        retryChunkOrFail(uploadItem, chunkIndex, "Upload request aborted", reject);
-      }
-    };
-
-    const token = localStorage.getItem("jwtToken");
-    const formData = new FormData();
-    formData.append("file", chunkBlob, uploadItem.file.name);
-
-    xhr.open(
-      "POST",
-      `${API_URL}/chunk-upload/${encodeURIComponent(uploadItem.uploadJobId)}/${chunkIndex}`,
-    );
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    xhr.send(formData);
+    requestPromise.then(resolve).catch(reject);
   });
-
-  requestEntry.promise = promise;
-  uploadItem.activeRequests.set(chunkIndex, requestEntry);
-  return promise;
 }
 
-function retryChunkOrFail(uploadItem, chunkIndex, message, reject) {
-  if (uploadItem.cancelled || uploadItem.paused) {
-    reject(new Error(message));
-    return;
-  }
-
-  const retryCount = (uploadItem.retryCounts.get(chunkIndex) || 0) + 1;
-  uploadItem.retryCounts.set(chunkIndex, retryCount);
-
-  if (retryCount > UPLOAD_MAX_RETRIES) {
-    reject(new Error(`${message} after ${UPLOAD_MAX_RETRIES} retries.`));
-    return;
-  }
-
-  updateUploadStatus(uploadItem.id, `Retrying chunk ${chunkIndex + 1} (${retryCount}/${UPLOAD_MAX_RETRIES})…`, false);
-  setTimeout(() => {
-    if (!uploadItem.cancelled && !uploadItem.paused) {
-      uploadOneChunk(uploadItem, chunkIndex).then(() => {}, reject);
-    } else {
-      reject(new Error(message));
-    }
-  }, UPLOAD_RETRY_BASE_MS * Math.pow(2, retryCount - 1));
-}
 
 async function pauseUpload(localUploadId) {
   const uploadItem = activeUploads.get(localUploadId);
