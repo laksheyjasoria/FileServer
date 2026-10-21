@@ -14,7 +14,7 @@ if (!fileId || !token) {
 async function loadFile() {
   try {
     const infoResponse = await fetch(
-      `${API_URL}/download/${fileId}?metadata=true`,
+      `${API_URL}/download/${fileId}/metadata`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -150,7 +150,8 @@ function downloadFile() {
       link.href = URL.createObjectURL(blob);
       link.download = fileInfo ? fileInfo.name : "download";
       link.click();
-      URL.revokeObjectURL(link.href);
+      const objectUrl = link.href;
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
       safeToast("Download started!", "success", 2000);
     })
     .catch((error) => {
