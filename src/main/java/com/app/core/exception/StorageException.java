@@ -5,4 +5,8 @@ public class StorageException extends AppException {
     public StorageException(String message) {
         super(ErrorCode.INTERNAL_ERROR, message);
     }
+
+    public StorageException(String message, Throwable cause) {
+        super(ErrorCode.INTERNAL_ERROR, message, cause);
+    }
 }
