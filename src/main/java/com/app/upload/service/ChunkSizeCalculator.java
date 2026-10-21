@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 public class ChunkSizeCalculator {
 
     private static final long MB = 1024L * 1024L;
+    private static final long MAX_TARGET_CHUNKS = 4L;
 
     private final long minChunkSize;
     private final long defaultChunkSize;
@@ -34,7 +35,8 @@ public class ChunkSizeCalculator {
         this.minChunkSize = minSizeMb * MB;
         this.defaultChunkSize = defaultSizeMb * MB;
         this.maxChunkSize = maxSizeMb * MB;
-        this.targetChunkCount = targetCount;
+        // Avoid creating dozens of tiny Telegram documents for medium files.
+        this.targetChunkCount = Math.min(targetCount, MAX_TARGET_CHUNKS);
     }
 
     /**
