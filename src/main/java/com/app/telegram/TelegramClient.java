@@ -225,8 +225,6 @@ public class TelegramClient {
 		if (length == 0) {
 			throw new IllegalArgumentException("File range length must be greater than zero.");
 		}
-		String filePath = resolveFilePath(connection, fileId);
-		String downloadUrl = FILE_API + connection.getBotToken() + "/" + filePath;
 		long end;
 		try {
 			end = Math.addExact(start, length - 1);
