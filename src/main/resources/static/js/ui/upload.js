@@ -292,26 +292,45 @@ function sendChunk(item, index, blob) {
 async function pauseUpload(id) {
   const item = activeUploads.get(id);
   if (!item || item.status !== 'uploading') return;
+
   item.pauseRequested = true;
   setUploadStatus(id, 'Pausing…');
-  // Abort in-flight requests so the queue can settle promptly. Completed chunks
-  // remain server-confirmed and are re-read on resume.
-  for (const { xhr } of item.inFlight.values()) xhr.abort();
+
+  // Stop new chunks and abort active HTTP requests. Wait for the worker pool to
+  // settle before asking the server to pause, so pause/resume cannot overlap.
+  for (const { xhr } of [...item.inFlight.values()]) xhr.abort();
+  try {
+    if (item.runner) await item.runner;
+  } catch (_) {
+    // runUpload records its own status; the pause endpoint below reconciles state.
+  }
+
+  if (item.cancelRequested || item.status === 'cancelled') return;
   try {
     await apiRequest(`/chunk-upload/${encodeURIComponent(item.uploadId)}/pause`, { method: 'POST' });
   } catch (error) {
-    // Pause can race with finalization or another request; reconcile on resume.
     console.warn('Server-side pause request did not complete:', error);
   }
+  item.status = 'paused';
+  setUploadStatus(id, 'Paused. Resume to continue from completed chunks.');
   setUploadButtons(item);
+  checkAllUploadsComplete();
 }
 
 async function resumeUpload(id) {
   const item = activeUploads.get(id);
   if (!item || !['paused', 'failed'].includes(item.status)) return;
+
+  // A pause can be clicked while worker promises are still unwinding. Never
+  // start a second runner until the previous runner has fully settled.
+  if (item.runner) {
+    try { await item.runner; } catch (_) { }
+  }
+  if (item.cancelRequested || item.status === 'cancelled' || item.status === 'completed') return;
+
   item.pauseRequested = false;
   item.failed.clear();
-  item.status = 'uploading';
+  item.status = 'pending';
   setUploadStatus(id, 'Resuming from server-confirmed completed chunks…');
   setUploadButtons(item);
   await startUpload(id);
