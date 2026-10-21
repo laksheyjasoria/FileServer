@@ -348,6 +348,9 @@
       console.error(`Chunk ${chunkIndex} failed:`, response.status, text);
       throw new Error(`Chunk ${chunkIndex} failed: ${response.status} ${text}`);
     }
+    // The chunk endpoint intentionally returns an empty 200 response on success.
+    const responseType = response.headers.get('content-type') || '';
+    if (response.status === 204 || !responseType.includes('application/json')) return true;
     return await response.json();
   }
 
@@ -438,11 +441,16 @@
     let alreadyUploaded = new Set();
     try {
       const resumeData = await getResumeInfo(state.uploadId);
-      if (resumeData && resumeData.uploadedChunks) {
-        alreadyUploaded = new Set(resumeData.uploadedChunks.map(Number));
-        state.uploadedBytes = resumeData.uploadedBytes || 0;
-        state.uploadedChunks = alreadyUploaded;
-      }
+      // The API returns the list of completed chunk indexes directly.
+      const completedIndexes = Array.isArray(resumeData)
+        ? resumeData
+        : (resumeData?.uploadedChunks || []);
+      alreadyUploaded = new Set(completedIndexes.map(Number).filter(Number.isInteger));
+      state.uploadedChunks = new Set(alreadyUploaded);
+      state.uploadedBytes = [...alreadyUploaded].reduce((sum, index) => {
+        const start = index * state.chunkSize;
+        return sum + Math.max(0, Math.min(state.chunkSize, state.fileSize - start));
+      }, 0);
     } catch (e) {
       console.warn('Could not fetch resume info, assuming no chunks uploaded.', e);
     }
@@ -533,23 +541,33 @@
   }
 
   // ----- Control functions -----
-  function pauseUpload() {
+  async function pauseUpload() {
     if (state.status === 'uploading') {
       state.status = 'paused';
-      setStatus(uploadStatus, '⏸️ Paused.', 'info');
       pauseBtn.disabled = true;
       resumeBtn.disabled = false;
       cancelBtn.disabled = false;
+      try {
+        if (state.uploadId) await apiCall('POST', `/chunk-upload/${state.uploadId}/pause`);
+        setStatus(uploadStatus, '⏸️ Paused. The current chunk may finish; remaining chunks will wait.', 'info');
+      } catch (err) {
+        setStatus(uploadStatus, 'Pause request failed: ' + err.message, 'error');
+      }
     }
   }
 
-  function resumeUpload() {
-    if (state.status === 'paused') {
-      state.status = 'uploading';
-      setStatus(uploadStatus, '▶️ Resuming...', 'info');
-      pauseBtn.disabled = false;
-      resumeBtn.disabled = true;
-      uploadAllChunks(); // continue
+  async function resumeUpload() {
+    if (state.status === 'paused' && state.uploadId) {
+      try {
+        await getResumeInfo(state.uploadId); // also transitions PAUSED/FAILED to IN_PROGRESS
+        state.status = 'uploading';
+        setStatus(uploadStatus, '▶️ Resuming...', 'info');
+        pauseBtn.disabled = false;
+        resumeBtn.disabled = true;
+        await uploadAllChunks();
+      } catch (err) {
+        setStatus(uploadStatus, 'Resume failed: ' + err.message, 'error');
+      }
     }
   }
 

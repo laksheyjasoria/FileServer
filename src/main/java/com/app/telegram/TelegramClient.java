@@ -2,7 +2,7 @@ package com.app.telegram;
 
 import java.util.Map;
 
-import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.AbstractResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -27,7 +27,9 @@ public class TelegramClient {
 		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
 		factory.setConnectTimeout(30000); // 30 seconds to establish connection
 		factory.setReadTimeout(120000); // 2 minutes to read the response (adjust as needed)
-		this.restTemplate = new RestTemplate();
+		// Keep multipart chunk uploads streaming rather than buffering the entire request body.
+		factory.setBufferRequestBody(false);
+		this.restTemplate = new RestTemplate(factory);
 	}
 
 	public boolean validate(String botToken, String chatId) {
@@ -111,11 +113,27 @@ public class TelegramClient {
 
 		body.add("chat_id", connection.getChatId());
 
-		body.add("document", new ByteArrayResource(file.getBytes()) {
+		// Stream the multipart body from MultipartFile instead of copying the entire
+		// chunk into a second byte[] (important when several 20-50 MB chunks upload in parallel).
+		body.add("document", new AbstractResource() {
+			@Override
+			public java.io.InputStream getInputStream() throws java.io.IOException {
+				return file.getInputStream();
+			}
+
+			@Override
+			public long contentLength() {
+				return file.getSize();
+			}
 
 			@Override
 			public String getFilename() {
-				return file.getOriginalFilename();
+				return file.getOriginalFilename() == null ? "upload.bin" : file.getOriginalFilename();
+			}
+
+			@Override
+			public String getDescription() {
+				return "Telegram upload " + getFilename();
 			}
 		});
 
@@ -180,6 +198,67 @@ public class TelegramClient {
 		String downloadUrl = FILE_API + connection.getBotToken() + "/" + filePath;
 
 		return restTemplate.getForObject(downloadUrl, byte[].class);
+	}
+
+	/**
+	 * Executes a Telegram file download and asks the upstream HTTP endpoint for a
+	 * byte range. Telegram Bot API deployments are not guaranteed to honor Range,
+	 * so callers must inspect the response status and retain a bounded-stream
+	 * fallback when the server returns 200 instead of 206.
+	 */
+	public <T> T executeFileDownloadRange(TelegramConnection connection, String fileId, long start, long length,
+			org.springframework.web.client.ResponseExtractor<T> extractor) {
+		if (start < 0 || length < 0) {
+			throw new IllegalArgumentException("File range values cannot be negative.");
+		}
+		if (length == 0) {
+			throw new IllegalArgumentException("File range length must be greater than zero.");
+		}
+		String filePath = resolveFilePath(connection, fileId);
+		String downloadUrl = FILE_API + connection.getBotToken() + "/" + filePath;
+		long end;
+		try {
+			end = Math.addExact(start, length - 1);
+		} catch (ArithmeticException ex) {
+			throw new IllegalArgumentException("Requested file range is too large.", ex);
+		}
+		return restTemplate.execute(downloadUrl, org.springframework.http.HttpMethod.GET, request ->
+				request.getHeaders().set("Range", "bytes=" + start + "-" + end), extractor);
+	}
+
+	private String resolveFilePath(TelegramConnection connection, String fileId) {
+		if (connection == null || fileId == null || fileId.isBlank()) {
+			throw new IllegalArgumentException("Telegram connection and file ID are required.");
+		}
+		String getFileUrl = BOT_API + connection.getBotToken() + "/getFile?file_id=" +
+				org.springframework.web.util.UriUtils.encodeQueryParam(fileId, java.nio.charset.StandardCharsets.UTF_8);
+		ResponseEntity<Map> response = restTemplate.getForEntity(getFileUrl, Map.class);
+		Map<?, ?> body = response.getBody();
+		if (!response.getStatusCode().is2xxSuccessful() || body == null || !Boolean.TRUE.equals(body.get("ok"))) {
+			throw new IllegalStateException("Unable to obtain Telegram file.");
+		}
+		Map<?, ?> result = (Map<?, ?>) body.get("result");
+		String path = result == null ? null : (String) result.get("file_path");
+		if (path == null || path.isBlank()) {
+			throw new IllegalStateException("Telegram file path missing.");
+		}
+		return path;
+	}
+
+	public <T> T executeFileDownload(TelegramConnection connection, String fileId,
+			org.springframework.http.HttpMethod method,
+			org.springframework.web.client.ResponseExtractor<T> extractor) {
+		String getFileUrl = BOT_API + connection.getBotToken() + "/getFile?file_id=" + fileId;
+		ResponseEntity<Map> response = restTemplate.getForEntity(getFileUrl, Map.class);
+		Map<?, ?> body = response.getBody();
+		if (!response.getStatusCode().is2xxSuccessful() || body == null || !Boolean.TRUE.equals(body.get("ok"))) {
+			throw new IllegalStateException("Unable to obtain Telegram file.");
+		}
+		Map<?, ?> result = (Map<?, ?>) body.get("result");
+		String filePath = result == null ? null : (String) result.get("file_path");
+		if (filePath == null || filePath.isBlank()) throw new IllegalStateException("Telegram file path missing.");
+		String downloadUrl = FILE_API + connection.getBotToken() + "/" + filePath;
+		return restTemplate.execute(downloadUrl, method, null, extractor);
 	}
 
 	private boolean isSuccessful(ResponseEntity<Map> response) {

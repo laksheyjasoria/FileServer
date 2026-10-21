@@ -204,23 +204,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private boolean handleRegularJwt(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
-            try {
-                if (jwt.isAccessTokenValid(token)) {
-                    String email = jwt.extractEmail(token);
-                    if (!isUserActive(email, response)) return false;
-                    String role = jwt.extractRole(token);
-                    setAuthentication(email, "ROLE_" + role);
-                    return true;
-                }
-            } catch (io.jsonwebtoken.ExpiredJwtException e) {
-                logger.debug("Expired JWT token: {}", e.getMessage());
-            } catch (Exception e) {
-                logger.debug("Invalid JWT token: {}", e.getMessage());
-            }
+        if (header == null || !header.startsWith("Bearer ")) return true;
+
+        String token = header.substring(7).trim();
+        if (token.isBlank()) {
+            sendUnauthorized(response, "Invalid or missing token");
+            return false;
         }
-        return true;
+
+        try {
+            if (!jwt.isAccessTokenValid(token)) {
+                sendUnauthorized(response, "Unauthorized or token expired");
+                return false;
+            }
+            String email = jwt.extractEmail(token);
+            if (!isUserActive(email, response)) return false;
+            String role = jwt.extractRole(token);
+            setAuthentication(email, "ROLE_" + role);
+            return true;
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            logger.debug("Expired JWT token");
+            sendUnauthorized(response, "Unauthorized or token expired");
+            return false;
+        } catch (Exception e) {
+            logger.debug("Invalid JWT token", e);
+            sendUnauthorized(response, "Unauthorized or token expired");
+            return false;
+        }
     }
 
     // ================================

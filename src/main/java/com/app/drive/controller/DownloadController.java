@@ -94,7 +94,7 @@ public class DownloadController {
 		 */
 		if (fileTransferService.isLegacy(file)) {
 
-			return downloadLegacyFile(file, contentType);
+			return downloadLegacyFile(file, contentType, rangeHeader);
 		}
 
 		throw new IllegalStateException("Storage reference missing for file: " + file.getName());
@@ -237,21 +237,38 @@ public class DownloadController {
 	 *
 	 * This keeps compatibility with the existing implementation.
 	 */
-	private ResponseEntity<StreamingResponseBody> downloadLegacyFile(MasterFile file, MediaType contentType) {
+	private ResponseEntity<StreamingResponseBody> downloadLegacyFile(MasterFile file, MediaType contentType,
+			String rangeHeader) {
+		if (file.getSize() == 0) {
+			StreamingResponseBody body = outputStream -> { };
+			HttpHeaders headers = createDownloadHeaders(file, contentType);
+			headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+			headers.setContentLength(0);
+			return ResponseEntity.ok().headers(headers).body(body);
+		}
 
-		byte[] content = fileTransferService.downloadLegacy(file.getFileId());
+		boolean partialRequest = rangeHeader != null && !rangeHeader.isBlank();
+		ByteRange resolvedRange;
+		try {
+			resolvedRange = partialRequest
+					? httpRangeParser.resolve(httpRangeParser.parse(rangeHeader), file.getSize())
+					: new ByteRange(0L, file.getSize() - 1L);
+		} catch (IllegalArgumentException ex) {
+			return buildRangeNotSatisfiableResponse(file.getSize());
+		}
 
+		final ByteRange finalRange = resolvedRange;
 		StreamingResponseBody body = outputStream -> {
-
-			outputStream.write(content);
+			fileTransferService.streamRange(file, finalRange, outputStream);
 			outputStream.flush();
 		};
-
 		HttpHeaders headers = createDownloadHeaders(file, contentType);
-
-		headers.setContentLength(content.length);
-
-		return ResponseEntity.ok().headers(headers).body(body);
+		headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+		headers.setContentLength(finalRange.getLength());
+		if (!partialRequest) return ResponseEntity.ok().headers(headers).body(body);
+		headers.set(HttpHeaders.CONTENT_RANGE,
+				"bytes " + finalRange.getStart() + "-" + finalRange.getEnd() + "/" + file.getSize());
+		return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).headers(headers).body(body);
 	}
 
 	/**

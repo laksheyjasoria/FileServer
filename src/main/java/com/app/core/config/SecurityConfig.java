@@ -57,7 +57,7 @@ public class SecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.cors(cors -> cors.configurationSource(corsConfigurationSource())).authorizeHttpRequests(auth -> auth
 						// Public endpoints (no auth)
-						.requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/profile.html",
+						.requestMatchers("/error", "/actuator/health", "/", "/index.html", "/login.html", "/signup.html", "/profile.html",
 								"/viewer.html", "/share.html", "/shared.html", "/shared-by-me.html", "/share2.html",
 								"/master.html", "/logger.html", "/trash.html", "admin-users.html", "/favicon.ico",
 								"/css/**", "/js/**", "/js2/**", "/auth/**", "/logger/log", "/logger/error",

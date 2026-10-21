@@ -81,26 +81,18 @@ public class FileTransferService {
 
 		for (ChunkRangeService.ChunkRange chunk : resolved.getChunks()) {
 
-			byte[] chunkData = uploadChunkReader.read(file.getUploadJobId(), chunk.getChunkIndex());
-
-			if (chunkData == null) {
-				throw new IOException("Chunk data is null for chunk " + chunk.getChunkIndex());
-			}
-
 			long localStart = chunk.getLocalStart();
 			long localEnd = chunk.getLocalEnd();
-
-			if (localStart < 0 || localEnd < localStart || localEnd >= chunkData.length) {
-
-				throw new IOException("Invalid local chunk range for chunk " + chunk.getChunkIndex() + ": " + localStart
-						+ "-" + localEnd + " / " + chunkData.length);
+			if (localStart < 0 || localEnd < localStart) {
+				throw new IOException("Invalid local chunk range for chunk " + chunk.getChunkIndex());
 			}
-
-			int length = (int) (localEnd - localStart + 1L);
-
-			outputStream.write(chunkData, (int) localStart, length);
-
-			totalWritten += length;
+			long length = localEnd - localStart + 1L;
+			long written = uploadChunkReader.stream(file.getUploadJobId(), chunk.getChunkIndex(),
+					localStart, length, outputStream);
+			if (written != length) {
+				throw new IOException("Telegram chunk stream ended early for chunk " + chunk.getChunkIndex());
+			}
+			totalWritten += written;
 		}
 
 		if (totalWritten != range.getLength()) {
@@ -118,26 +110,16 @@ public class FileTransferService {
 	 * We preserve that behavior for backward compatibility.
 	 */
 	private void streamLegacyRange(MasterFile file, ByteRange range, OutputStream outputStream) throws IOException {
-
-		byte[] content = storageFactory.get().download(file.getFileId());
-
-		if (content == null) {
-			throw new IOException("Legacy file content is null");
+		long fileSize = file.getSize() == null ? -1L : file.getSize();
+		if (fileSize < 0 || range.getStart() < 0 || range.getEnd() < range.getStart()
+				|| range.getEnd() >= fileSize) {
+			throw new IOException("Requested range is outside legacy file metadata.");
 		}
-
-		long actualFileSize = content.length;
-
-		if (range.getStart() < 0 || range.getEnd() >= actualFileSize || range.getStart() > range.getEnd()) {
-
-			throw new IOException("Requested range is outside legacy file");
+		long expected = range.getLength();
+		long written = storageFactory.get().stream(file.getFileId(), range.getStart(), expected, outputStream);
+		if (written != expected) {
+			throw new IOException("Legacy stream ended early. Expected " + expected + " bytes but wrote " + written);
 		}
-
-		int start = Math.toIntExact(range.getStart());
-
-		int length = Math.toIntExact(range.getLength());
-
-		outputStream.write(content, start, length);
-
 		outputStream.flush();
 	}
 

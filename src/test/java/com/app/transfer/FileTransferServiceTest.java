@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
+import java.io.IOException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,8 +53,16 @@ public class FileTransferServiceTest {
 		byte[] content = "0123456789".getBytes();
 
 		when(storageFactory.get()).thenReturn(storageService);
-
-		when(storageService.download("telegram-file")).thenReturn(content);
+		org.mockito.Mockito.when(storageService.stream(
+				org.mockito.ArgumentMatchers.eq("telegram-file"),
+				org.mockito.ArgumentMatchers.eq(2L),
+				org.mockito.ArgumentMatchers.eq(5L),
+				org.mockito.ArgumentMatchers.any(OutputStream.class)))
+			.thenAnswer(invocation -> {
+				OutputStream output = invocation.getArgument(3);
+				output.write(content, 2, 5);
+				return 5L;
+			});
 
 		ByteArrayOutputStream output = new ByteArrayOutputStream();
 
