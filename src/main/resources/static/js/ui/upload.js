@@ -357,8 +357,6 @@ function removeUploadItem(id) {
   if (!item || !['completed', 'cancelled'].includes(item.status)) return;
   document.getElementById(`upload-${id}`)?.remove();
   activeUploads.delete(id);
-  const index = uploadQueue.findIndex(entry => entry.id === id);
-  if (index >= 0) uploadQueue.splice(index, 1);
   checkAllUploadsComplete();
 }
 function updateUploadProgress(item) {
