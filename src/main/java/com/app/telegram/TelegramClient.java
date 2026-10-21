@@ -1,6 +1,8 @@
 package com.app.telegram;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.springframework.core.io.AbstractResource;
 import org.springframework.http.HttpEntity;
@@ -20,6 +22,15 @@ public class TelegramClient {
 	private static final String BOT_API = "https://api.telegram.org/bot";
 
 	private static final String FILE_API = "https://api.telegram.org/file/bot";
+
+	// Telegram documents that a resolved file_path remains valid for at least an
+	// hour. Cache it for 50 minutes to avoid an extra getFile API call for every
+	// chunk/range request during preview and download.
+	private static final long FILE_PATH_CACHE_TTL_MS = 50L * 60L * 1000L;
+	private final ConcurrentMap<FilePathCacheKey, CachedFilePath> filePathCache = new ConcurrentHashMap<>();
+
+	private record FilePathCacheKey(String botToken, String fileId) {}
+	private record CachedFilePath(String path, long expiresAt) {}
 
 	private final RestTemplate restTemplate;
 
@@ -222,14 +233,41 @@ public class TelegramClient {
 		} catch (ArithmeticException ex) {
 			throw new IllegalArgumentException("Requested file range is too large.", ex);
 		}
-		return restTemplate.execute(downloadUrl, org.springframework.http.HttpMethod.GET, request ->
+		FilePathCacheKey cacheKey = new FilePathCacheKey(connection.getBotToken(), fileId);
+		String filePath = resolveFilePath(connection, fileId);
+		try {
+			return executeRange(downloadUrl(filePath, connection), start, end, extractor);
+		} catch (org.springframework.web.client.HttpClientErrorException.NotFound stalePath) {
+			// A cached Telegram file path can be invalidated before its TTL. Refresh
+			// it once and retry only when the upstream explicitly returns 404.
+			filePathCache.remove(cacheKey);
+			String refreshedPath = resolveFilePath(connection, fileId);
+			return executeRange(downloadUrl(refreshedPath, connection), start, end, extractor);
+		}
+	}
+
+	private <T> T executeRange(String url, long start, long end,
+			org.springframework.web.client.ResponseExtractor<T> extractor) {
+		return restTemplate.execute(url, org.springframework.http.HttpMethod.GET, request ->
 				request.getHeaders().set("Range", "bytes=" + start + "-" + end), extractor);
+	}
+
+	private String downloadUrl(String filePath, TelegramConnection connection) {
+		return FILE_API + connection.getBotToken() + "/" + filePath;
 	}
 
 	private String resolveFilePath(TelegramConnection connection, String fileId) {
 		if (connection == null || fileId == null || fileId.isBlank()) {
 			throw new IllegalArgumentException("Telegram connection and file ID are required.");
 		}
+		FilePathCacheKey key = new FilePathCacheKey(connection.getBotToken(), fileId);
+		long now = System.currentTimeMillis();
+		CachedFilePath cached = filePathCache.get(key);
+		if (cached != null) {
+			if (cached.expiresAt() > now) return cached.path();
+			filePathCache.remove(key, cached);
+		}
+
 		String getFileUrl = BOT_API + connection.getBotToken() + "/getFile?file_id=" +
 				org.springframework.web.util.UriUtils.encodeQueryParam(fileId, java.nio.charset.StandardCharsets.UTF_8);
 		ResponseEntity<Map> response = restTemplate.getForEntity(getFileUrl, Map.class);
@@ -242,6 +280,7 @@ public class TelegramClient {
 		if (path == null || path.isBlank()) {
 			throw new IllegalStateException("Telegram file path missing.");
 		}
+		filePathCache.put(key, new CachedFilePath(path, now + FILE_PATH_CACHE_TTL_MS));
 		return path;
 	}
 
