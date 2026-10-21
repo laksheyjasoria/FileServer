@@ -4,6 +4,8 @@ const urlParams = new URLSearchParams(window.location.search);
 const fileId = urlParams.get("id");
 const token = urlParams.get("token");
 let fileInfo = null;
+let fileBlob = null;
+let fileObjectUrl = null;
 
 if (!fileId || !token) {
   showError("Invalid file link. Missing file ID or authentication token.");
@@ -47,12 +49,24 @@ async function loadFile() {
       throw new Error(
         `Failed to load file content (Status: ${fileResponse.status})`,
       );
-    const blob = await fileResponse.blob();
-    if (blob.size === 0) throw new Error("File is empty");
-    const url = URL.createObjectURL(blob);
-    const contentType = fileInfo.contentType || blob.type;
-    displayFile(url, contentType, fileInfo.name);
-    window.addEventListener("beforeunload", () => URL.revokeObjectURL(url));
+    // Keep the downloaded bytes so the Download button does not fetch the
+    // entire file a second time. Also detect truncated server streams explicitly.
+    fileBlob = await fileResponse.blob();
+    if (fileBlob.size === 0 && Number(fileInfo.size) > 0) {
+      throw new Error("The server returned an empty file.");
+    }
+    const expectedSize = Number(fileInfo.size);
+    if (Number.isFinite(expectedSize) && expectedSize >= 0 && fileBlob.size !== expectedSize) {
+      throw new Error(
+        `Incomplete file transfer: received ${formatFileSize(fileBlob.size)} of ${formatFileSize(expectedSize)}. Please retry the download.`,
+      );
+    }
+    fileObjectUrl = URL.createObjectURL(fileBlob);
+    const contentType = fileInfo.contentType || fileBlob.type || "application/octet-stream";
+    displayFile(fileObjectUrl, contentType, fileInfo.name);
+    window.addEventListener("beforeunload", () => {
+      if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
+    });
   } catch (error) {
     console.error("Error loading file:", error);
     showError(error.message);
@@ -137,26 +151,48 @@ function handleLoadError(element) {
 }
 
 function downloadFile() {
+  if (fileBlob) {
+    triggerBlobDownload(fileBlob);
+    return;
+  }
+
   safeToast("Preparing download...", "info", 2000);
-  fetch(`${API_URL}/download/${fileId}`, {
+  fetch(`${API_URL}/download/${encodeURIComponent(fileId)}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-    .then((response) => {
-      if (!response.ok) throw new Error("Download failed");
+    .then(async (response) => {
+      if (!response.ok) {
+        const details = await response.text().catch(() => "");
+        throw new Error(details || `Download failed (HTTP ${response.status})`);
+      }
       return response.blob();
     })
     .then((blob) => {
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = fileInfo ? fileInfo.name : "download";
-      link.click();
-      const objectUrl = link.href;
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-      safeToast("Download started!", "success", 2000);
+      if (Number(fileInfo?.size) > 0 && blob.size !== Number(fileInfo.size)) {
+        throw new Error(
+          `Incomplete download: received ${formatFileSize(blob.size)} of ${formatFileSize(Number(fileInfo.size))}.`,
+        );
+      }
+      triggerBlobDownload(blob);
     })
     .catch((error) => {
+      console.error("File download failed:", error);
       safeToast("Download failed: " + error.message, "error");
     });
+}
+
+function triggerBlobDownload(blob) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileInfo ? fileInfo.name : "download";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoke only after the browser has had time to start consuming the blob URL.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  safeToast("Download started!", "success", 2000);
 }
 
 function closeViewer() {
