@@ -80,6 +80,7 @@ function addToUploadQueue(files) {
         <button type="button" class="pause-upload" onclick="pauseUpload('${id}')">Pause</button>
         <button type="button" class="resume-upload" onclick="resumeUpload('${id}')" disabled>Resume</button>
         <button type="button" class="cancel-upload" onclick="cancelUpload('${id}')">Cancel</button>
+        <button type="button" class="remove-upload" onclick="removeUploadItem('${id}')" hidden>Remove</button>
       </div>`;
     list.appendChild(row);
     void startUpload(id);
@@ -255,6 +256,7 @@ async function sendChunkWithRetry(item, index) {
       return;
     } catch (error) {
       lastError = error;
+      if (item.pauseRequested || item.cancelRequested) throw error;
       if (attempt < UPLOAD_MAX_RETRIES) await new Promise(resolve => setTimeout(resolve, 400 * attempt));
     }
   }
@@ -291,9 +293,16 @@ async function pauseUpload(id) {
   const item = activeUploads.get(id);
   if (!item || item.status !== 'uploading') return;
   item.pauseRequested = true;
-  setUploadStatus(id, 'Pausing after current chunk requests finish…');
-  try { await apiRequest(`/chunk-upload/${encodeURIComponent(item.uploadId)}/pause`, { method: 'POST' }); }
-  catch (error) { setUploadStatus(id, `Pause request failed: ${error.message}`); }
+  setUploadStatus(id, 'Pausing…');
+  // Abort in-flight requests so the queue can settle promptly. Completed chunks
+  // remain server-confirmed and are re-read on resume.
+  for (const { xhr } of item.inFlight.values()) xhr.abort();
+  try {
+    await apiRequest(`/chunk-upload/${encodeURIComponent(item.uploadId)}/pause`, { method: 'POST' });
+  } catch (error) {
+    // Pause can race with finalization or another request; reconcile on resume.
+    console.warn('Server-side pause request did not complete:', error);
+  }
   setUploadButtons(item);
 }
 
@@ -335,9 +344,22 @@ function setUploadButtons(item) {
   const pause = row.querySelector('.pause-upload');
   const resume = row.querySelector('.resume-upload');
   const cancel = row.querySelector('.cancel-upload');
-  if (pause) pause.disabled = item.status !== 'uploading';
-  if (resume) resume.disabled = !['paused', 'failed'].includes(item.status);
-  if (cancel) cancel.disabled = ['completed', 'cancelled'].includes(item.status);
+  const remove = row.querySelector('.remove-upload');
+  const terminal = ['completed', 'cancelled'].includes(item.status);
+  if (pause) { pause.hidden = terminal; pause.disabled = item.status !== 'uploading'; }
+  if (resume) { resume.hidden = terminal; resume.disabled = !['paused', 'failed'].includes(item.status); }
+  if (cancel) { cancel.hidden = terminal; cancel.disabled = terminal; }
+  if (remove) remove.hidden = !terminal;
+}
+
+function removeUploadItem(id) {
+  const item = activeUploads.get(id);
+  if (!item || !['completed', 'cancelled'].includes(item.status)) return;
+  document.getElementById(`upload-${id}`)?.remove();
+  activeUploads.delete(id);
+  const index = uploadQueue.findIndex(entry => entry.id === id);
+  if (index >= 0) uploadQueue.splice(index, 1);
+  checkAllUploadsComplete();
 }
 function updateUploadProgress(item) {
   const inFlightBytes = [...item.inFlight.values()].reduce((sum, x) => sum + Math.min(x.loaded, x.total), 0);
@@ -394,6 +416,7 @@ function closeUploadModal() {
 
 window.addToUploadQueue = addToUploadQueue;
 window.cancelUpload = cancelUpload;
+window.removeUploadItem = removeUploadItem;
 window.pauseUpload = pauseUpload;
 window.resumeUpload = resumeUpload;
 window.closeUploadModal = closeUploadModal;
