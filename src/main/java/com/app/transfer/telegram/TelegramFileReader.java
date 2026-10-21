@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.app.core.exception.StorageException;
@@ -13,6 +15,7 @@ import com.app.telegram.TelegramConnectionManager;
 
 @Service
 public class TelegramFileReader {
+    private static final Logger logger = LoggerFactory.getLogger(TelegramFileReader.class);
     private static final String CONNECTION_NAME = "storage";
     private final TelegramClient telegramClient;
     private final TelegramConnectionManager connectionManager;
@@ -32,7 +35,8 @@ public class TelegramFileReader {
         } catch (StorageException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new StorageException("Unable to read file chunk from Telegram.");
+            logger.warn("Unable to read Telegram file chunk.", ex);
+            throw new StorageException("Unable to read file chunk from Telegram.", ex);
         }
     }
 
@@ -98,7 +102,8 @@ public class TelegramFileReader {
         } catch (StorageException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new StorageException("Unable to stream file chunk from Telegram.");
+            logger.warn("Unable to stream Telegram file chunk (offset={}, length={}).", skipBytes, maxBytes, ex);
+            throw new StorageException("Unable to stream file chunk from Telegram.", ex);
         }
     }
 
