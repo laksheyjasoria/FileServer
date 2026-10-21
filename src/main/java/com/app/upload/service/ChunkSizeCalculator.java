@@ -17,7 +17,7 @@ public class ChunkSizeCalculator {
             @Value("${app.upload.chunk.min-size-mb:5}") long minSizeMb,
             @Value("${app.upload.chunk.default-size-mb:10}") long defaultSizeMb,
             @Value("${app.upload.chunk.max-size-mb:20}") long maxSizeMb,
-            @Value("${app.upload.chunk.target-count:50}") long targetCount) {
+            @Value("${app.upload.chunk.target-count:4}") long targetCount) {
 
         if (minSizeMb <= 0 || defaultSizeMb <= 0 || maxSizeMb <= 0 || targetCount <= 0) {
             throw new IllegalArgumentException("Upload chunk configuration must be greater than zero.");
