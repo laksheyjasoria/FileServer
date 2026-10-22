@@ -6,6 +6,7 @@ const token = urlParams.get("token");
 let fileInfo = null;
 let fileBlob = null;
 let fileObjectUrl = null;
+let mediaStreamUrl = null;
 
 if (!fileId || !token) {
   showError("Invalid file link. Missing file ID or authentication token.");
@@ -48,8 +49,8 @@ async function loadFile() {
     // elements request only the byte ranges they need, allowing playback to
     // start before the entire file has transferred and avoiding huge memory use.
     if (contentType.startsWith("video/") || contentType.startsWith("audio/")) {
-      const mediaUrl = `${API_URL}/stream/${encodeURIComponent(fileId)}?mediaToken=${encodeURIComponent(token)}`;
-      displayFile(mediaUrl, contentType, fileInfo.name);
+      mediaStreamUrl = `${API_URL}/stream/${encodeURIComponent(fileId)}?mediaToken=${encodeURIComponent(token)}`;
+      displayFile(mediaStreamUrl, contentType, fileInfo.name);
       return;
     }
 
@@ -161,6 +162,20 @@ function handleLoadError(element) {
 }
 
 function downloadFile() {
+  // Use the browser's native download pipeline for large media instead of
+  // fetching the entire video/audio into JavaScript memory.
+  if (mediaStreamUrl) {
+    const link = document.createElement("a");
+    link.href = mediaStreamUrl;
+    link.download = fileInfo ? fileInfo.name : "download";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    safeToast("Download started!", "success", 2000);
+    return;
+  }
+
   if (fileBlob) {
     triggerBlobDownload(fileBlob);
     return;
