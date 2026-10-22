@@ -42,7 +42,18 @@ async function loadFile() {
 
     document.getElementById("downloadBtn").onclick = () => downloadFile();
 
-    const fileResponse = await fetch(`${API_URL}/download/${fileId}`, {
+    const contentType = fileInfo.contentType || "application/octet-stream";
+
+    // Do not fetch large videos/audio into a single browser Blob. Native media
+    // elements request only the byte ranges they need, allowing playback to
+    // start before the entire file has transferred and avoiding huge memory use.
+    if (contentType.startsWith("video/") || contentType.startsWith("audio/")) {
+      const mediaUrl = `${API_URL}/stream/${encodeURIComponent(fileId)}?mediaToken=${encodeURIComponent(token)}`;
+      displayFile(mediaUrl, contentType, fileInfo.name);
+      return;
+    }
+
+    const fileResponse = await fetch(`${API_URL}/download/${encodeURIComponent(fileId)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!fileResponse.ok)
@@ -62,7 +73,6 @@ async function loadFile() {
       );
     }
     fileObjectUrl = URL.createObjectURL(fileBlob);
-    const contentType = fileInfo.contentType || fileBlob.type || "application/octet-stream";
     displayFile(fileObjectUrl, contentType, fileInfo.name);
     window.addEventListener("beforeunload", () => {
       if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
