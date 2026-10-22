@@ -3,6 +3,7 @@ package com.app.drive.controller;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -36,6 +37,7 @@ public class MediaPreviewController {
 
     private static final Logger logger = LoggerFactory.getLogger(MediaPreviewController.class);
     private static final long PROCESS_TIMEOUT_MINUTES = 30;
+    private static final Semaphore CONVERSION_SLOTS = new Semaphore(2);
 
     private final MasterFileRepository repository;
     private final FileTransferService fileTransferService;
@@ -86,6 +88,11 @@ public class MediaPreviewController {
         if (!fileTransferService.isChunked(file) && !fileTransferService.isLegacy(file)) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "The video has no valid storage reference.");
+        }
+
+        if (!CONVERSION_SLOTS.tryAcquire()) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Other video previews are being prepared. Please try again shortly.");
         }
 
         Path workDirectory = null;
@@ -179,6 +186,8 @@ public class MediaPreviewController {
             logger.error("Unable to create compatible preview for file {}", id, ex);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Unable to prepare the compatible video preview.", ex);
+        } finally {
+            CONVERSION_SLOTS.release();
         }
     }
 
