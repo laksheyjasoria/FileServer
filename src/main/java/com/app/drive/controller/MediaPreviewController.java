@@ -90,9 +90,17 @@ public class MediaPreviewController {
                     "The video has no valid storage reference.");
         }
 
-        if (!CONVERSION_SLOTS.tryAcquire()) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Other video previews are being prepared. Please try again shortly.");
+        boolean slotAcquired;
+        try {
+            slotAcquired = CONVERSION_SLOTS.tryAcquire(10, TimeUnit.MINUTES);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Waiting for a video preview slot was interrupted.", ex);
+        }
+        if (!slotAcquired) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Video preview capacity is busy. Please retry in a few minutes.");
         }
 
         Path workDirectory = null;
@@ -116,7 +124,7 @@ public class MediaPreviewController {
                         "-map", "0:v:0",
                         "-map", "0:a?",
                         "-c:v", "libx264",
-                        "-preset", "veryfast",
+                        "-preset", "ultrafast",
                         "-crf", "23",
                         "-pix_fmt", "yuv420p",
                         "-c:a", "aac",
