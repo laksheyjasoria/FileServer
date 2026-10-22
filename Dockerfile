@@ -17,7 +17,7 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:17-jre-alpine
 
 # Install curl for health checks
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl ffmpeg
 
 # Create app user (security best practice)
 RUN addgroup -S app && adduser -S app -G app
