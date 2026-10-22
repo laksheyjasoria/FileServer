@@ -204,9 +204,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private boolean handleRegularJwt(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         String header = request.getHeader("Authorization");
-        if (header == null || !header.startsWith("Bearer ")) return true;
+        String token = null;
 
-        String token = header.substring(7).trim();
+        if (header != null && header.startsWith("Bearer ")) {
+            token = header.substring(7).trim();
+        } else if (request.getRequestURI() != null
+                && request.getRequestURI().startsWith("/stream/")) {
+            // Native <video>/<audio> elements cannot attach Authorization headers
+            // to their HTTP Range requests. Permit a query token only for the
+            // authenticated streaming endpoint; all other routes remain header-only.
+            token = request.getParameter("mediaToken");
+        }
+
+        if (token == null) return true;
+        token = token.trim();
         if (token.isBlank()) {
             sendUnauthorized(response, "Invalid or missing token");
             return false;
