@@ -114,9 +114,41 @@ function displayFile(url, contentType, filename) {
         "info",
         5000,
       );
-      source.src = `${API_URL}/stream/${encodeURIComponent(fileId)}/preview?mediaToken=${encodeURIComponent(token)}`;
-      source.type = "video/mp4";
-      video.load();
+      // Fetch the preview explicitly instead of pointing the media element at the
+      // endpoint directly. If the server returns JSON/HTML for an error, browsers
+      // must not interpret it as a downloadable preview.json file.
+      const previewUrl = `${API_URL}/stream/${encodeURIComponent(fileId)}/preview`;
+      source.removeAttribute("src");
+      video.pause();
+      fetch(previewUrl, { headers: { Authorization: `Bearer ${token}` } })
+        .then(async (response) => {
+          const responseType = (response.headers.get("content-type") || "").toLowerCase();
+          if (!response.ok || !responseType.includes("video/mp4")) {
+            const detail = await response.text().catch(() => "");
+            let message = detail;
+            try {
+              const parsed = JSON.parse(detail);
+              message = parsed.message || parsed.error || detail;
+            } catch (_) {
+              // Keep a plain-text server error as-is.
+            }
+            throw new Error(message || `Preview failed (HTTP ${response.status})`);
+          }
+          return response.blob();
+        })
+        .then((previewBlob) => {
+          if (!previewBlob.size) throw new Error("The server returned an empty video preview.");
+          if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
+          fileObjectUrl = URL.createObjectURL(previewBlob);
+          source.src = fileObjectUrl;
+          source.type = "video/mp4";
+          video.load();
+          video.play().catch(() => {});
+        })
+        .catch((error) => {
+          console.error("Compatible video preview failed:", error);
+          safeToast(`Video preview failed: ${error.message}`, "error", 8000);
+        });
     };
 
     video.addEventListener("loadedmetadata", () => {
