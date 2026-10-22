@@ -96,8 +96,9 @@ public class MediaPreviewController {
             Path errorLog = workDirectory.resolve("ffmpeg-error.log");
 
             // Temporary processing only: no converted copy is written to Telegram or the database.
-            fileTransferService.streamRange(file, new ByteRange(0L, file.getSize() - 1L),
-                    Files.newOutputStream(input));
+            try (var inputStream = Files.newOutputStream(input)) {
+                fileTransferService.streamRange(file, new ByteRange(0L, file.getSize() - 1L), inputStream);
+            }
 
             Process process;
             try {
