@@ -95,6 +95,48 @@ function displayFile(url, contentType, filename) {
     container.innerHTML = `<iframe src="${url}" class="pdf-viewer" title="${filename}"></iframe>`;
   } else if (contentType.startsWith("video/")) {
     container.innerHTML = `<video controls class="video-viewer" autoplay><source src="${url}" type="${contentType}">Your browser does not support video playback.</video>`;
+
+    // Some browsers can play the AAC audio track of an HEVC MP4 but cannot
+    // decode its video track. If metadata arrives without video dimensions,
+    // retry through the server's temporary H.264/AAC compatibility preview.
+    const video = container.querySelector("video");
+    const source = video?.querySelector("source");
+    let compatiblePreviewAttempted = false;
+
+    const tryCompatiblePreview = () => {
+      if (!video || !source || compatiblePreviewAttempted || video.videoWidth > 0) {
+        return;
+      }
+
+      compatiblePreviewAttempted = true;
+      safeToast(
+        "Preparing a browser-compatible video preview. Larger videos may take a while.",
+        "info",
+        5000,
+      );
+      source.src = `${API_URL}/stream/${encodeURIComponent(fileId)}/preview?mediaToken=${encodeURIComponent(token)}`;
+      source.type = "video/mp4";
+      video.load();
+    };
+
+    video.addEventListener("loadedmetadata", () => {
+      window.setTimeout(() => {
+        if (video.videoWidth === 0) {
+          tryCompatiblePreview();
+        }
+      }, 500);
+    }, { once: true });
+
+    video.addEventListener("error", () => {
+      if (!compatiblePreviewAttempted) {
+        tryCompatiblePreview();
+      } else {
+        safeToast(
+          "Compatible preview failed. Check that FFmpeg is installed and the video is within the preview size limit.",
+          "error",
+        );
+      }
+    });
   } else if (contentType.startsWith("audio/")) {
     container.innerHTML = `<audio controls class="audio-viewer" autoplay><source src="${url}" type="${contentType}">Your browser does not support audio playback.</audio>`;
   } else if (
