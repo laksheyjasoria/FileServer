@@ -115,6 +115,11 @@ app:
     max-active-downloads-per-user: ${APP_TRANSFER_MAX_ACTIVE_DOWNLOADS:3}
     max-range-bytes: ${APP_TRANSFER_MAX_RANGE_BYTES:104857600}
     download-token-validity-seconds: ${APP_TRANSFER_DOWNLOAD_TOKEN_VALIDITY_SECONDS:300}
+  media:
+    preview:
+      enabled: ${APP_MEDIA_PREVIEW_ENABLED:true}
+      ffmpeg-path: ${APP_MEDIA_PREVIEW_FFMPEG_PATH:ffmpeg}
+      max-input-size-bytes: ${APP_MEDIA_PREVIEW_MAX_INPUT_SIZE_BYTES:1073741824}
   billing:
     enabled: ${APP_BILLING_ENABLED:true}
     plans-from-database: true
