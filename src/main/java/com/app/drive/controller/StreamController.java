@@ -35,7 +35,7 @@ public class StreamController {
 	}
 
 	@GetMapping("/{id}")
-	public ResponseEntity<?> stream(@PathVariable String id, org.springframework.security.core.Authentication auth,
+	public ResponseEntity<StreamingResponseBody> stream(@PathVariable String id, org.springframework.security.core.Authentication auth,
 			@RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
 
 		MasterFile file = repository.findByIdAndUserIdAndActiveTrue(id, auth.getName())
@@ -103,7 +103,7 @@ public class StreamController {
 		return new ResponseEntity<>(body, headers, HttpStatus.PARTIAL_CONTENT);
 	}
 
-	private ResponseEntity<Void> buildRangeNotSatisfiableResponse(long fileSize) {
+	private ResponseEntity<StreamingResponseBody> buildRangeNotSatisfiableResponse(long fileSize) {
 
 		HttpHeaders headers = new HttpHeaders();
 
