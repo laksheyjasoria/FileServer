@@ -4,12 +4,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,6 +44,9 @@ public class AuthService {
 	private final BCryptPasswordEncoder encoder;
 	private final StorageFactory storageFactory;
 	private final FileStorageUtils fileStorageUtils;
+
+	@Value("${spring.security.oauth2.client.registration.google.client-id:}")
+	private String googleClientId;
 
 	public AuthService(UserRepository repo, JwtService jwt, BCryptPasswordEncoder encoder,
 			StorageFactory storageFactory, FileStorageUtils fileStorageUtils) {
@@ -140,19 +147,7 @@ public class AuthService {
 	public String googleLogin(String idToken, boolean sync) {
 		log.info("Google login attempt, sync={}", sync);
 		try {
-			URL url = new URL("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken);
-			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-			conn.setRequestMethod("GET");
-			conn.setConnectTimeout(5000);
-			conn.setReadTimeout(5000);
-
-			if (conn.getResponseCode() != 200) {
-				log.warn("Google token verification failed with status: {}", conn.getResponseCode());
-				throw new InvalidCredentialsException();
-			}
-
-			ObjectMapper mapper = new ObjectMapper();
-			Map<String, Object> tokenInfo = mapper.readValue(conn.getInputStream(), Map.class);
+			Map<String, Object> tokenInfo = verifyGoogleToken(idToken);
 
 			String email = (String) tokenInfo.get("email");
 			Boolean emailVerified = tokenInfo.get("email_verified") == null ? Boolean.FALSE
@@ -160,8 +155,7 @@ public class AuthService {
 			String name = (String) tokenInfo.get("name");
 			String googlePictureUrl = (String) tokenInfo.get("picture");
 
-			log.info("Google token info: email={}, verified={}, name={}, pictureUrl={}", email, emailVerified, name,
-					googlePictureUrl);
+			log.info("Google identity verified for account email; profile fields will be synchronized when available.");
 
 			if (email == null || !emailVerified) {
 				log.warn("Email not verified or missing: email={}, verified={}", email, emailVerified);
@@ -458,17 +452,40 @@ public class AuthService {
 
 	// ---- Helper to verify Google token ----
 	private Map<String, Object> verifyGoogleToken(String idToken) throws Exception {
-		URL url = new URL("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken);
+		if (idToken == null || idToken.isBlank() || googleClientId == null || googleClientId.isBlank()) {
+			throw new InvalidCredentialsException();
+		}
+
+		String encodedToken = URLEncoder.encode(idToken, StandardCharsets.UTF_8);
+		URL url = new URL("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodedToken);
 		HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 		conn.setRequestMethod("GET");
 		conn.setConnectTimeout(5000);
 		conn.setReadTimeout(5000);
 
-		if (conn.getResponseCode() != 200) {
-			throw new RuntimeException("Google token verification failed");
-		}
+		try {
+			if (conn.getResponseCode() != 200) {
+				throw new InvalidCredentialsException();
+			}
 
-		ObjectMapper mapper = new ObjectMapper();
-		return mapper.readValue(conn.getInputStream(), Map.class);
+			ObjectMapper mapper = new ObjectMapper();
+			@SuppressWarnings("unchecked")
+			Map<String, Object> tokenInfo = mapper.readValue(conn.getInputStream(), Map.class);
+
+			String audience = String.valueOf(tokenInfo.getOrDefault("aud", ""));
+			String issuer = String.valueOf(tokenInfo.getOrDefault("iss", ""));
+			String expiration = String.valueOf(tokenInfo.getOrDefault("exp", "0"));
+			long expiresAt = Long.parseLong(expiration);
+
+			boolean trustedIssuer = "accounts.google.com".equals(issuer)
+					|| "https://accounts.google.com".equals(issuer);
+			if (!googleClientId.equals(audience) || !trustedIssuer || expiresAt <= Instant.now().getEpochSecond()
+					|| tokenInfo.get("sub") == null || String.valueOf(tokenInfo.get("sub")).isBlank()) {
+				throw new InvalidCredentialsException();
+			}
+			return tokenInfo;
+		} finally {
+			conn.disconnect();
+		}
 	}
 }
