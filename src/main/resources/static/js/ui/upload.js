@@ -299,11 +299,19 @@ async function sendChunkWithRetry(item, index) {
   throw lastError || new Error('Chunk upload failed.');
 }
 
-function sendChunk(item, index, blob) {
+async function sendChunk(item, index, blob) {
+  if (item.pauseRequested || item.cancelRequested) throw new Error('Upload interrupted.');
+  const bytes = await blob.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const chunkSha256 = Array.from(new Uint8Array(digest),
+    byte => byte.toString(16).padStart(2, '0')).join('');
+  if (item.pauseRequested || item.cancelRequested) throw new Error('Upload interrupted.');
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     item.inFlight.set(index, { xhr, loaded: 0, total: blob.size });
     xhr.open('POST', uploadUrl(`/chunk-upload/${encodeURIComponent(item.uploadId)}/${index}`), true);
+    xhr.setRequestHeader('X-Chunk-SHA256', chunkSha256);
     const token = localStorage.getItem('jwtToken');
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.upload.onprogress = event => {
