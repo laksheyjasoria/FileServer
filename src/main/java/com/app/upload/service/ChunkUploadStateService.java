@@ -122,7 +122,7 @@ public class ChunkUploadStateService {
     @Transactional
     public void markFailed(String uploadId, int chunkIndex, String userId) {
 
-        UploadJob job = getJob(uploadId, userId);
+        UploadJob job = getJobForUpdate(uploadId, userId);
 
         UploadChunk chunk = chunkRepository
                 .findByUploadJobIdAndChunkIndex(uploadId, chunkIndex)
@@ -148,7 +148,7 @@ public class ChunkUploadStateService {
             String telegramFileId,
             String userId) {
 
-        UploadJob job = getJob(uploadId, userId);
+        UploadJob job = getJobForUpdate(uploadId, userId);
 
         UploadChunk chunk = chunkRepository
                 .findByUploadJobIdAndChunkIndex(uploadId, chunkIndex)
