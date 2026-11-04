@@ -57,9 +57,11 @@ public class ChunkUploadController {
 
 	@PostMapping("/{uploadId}/{chunkIndex}")
 	public void uploadChunk(@PathVariable String uploadId, @PathVariable Integer chunkIndex,
-			@RequestParam MultipartFile file, Authentication auth) {
+			@RequestParam MultipartFile file,
+			@RequestHeader("X-Chunk-SHA256") String chunkSha256,
+			Authentication auth) {
 
-		chunkService.uploadChunk(uploadId, chunkIndex, file, auth.getName());
+		chunkService.uploadChunk(uploadId, chunkIndex, file, auth.getName(), chunkSha256);
 	}
 
 	@GetMapping("/{uploadId}/resume")
