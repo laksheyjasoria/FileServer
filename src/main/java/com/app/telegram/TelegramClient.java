@@ -318,7 +318,7 @@ public class TelegramClient {
         String description = string(body == null ? null : body.get("description"));
         String message = "Telegram " + method + " failed (HTTP " + ex.getStatusCode().value()
                 + (errorCode == null ? "" : ", error " + errorCode)
-                + (isBlank(description) ? "" : "): " + description : ").");
+                + (isBlank(description) ? ")." : "): " + description);
         return new TelegramApiException(message, ex.getStatusCode().value(), errorCode);
     }
 
