@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.math.BigDecimal;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.app.billing.dto.AssignPlanRequest;
 import com.app.billing.dto.CreatePlanRequest;
@@ -41,10 +42,16 @@ public class BillingService {
         return planRepo.save(plan);
     }
 
+    @Transactional
     public Subscription assignPlan(AssignPlanRequest request) {
 
         Plan plan = planRepo.findById(request.getPlanId())
                 .orElseThrow(PlanNotFoundException::new);
+
+        subRepo.findByUserIdAndActiveTrue(request.getUserId()).ifPresent(existing -> {
+            existing.setActive(false);
+            subRepo.save(existing);
+        });
 
         Subscription sub = new Subscription();
 
@@ -69,9 +76,18 @@ public class BillingService {
     }
 
     /** Ensures every registered user can upload without manual plan assignment. */
+    @Transactional
     public Subscription getOrCreateActiveSubscription(String userId) {
         return subRepo.findByUserIdAndActiveTrue(userId)
-                .filter(subscription -> subscription.getExpiryDate().isAfter(LocalDateTime.now()))
+                .map(subscription -> {
+                    LocalDateTime expiry = subscription.getExpiryDate();
+                    if (expiry != null && expiry.isAfter(LocalDateTime.now())) {
+                        return subscription;
+                    }
+                    subscription.setActive(false);
+                    subRepo.save(subscription);
+                    return createFreeSubscription(userId);
+                })
                 .orElseGet(() -> createFreeSubscription(userId));
     }
 
@@ -98,16 +114,9 @@ public class BillingService {
     }
 
     public boolean hasValidPlan(String userId) {
-
-        try {
-
-            Subscription sub = getActiveSubscription(userId);
-
-            return sub.getExpiryDate()
-                    .isAfter(LocalDateTime.now());
-
-        } catch (Exception e) {
-            return false;
-        }
+        return subRepo.findByUserIdAndActiveTrue(userId)
+                .map(sub -> sub.getExpiryDate() != null
+                        && sub.getExpiryDate().isAfter(LocalDateTime.now()))
+                .orElse(false);
     }
 }
