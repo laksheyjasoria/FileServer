@@ -118,7 +118,9 @@ function displayFile(url, contentType, filename) {
       // endpoint directly. If the server returns JSON/HTML for an error, browsers
       // must not interpret it as a downloadable preview.json file.
       const previewUrl = `${API_URL}/stream/${encodeURIComponent(fileId)}/preview`;
-      source.removeAttribute("src");
+      // Keep the original stream URL in place until the preview has been
+      // downloaded and validated. If conversion fails, the native source remains
+      // available instead of leaving the <video> element with an empty <source>.
       video.pause();
       fetch(previewUrl, { headers: { Authorization: `Bearer ${token}` } })
         .then(async (response) => {
