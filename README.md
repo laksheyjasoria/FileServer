@@ -50,7 +50,7 @@ A production-ready file server built with Spring Boot, providing secure file sto
 | Category                | Technology                       |
 | ----------------------- | -------------------------------- |
 | Backend                 | Spring Boot 3.2.4                |
-| Language                | Java 17                          |
+| Language                | Java 21                          |
 | Security                | Spring Security, JWT, OAuth2     |
 | ORM                     | Spring Data JPA / Hibernate      |
 | Database                | PostgreSQL                       |
@@ -70,7 +70,7 @@ A production-ready file server built with Spring Boot, providing secure file sto
 
 Install the following before running the application:
 
-* Java 17 or higher
+* Java 21 or higher
 * Maven 3.8+
 * PostgreSQL 14+
 * Redis (optional)
