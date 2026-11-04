@@ -93,7 +93,7 @@ app:
   telegram:
     storage:
       bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN}
-      chat-id: ${TELEGRAM_STORAGE_CHAT_ID:1379405363}
+      chat-id: ${TELEGRAM_STORAGE_CHAT_ID}
   admin:
     email: ${APP_ADMIN_EMAIL:admin@example.com}
     password: ${APP_ADMIN_PASSWORD}
