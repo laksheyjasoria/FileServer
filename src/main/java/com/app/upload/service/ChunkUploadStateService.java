@@ -58,7 +58,7 @@ public class ChunkUploadStateService {
             long actualSize,
             String userId) {
 
-        UploadJob job = getJob(uploadId, userId);
+        UploadJob job = getJobForUpdate(uploadId, userId);
         validateUploadState(job);
         validateChunkIndex(job, chunkIndex);
 
@@ -228,6 +228,11 @@ public class ChunkUploadStateService {
 
     private UploadJob getJob(String uploadId, String userId) {
         return jobRepository.findByIdAndUserId(uploadId, userId)
+                .orElseThrow(UploadNotFoundException::new);
+    }
+
+    private UploadJob getJobForUpdate(String uploadId, String userId) {
+        return jobRepository.findByIdAndUserIdForUpdate(uploadId, userId)
                 .orElseThrow(UploadNotFoundException::new);
     }
 
