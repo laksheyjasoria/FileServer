@@ -125,7 +125,7 @@ app:
     enabled: ${APP_BILLING_ENABLED:true}
     plans-from-database: true
   email:
-    enabled: ${APP_EMAIL_ENABLED:true}
+    enabled: ${APP_EMAIL_ENABLED:false}
     async: ${APP_EMAIL_ASYNC:true}
     max-attempts: ${APP_EMAIL_MAX_ATTEMPTS:5}
   scheduler:
