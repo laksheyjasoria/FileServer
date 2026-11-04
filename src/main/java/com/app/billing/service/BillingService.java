@@ -14,17 +14,23 @@ import com.app.billing.repository.PlanRepository;
 import com.app.billing.repository.SubscriptionRepository;
 import com.app.core.exception.PlanNotFoundException;
 import com.app.core.exception.SubscriptionNotFoundException;
+import com.app.core.exception.UserNotFoundException;
+import com.app.identity.repository.UserRepository;
 
 @Service
 public class BillingService {
 
     private final PlanRepository planRepo;
     private final SubscriptionRepository subRepo;
+    private final UserRepository userRepository;
 
-    public BillingService(PlanRepository planRepo,
-                          SubscriptionRepository subRepo) {
+    public BillingService(
+            PlanRepository planRepo,
+            SubscriptionRepository subRepo,
+            UserRepository userRepository) {
         this.planRepo = planRepo;
         this.subRepo = subRepo;
+        this.userRepository = userRepository;
     }
 
     public Plan createPlan(CreatePlanRequest request) {
@@ -44,6 +50,7 @@ public class BillingService {
 
     @Transactional
     public Subscription assignPlan(AssignPlanRequest request) {
+        userRepository.findByEmailForUpdate(request.getUserId()).orElseThrow(UserNotFoundException::new);
 
         Plan plan = planRepo.findById(request.getPlanId())
                 .orElseThrow(PlanNotFoundException::new);
@@ -78,6 +85,7 @@ public class BillingService {
     /** Ensures every registered user can upload without manual plan assignment. */
     @Transactional
     public Subscription getOrCreateActiveSubscription(String userId) {
+        userRepository.findByEmailForUpdate(userId).orElseThrow(UserNotFoundException::new);
         return subRepo.findByUserIdAndActiveTrue(userId)
                 .map(subscription -> {
                     LocalDateTime expiry = subscription.getExpiryDate();
