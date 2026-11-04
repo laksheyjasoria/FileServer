@@ -20,6 +20,8 @@ public interface UploadJobRepository extends JpaRepository<UploadJob, String> {
 
 	List<UploadJob> findByStatus(UploadStatus status);
 
+	List<UploadJob> findByStatusIn(Collection<UploadStatus> statuses);
+
 	List<UploadJob> findByUserIdAndStatusIn(String userId, Collection<UploadStatus> statuses);
 
 	Optional<UploadJob> findByIdAndUserId(String id, String userId);
