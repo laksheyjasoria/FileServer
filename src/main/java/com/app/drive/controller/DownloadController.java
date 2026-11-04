@@ -395,7 +395,7 @@ public class DownloadController {
 
 			if (fileTransferService.isChunked(item) || fileTransferService.isLegacy(item)) {
 
-				accumulator.add(new ZipEntryInfo(item, currentPath + item.getName()));
+				accumulator.add(new ZipEntryInfo(item, currentPath + sanitizeZipSegment(item.getName())));
 
 			} else {
 
@@ -404,7 +404,7 @@ public class DownloadController {
 
 		} else if ("FOLDER".equalsIgnoreCase(item.getDriveType())) {
 
-			String folderPath = currentPath + item.getName() + "/";
+			String folderPath = currentPath + sanitizeZipSegment(item.getName()) + "/";
 
 			accumulator.add(new ZipEntryInfo(null, folderPath));
 
@@ -440,7 +440,7 @@ public class DownloadController {
 
 			if (fileTransferService.isChunked(item) || fileTransferService.isLegacy(item)) {
 
-				accumulator.add(new ZipEntryInfo(item, currentPath + item.getName()));
+				accumulator.add(new ZipEntryInfo(item, currentPath + sanitizeZipSegment(item.getName())));
 
 			} else {
 
@@ -449,7 +449,7 @@ public class DownloadController {
 
 		} else if ("FOLDER".equalsIgnoreCase(item.getDriveType())) {
 
-			String folderPath = currentPath + item.getName() + "/";
+			String folderPath = currentPath + sanitizeZipSegment(item.getName()) + "/";
 
 			accumulator.add(new ZipEntryInfo(null, folderPath));
 
@@ -529,6 +529,22 @@ public class DownloadController {
 	 * ============================================================ ZIP STREAM
 	 * ============================================================
 	 */
+
+	/**
+	 * ZIP entry names must never allow path traversal when extracted by a client.
+	 * Treat each database filename as one path segment, not as a path.
+	 */
+	private String sanitizeZipSegment(String value) {
+		if (value == null || value.isBlank()) {
+			return "unnamed";
+		}
+		String sanitized = value.replace('\\\\', '_').replace('/', '_')
+				.replaceAll("[\\p{Cntrl}]", "_").trim();
+		if (sanitized.isBlank() || ".".equals(sanitized) || "..".equals(sanitized)) {
+			return "unnamed";
+		}
+		return sanitized;
+	}
 
 	private ResponseEntity<StreamingResponseBody> buildZipResponseStream(List<ZipEntryInfo> entries) {
 
