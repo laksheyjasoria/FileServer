@@ -22,7 +22,7 @@ public class PauseService {
             String uploadId,
             String userId) {
 
-        UploadJob job = repo.findByIdAndUserId(
+        UploadJob job = repo.findByIdAndUserIdForUpdate(
                 uploadId,
                 userId)
                 .orElseThrow(UploadNotFoundException::new);

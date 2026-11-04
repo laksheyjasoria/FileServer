@@ -1,6 +1,8 @@
 package com.app.core.security.filter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,6 +63,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
 
     public JwtAuthenticationFilter(JwtService jwt, String masterKey, UserRepository userRepository) {
+        if (masterKey == null || masterKey.length() < 32) {
+            throw new IllegalArgumentException("Master key must contain at least 32 characters.");
+        }
         this.jwt = jwt;
         this.masterKey = masterKey;
         this.userRepository = userRepository;
@@ -174,7 +179,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private boolean handleMasterKey(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
         String header = request.getHeader("X-Master-Key");
-        if (header != null && header.equals(masterKey)) {
+        if (header != null && MessageDigest.isEqual(
+                header.getBytes(StandardCharsets.UTF_8), masterKey.getBytes(StandardCharsets.UTF_8))) {
             setAuthentication("master", "ROLE_ADMIN");
             chain.doFilter(request, response);
             return true;

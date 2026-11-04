@@ -10,6 +10,8 @@ import com.app.core.exception.StorageLimitExceededException;
 import com.app.core.exception.UploadLimitExceededException;
 import com.app.master.entity.MasterFile;
 import com.app.master.repository.MasterFileRepository;
+import com.app.identity.repository.UserRepository;
+import com.app.core.exception.UserNotFoundException;
 import com.app.upload.dto.CreateUploadRequest;
 import com.app.upload.entity.UploadJob;
 import com.app.upload.entity.UploadStatus;
@@ -24,19 +26,22 @@ public class UploadOrchestrator {
     private final ChunkSizeCalculator chunkSizeCalculator;
     private final BillingService billingService;
     private final UsageService usageService;
+    private final UserRepository userRepository;
 
     public UploadOrchestrator(
             UploadJobRepository jobRepo,
             MasterFileRepository masterFileRepo,
             ChunkSizeCalculator chunkSizeCalculator,
             BillingService billingService,
-            UsageService usageService) {
+            UsageService usageService,
+            UserRepository userRepository) {
 
         this.jobRepo = jobRepo;
         this.masterFileRepo = masterFileRepo;
         this.chunkSizeCalculator = chunkSizeCalculator;
         this.billingService = billingService;
         this.usageService = usageService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -47,6 +52,8 @@ public class UploadOrchestrator {
     	long totalSize = request.getTotalSize();
 
     	if (!admin) {
+            // Serialize quota check + reservation creation for this user across app instances.
+            userRepository.findByEmailForUpdate(userId).orElseThrow(UserNotFoundException::new);
     	    Subscription subscription =
     	            billingService.getOrCreateActiveSubscription(userId);
 
@@ -79,6 +86,7 @@ public class UploadOrchestrator {
         UploadJob job = new UploadJob();
         job.setUserId(userId);
         job.setFileName(request.getFileName());
+        job.setFileFingerprint(request.getFileFingerprint().toLowerCase(java.util.Locale.ROOT));
         job.setTotalSize(totalSize);
         job.setChunkSize((int) chunkSize);
         job.setTotalChunks(totalChunks);
@@ -123,6 +131,10 @@ public class UploadOrchestrator {
 
         if (request.getTotalSize() == null || request.getTotalSize() < 0) {
             throw new IllegalArgumentException("File size must be zero or greater.");
+        }
+        if (request.getFileFingerprint() == null
+                || !request.getFileFingerprint().matches("(?i)^[a-f0-9]{64}$")) {
+            throw new IllegalArgumentException("A valid SHA-256 file fingerprint is required.");
         }
     }
 }

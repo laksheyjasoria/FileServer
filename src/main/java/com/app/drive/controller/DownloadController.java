@@ -30,7 +30,7 @@ import com.app.drive.service.DownloadService;
 import com.app.master.entity.MasterFile;
 import com.app.master.repository.MasterFileRepository;
 import com.app.share.entity.SharedResource;
-import com.app.share.repository.SharedResourceRepository;
+import com.app.share.service.ShareService;
 import com.app.transfer.ByteRange;
 import com.app.transfer.FileTransferService;
 import com.app.transfer.HttpRangeParser;
@@ -44,17 +44,17 @@ public class DownloadController {
 
 	private final DownloadService service;
 	private final MasterFileRepository repository;
-	private final SharedResourceRepository shareRepository;
+	private final ShareService shareService;
 	private final FileTransferService fileTransferService;
 	private final HttpRangeParser httpRangeParser;
 
 	public DownloadController(DownloadService service, MasterFileRepository repository,
-			SharedResourceRepository shareRepository, FileTransferService fileTransferService,
+			ShareService shareService, FileTransferService fileTransferService,
 			HttpRangeParser httpRangeParser) {
 
 		this.service = service;
 		this.repository = repository;
-		this.shareRepository = shareRepository;
+		this.shareService = shareService;
 		this.fileTransferService = fileTransferService;
 		this.httpRangeParser = httpRangeParser;
 	}
@@ -358,30 +358,19 @@ public class DownloadController {
 
 	@PostMapping("/bulk/shared")
 	public ResponseEntity<StreamingResponseBody> downloadBulkShared(@RequestBody List<String> ids,
-			@RequestParam String token) {
+			@RequestParam String token,
+			@RequestHeader(value = "X-Share-Password", required = false) String password) {
 
-		SharedResource share = shareRepository.findByToken(token)
-				.orElseThrow(() -> new IllegalArgumentException("Invalid share token"));
-
+		SharedResource share = shareService.validateBulkDownload(token, password, ids);
 		List<String> validRootIds = share.getFileIds();
-
 		if (validRootIds == null || validRootIds.isEmpty()) {
-
 			validRootIds = Collections.singletonList(share.getFileId());
 		}
 
 		List<ZipEntryInfo> allFiles = new ArrayList<>();
-
 		for (String id : ids) {
-
-			if (!isUnderSharedRoot(id, validRootIds)) {
-
-				throw new IllegalArgumentException("Access denied: one or more items " + "are not part of this share");
-			}
-
-			collectFilesRecursivelyShared(id, allFiles, validRootIds, "");
+			collectFilesRecursivelyShared(id, allFiles, validRootIds, share.getCreatedBy(), "");
 		}
-
 		return buildZipResponseStream(allFiles);
 	}
 
@@ -406,7 +395,7 @@ public class DownloadController {
 
 			if (fileTransferService.isChunked(item) || fileTransferService.isLegacy(item)) {
 
-				accumulator.add(new ZipEntryInfo(item, currentPath + item.getName()));
+				accumulator.add(new ZipEntryInfo(item, currentPath + sanitizeZipSegment(item.getName())));
 
 			} else {
 
@@ -415,7 +404,7 @@ public class DownloadController {
 
 		} else if ("FOLDER".equalsIgnoreCase(item.getDriveType())) {
 
-			String folderPath = currentPath + item.getName() + "/";
+			String folderPath = currentPath + sanitizeZipSegment(item.getName()) + "/";
 
 			accumulator.add(new ZipEntryInfo(null, folderPath));
 
@@ -434,15 +423,11 @@ public class DownloadController {
 	 */
 
 	private void collectFilesRecursivelyShared(String id, List<ZipEntryInfo> accumulator, List<String> validRootIds,
-			String currentPath) {
+			String ownerId, String currentPath) {
 
-		MasterFile item = repository.findById(id).orElse(null);
+		MasterFile item = repository.findByIdAndUserIdAndActiveTrue(id, ownerId).orElse(null);
 
 		if (item == null) {
-			return;
-		}
-
-		if (!item.isActive()) {
 			return;
 		}
 
@@ -455,7 +440,7 @@ public class DownloadController {
 
 			if (fileTransferService.isChunked(item) || fileTransferService.isLegacy(item)) {
 
-				accumulator.add(new ZipEntryInfo(item, currentPath + item.getName()));
+				accumulator.add(new ZipEntryInfo(item, currentPath + sanitizeZipSegment(item.getName())));
 
 			} else {
 
@@ -464,15 +449,14 @@ public class DownloadController {
 
 		} else if ("FOLDER".equalsIgnoreCase(item.getDriveType())) {
 
-			String folderPath = currentPath + item.getName() + "/";
+			String folderPath = currentPath + sanitizeZipSegment(item.getName()) + "/";
 
 			accumulator.add(new ZipEntryInfo(null, folderPath));
 
-			List<MasterFile> children = repository.findByParentIdAndActiveTrue(id);
+			List<MasterFile> children = repository.findByUserIdAndParentIdAndActiveTrue(ownerId, id);
 
 			for (MasterFile child : children) {
-
-				collectFilesRecursivelyShared(child.getId(), accumulator, validRootIds, folderPath);
+				collectFilesRecursivelyShared(child.getId(), accumulator, validRootIds, ownerId, folderPath);
 			}
 		}
 	}
@@ -545,6 +529,22 @@ public class DownloadController {
 	 * ============================================================ ZIP STREAM
 	 * ============================================================
 	 */
+
+	/**
+	 * ZIP entry names must never allow path traversal when extracted by a client.
+	 * Treat each database filename as one path segment, not as a path.
+	 */
+	private String sanitizeZipSegment(String value) {
+		if (value == null || value.isBlank()) {
+			return "unnamed";
+		}
+		String sanitized = value.replace('\\', '_').replace('/', '_')
+				.replaceAll("[\\p{Cntrl}]", "_").trim();
+		if (sanitized.isBlank() || ".".equals(sanitized) || "..".equals(sanitized)) {
+			return "unnamed";
+		}
+		return sanitized;
+	}
 
 	private ResponseEntity<StreamingResponseBody> buildZipResponseStream(List<ZipEntryInfo> entries) {
 

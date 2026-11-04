@@ -20,7 +20,7 @@ public class CancelService {
 	@Transactional
 	public void cancel(String uploadId, String userId) {
 
-		UploadJob job = repo.findByIdAndUserId(uploadId, userId).orElseThrow(UploadNotFoundException::new);
+		UploadJob job = repo.findByIdAndUserIdForUpdate(uploadId, userId).orElseThrow(UploadNotFoundException::new);
 
 		if (job.getStatus() == UploadStatus.CANCELLED) {
 			return;

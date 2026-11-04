@@ -10,6 +10,7 @@ import com.app.billing.entity.Subscription;
 import com.app.billing.repository.SubscriptionRepository;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression("${app.scheduler.enabled:true} && ${app.scheduler.plan-expiry.enabled:true}")
 public class PlanExpiryJob {
 
     private final SubscriptionRepository repo;
@@ -18,7 +19,7 @@ public class PlanExpiryJob {
         this.repo = repo;
     }
 
-    @Scheduled(cron = "0 0 * * * *")
+    @Scheduled(cron = "${app.scheduler.plan-expiry.cron:0 0 * * * *}")
     public void expirePlans() {
 
         List<Subscription> list = repo.findAll();

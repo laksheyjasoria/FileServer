@@ -15,6 +15,8 @@ public interface MasterFileRepository extends JpaRepository<MasterFile, String> 
 	// ---------- Existing methods ----------
 	List<MasterFile> findByUserId(String userId);
 
+	List<MasterFile> findByUserIdAndActiveTrue(String userId);
+
 	List<MasterFile> findByUserIdAndParentIdIsNull(String userId);
 
 	List<MasterFile> findByUserIdAndParentId(String userId, String parentId);

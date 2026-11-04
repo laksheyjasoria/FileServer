@@ -12,6 +12,8 @@ public class CreateUploadRequest {
 
     private String contentType;
 
+    private String fileFingerprint;
+
     public String getFileName() {
         return fileName;
     }
@@ -50,5 +52,13 @@ public class CreateUploadRequest {
 
     public void setContentType(String contentType) {
         this.contentType = contentType;
+    }
+
+    public String getFileFingerprint() {
+        return fileFingerprint;
+    }
+
+    public void setFileFingerprint(String fileFingerprint) {
+        this.fileFingerprint = fileFingerprint;
     }
 }

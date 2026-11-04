@@ -145,6 +145,33 @@ public class ShareService {
         }
     }
 
+    /**
+     * Authorizes a bulk ZIP download through the same share-link rules used by
+     * normal shared-file access. Every requested root must belong to this share
+     * and still be owned by the original sharer.
+     */
+    public SharedResource validateBulkDownload(String token, String password, List<String> itemIds) {
+        SharedResource share = validate(token, password);
+
+        SharePermission permission = share.getPermission() == null
+                ? SharePermission.VIEW_DOWNLOAD : share.getPermission();
+        if (permission == SharePermission.VIEW) {
+            throw new ShareAccessDeniedException("This share does not allow downloads.");
+        }
+        if (itemIds == null || itemIds.isEmpty() || itemIds.size() > 1000) {
+            throw new ShareAccessDeniedException("Select between 1 and 1000 shared items to download.");
+        }
+
+        for (String itemId : itemIds) {
+            if (itemId == null || itemId.isBlank() || !isUnderSharedRoot(itemId, share)) {
+                throw new ShareAccessDeniedException("One or more requested items are not part of this share.");
+            }
+            files.findByIdAndUserIdAndActiveTrue(itemId, share.getCreatedBy())
+                    .orElseThrow(FileNotFoundException::new);
+        }
+        return share;
+    }
+
     // ================= DETAILS =================
 
     public PublicShareResponse details(String token, String password) {
@@ -262,7 +289,7 @@ public class ShareService {
                 if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
                     throw new RuntimeException("The shared item is not a folder.");
                 }
-                return files.findByParentIdAndActiveTrue(folder.getId());
+                return files.findByUserIdAndParentIdAndActiveTrue(share.getCreatedBy(), folder.getId());
             }
         } else {
             if (!isUnderSharedRoot(folderId, share)) {
@@ -273,7 +300,7 @@ public class ShareService {
             if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
                 throw new RuntimeException("The requested item is not a folder.");
             }
-            return files.findByParentIdAndActiveTrue(folder.getId());
+            return files.findByUserIdAndParentIdAndActiveTrue(share.getCreatedBy(), folder.getId());
         }
     }
 

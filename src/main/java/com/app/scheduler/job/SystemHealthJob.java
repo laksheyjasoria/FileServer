@@ -7,6 +7,7 @@ import com.app.logger.AppLogger;
 import com.app.logger.factory.AppLoggerFactory;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression("${app.scheduler.enabled:true} && ${app.scheduler.system-health.enabled:true}")
 public class SystemHealthJob {
 
 	private final AppLogger log;
@@ -15,7 +16,7 @@ public class SystemHealthJob {
 		this.log = loggerFactory.getLogger(SystemHealthJob.class);
 	}
 
-	@Scheduled(fixedDelay = 600000)
+	@Scheduled(fixedDelayString = "${app.scheduler.system-health.fixed-delay-ms:600000}")
 	public void healthCheck() {
 
 		log.info("System health check completed");

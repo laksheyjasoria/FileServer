@@ -10,6 +10,7 @@ import com.app.webhook.repository.WebhookRepository;
 import com.app.webhook.service.WebhookService;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression("${app.scheduler.enabled:true} && ${app.scheduler.webhook-retry.enabled:true}")
 public class WebhookRetryJob {
 
 	private final WebhookService service;
@@ -20,7 +21,7 @@ public class WebhookRetryJob {
 		this.webhookRepo = webhookRepo;
 	}
 
-	@Scheduled(fixedDelay = 300000)
+	@Scheduled(fixedDelayString = "${app.scheduler.webhook-retry.fixed-delay-ms:300000}")
 	public void retryFailed() {
 
 		List<WebhookEvent> failed = service.failedEvents();

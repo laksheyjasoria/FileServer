@@ -25,7 +25,7 @@ public class ResumeService {
 //    @Transactional
 //    public List<Integer> resume(String uploadId, String userId) {
 //
-//        UploadJob job = jobRepo.findByIdAndUserId(uploadId, userId)
+//        UploadJob job = jobRepo.findByIdAndUserIdForUpdate(uploadId, userId)
 //                .orElseThrow(UploadNotFoundException::new);
 //
 //        if (job.getStatus() == UploadStatus.CANCELLED) {
@@ -42,8 +42,14 @@ public class ResumeService {
 //    }
 
 	@Transactional
-	public List<Integer> resume(String uploadId, String userId) {
-		UploadJob job = jobRepo.findByIdAndUserId(uploadId, userId).orElseThrow(UploadNotFoundException::new);
+	public List<Integer> resume(String uploadId, String userId, String fileFingerprint) {
+		UploadJob job = jobRepo.findByIdAndUserIdForUpdate(uploadId, userId)
+				.orElseThrow(UploadNotFoundException::new);
+		if (fileFingerprint == null || job.getFileFingerprint() == null
+				|| !job.getFileFingerprint().equals(fileFingerprint.toLowerCase(java.util.Locale.ROOT))) {
+			throw new IllegalArgumentException(
+					"The selected file does not match this resumable upload session.");
+		}
 		UploadStatus status = job.getStatus();
 		if (status == UploadStatus.CANCELLED) {
 			throw new IllegalStateException("Upload has been cancelled.");
