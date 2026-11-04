@@ -316,19 +316,23 @@ public class TelegramClient {
         Map<?, ?> body = parseJsonObject(ex.getResponseBodyAsString());
         Integer errorCode = number(body == null ? null : body.get("error_code"));
         String description = string(body == null ? null : body.get("description"));
+        Integer retryAfter = retryAfterSeconds(body);
         String message = "Telegram " + method + " failed (HTTP " + ex.getStatusCode().value()
                 + (errorCode == null ? "" : ", error " + errorCode)
-                + (isBlank(description) ? ")." : "): " + description);
-        return new TelegramApiException(message, ex.getStatusCode().value(), errorCode);
+                + (isBlank(description) ? ")." : "): " + description)
+                + (retryAfter == null ? "" : " Retry after " + retryAfter + " seconds.");
+        return new TelegramApiException(message, ex.getStatusCode().value(), errorCode, retryAfter);
     }
 
     private TelegramApiException apiException(Map<?, ?> body, int httpStatus, String method) {
         Integer errorCode = number(body.get("error_code"));
         String description = string(body.get("description"));
+        Integer retryAfter = retryAfterSeconds(body);
         String message = "Telegram " + method + " failed (HTTP " + httpStatus
                 + (errorCode == null ? "" : ", error " + errorCode)
-                + (isBlank(description) ? ")." : "): " + description);
-        return new TelegramApiException(message, httpStatus, errorCode);
+                + (isBlank(description) ? ")." : "): " + description)
+                + (retryAfter == null ? "" : " Retry after " + retryAfter + " seconds.");
+        return new TelegramApiException(message, httpStatus, errorCode, retryAfter);
     }
 
     private TelegramApiException unexpectedResponse(String method, String reason, Map<?, ?> response) {
@@ -355,6 +359,13 @@ public class TelegramClient {
                 && response.getBody() != null && Boolean.TRUE.equals(response.getBody().get("ok"));
     }
 
+    private Integer retryAfterSeconds(Map<?, ?> body) {
+        if (body == null || !(body.get("parameters") instanceof Map<?, ?> parameters)) {
+            return null;
+        }
+        return number(parameters.get("retry_after"));
+    }
+
     private static Integer number(Object value) {
         return value instanceof Number number ? number.intValue() : null;
     }
@@ -376,17 +387,24 @@ public class TelegramClient {
             return ex.getClass().getSimpleName();
         }
         // Defensive redaction in case an HTTP client embeds the request URL in its message.
-        return message.replaceAll("(?i)https://api\\\\.telegram\\\\.org/bot[^/\\\\s]+", "https://api.telegram.org/bot[REDACTED]");
+        return message.replaceAll("(?i)(https?://api\\\\.telegram\\\\.org/(?:file/)?bot)[^/\\\\s]+", "$1[REDACTED]");
     }
 
     public static final class TelegramApiException extends RuntimeException {
         private final Integer httpStatus;
         private final Integer telegramErrorCode;
+        private final Integer retryAfterSeconds;
 
         public TelegramApiException(String message, Integer httpStatus, Integer telegramErrorCode) {
+            this(message, httpStatus, telegramErrorCode, null);
+        }
+
+        public TelegramApiException(
+                String message, Integer httpStatus, Integer telegramErrorCode, Integer retryAfterSeconds) {
             super(message);
             this.httpStatus = httpStatus;
             this.telegramErrorCode = telegramErrorCode;
+            this.retryAfterSeconds = retryAfterSeconds;
         }
 
         public Integer getHttpStatus() {
@@ -395,6 +413,10 @@ public class TelegramClient {
 
         public Integer getTelegramErrorCode() {
             return telegramErrorCode;
+        }
+
+        public Integer getRetryAfterSeconds() {
+            return retryAfterSeconds;
         }
     }
 }
