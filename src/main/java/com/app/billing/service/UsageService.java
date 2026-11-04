@@ -1,6 +1,9 @@
 package com.app.billing.service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -24,24 +27,28 @@ public class UsageService {
     }
 
     /**
-     * Counts active stored files plus unfinished chunked uploads as reservations.
-     * Completed chunked uploads are represented by their active MasterFile row and
-     * are therefore not counted twice.
+     * Counts stored files, including recoverable trash, and unfinished chunked
+     * uploads as reservations. Failed/cancelled chunked upload placeholders are
+     * excluded. Completed chunked files are counted once through MasterFile.
      */
     public long calculateUsedStorage(String userId) {
-        List<MasterFile> activeFiles = fileRepository.findByUserIdAndActiveTrue(userId);
-        long storedBytes = activeFiles.stream()
+        Map<String, UploadStatus> uploadStatuses = uploadJobRepository.findByUserId(userId).stream()
+                .collect(Collectors.toMap(UploadJob::getId, UploadJob::getStatus, (first, ignored) -> first));
+
+        List<MasterFile> files = fileRepository.findByUserId(userId);
+        long usedBytes = files.stream()
                 .filter(file -> file.getSize() != null)
+                .filter(file -> {
+                    if (file.getUploadJobId() == null) {
+                        return true;
+                    }
+                    UploadStatus status = uploadStatuses.get(file.getUploadJobId());
+                    return status == null || status == UploadStatus.COMPLETED
+                            || status == UploadStatus.IN_PROGRESS || status == UploadStatus.PAUSED;
+                })
                 .mapToLong(MasterFile::getSize)
                 .sum();
 
-        List<UploadJob> reservations = uploadJobRepository.findByUserIdAndStatusIn(
-                userId, List.of(UploadStatus.IN_PROGRESS, UploadStatus.PAUSED));
-        long reservedBytes = reservations.stream()
-                .filter(job -> job.getTotalSize() != null)
-                .mapToLong(UploadJob::getTotalSize)
-                .sum();
-
-        return Math.addExact(storedBytes, reservedBytes);
+        return usedBytes;
     }
 }
