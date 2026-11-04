@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -22,6 +22,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ${PROJECT_NAME}-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
@@ -29,7 +31,7 @@ services:
       - app-network
     restart: always
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -41,19 +43,19 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-      APP_SECURITY_JWT_SECRET: ${JWT_SECRET}
-      APP_SECURITY_MASTER_KEY: ${MASTER_KEY}
-      TELEGRAM_STORAGE_BOT_TOKEN: ${TELEGRAM_STORAGE_BOT_TOKEN}
-      TELEGRAM_STORAGE_CHAT_ID: ${TELEGRAM_STORAGE_CHAT_ID}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      APP_SECURITY_JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      APP_SECURITY_MASTER_KEY: ${MASTER_KEY:?set MASTER_KEY in .env}
+      TELEGRAM_STORAGE_BOT_TOKEN: ${TELEGRAM_STORAGE_BOT_TOKEN:?set TELEGRAM_STORAGE_BOT_TOKEN in .env}
+      TELEGRAM_STORAGE_CHAT_ID: ${TELEGRAM_STORAGE_CHAT_ID:?set TELEGRAM_STORAGE_CHAT_ID in .env}
       TELEGRAM_LOGGER_ENABLED: ${TELEGRAM_LOGGER_ENABLED:-false}
       TELEGRAM_LOGGER_BOT_TOKEN: ${TELEGRAM_LOGGER_BOT_TOKEN:-}
       TELEGRAM_LOGGER_CHAT_ID: ${TELEGRAM_LOGGER_CHAT_ID:-}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in .env}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET in .env}
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
     ports:
