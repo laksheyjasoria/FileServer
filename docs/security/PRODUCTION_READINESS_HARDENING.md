@@ -21,6 +21,9 @@ into `main`.
 - Scoped shared folder and multi-share file lookups to the share owner.
 - Sanitized ZIP entry names to prevent path traversal on extraction.
 - Added pessimistic row locking for chunk upload state transitions and pause/resume/cancel operations.
+- Added per-user locking for chunked upload quota reservations and subscription creation.
+- Made scheduled jobs configurable and made stale cleanup handle paused uploads without racing completion.
+- Enforced a minimum master-key length and safer comparison.
 - Added a stored file fingerprint to resumable upload sessions and reject mismatched resume attempts.
 - Added SHA-256 checksums for uploaded chunks and verify them before storing data.
 - Counted unfinished chunked uploads as storage reservations while retaining recoverable trash in storage usage.
@@ -113,4 +116,5 @@ Then test:
 - The Instagram database split must be completed and verified separately. Do not run the existing
   backup-and-remove script until table ownership and target restore have been validated.
 - Maven, Docker, database migrations and end-to-end streaming have not been executed by this branch authoring
-  session; passing status must come from CI and a production-like test environment.
+  session. GitHub currently reports no CI status checks for the latest hardening commit; passing status must come
+  from CI and a production-like test environment.
