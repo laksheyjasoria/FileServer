@@ -13,51 +13,35 @@ import com.app.storage.service.LocalFileStorageService;
 import com.app.storage.service.TelegramStorageService;
 import com.app.telegram.TelegramClient;
 import com.app.telegram.TelegramConnectionManager;
+import com.app.transfer.telegram.TelegramFileReader;
 
 class StorageFactoryTest {
 
     @Test
     void shouldRejectTelegramStorageWhenCredentialsAreMissing() {
+        AppProperties appProperties = new AppProperties();
+        appProperties.getStorage().setProvider("telegram");
 
-        AppProperties appProperties =
-                new AppProperties();
-
-        appProperties
-                .getStorage()
-                .setProvider("telegram");
-
-        TelegramStorageProperties telegramProps =
-                new TelegramStorageProperties();
-
+        TelegramStorageProperties telegramProps = new TelegramStorageProperties();
         telegramProps.setBotToken("");
         telegramProps.setChatId("");
 
-        TelegramClient telegramClient =
-                mock(TelegramClient.class);
+        TelegramClient telegramClient = mock(TelegramClient.class);
+        TelegramConnectionManager connectionManager = mock(TelegramConnectionManager.class);
+        TelegramFileReader telegramFileReader = mock(TelegramFileReader.class);
 
-        TelegramConnectionManager connectionManager =
-                mock(TelegramConnectionManager.class);
+        when(connectionManager.isConnected("storage")).thenReturn(false);
 
-        when(connectionManager.isConnected("storage"))
-                .thenReturn(false);
+        TelegramStorageService telegramStorage = new TelegramStorageService(
+                telegramProps,
+                telegramClient,
+                connectionManager,
+                telegramFileReader);
 
-        TelegramStorageService telegramStorage =
-                new TelegramStorageService(
-                        telegramProps,
-                        telegramClient,
-                        connectionManager);
+        LocalFileStorageService local = new LocalFileStorageService();
 
-        LocalFileStorageService local =
-                new LocalFileStorageService();
+        StorageFactory factory = new StorageFactory(appProperties, telegramStorage, local);
 
-        StorageFactory factory =
-                new StorageFactory(
-                        appProperties,
-                        telegramStorage,
-                        local);
-
-        assertThrows(
-                StorageException.class,
-                factory::get);
+        assertThrows(StorageException.class, factory::get);
     }
 }
