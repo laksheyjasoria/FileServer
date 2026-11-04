@@ -347,6 +347,11 @@ public class AuthService {
 		// 1. User exists
 		User user = repo.findByEmail(email).orElseThrow(UserNotFoundException::new);
 
+		if (user.getPassword() == null || user.getPassword().isBlank()) {
+			throw new InvalidCredentialsException(
+					"This account has no local password. Use password recovery to set one.");
+		}
+
 		// 2. Validate old password
 		if (oldPassword == null || oldPassword.isBlank()) {
 			throw new InvalidCredentialsException("Current password is required");
