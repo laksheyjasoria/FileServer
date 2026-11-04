@@ -68,9 +68,6 @@ docker cp ($Container + ":" + $containerBackup) $backupPath
 if ($LASTEXITCODE -ne 0 -or !(Test-Path $backupPath)) {
     throw "Could not copy backup to host. Source tables were NOT removed."
 }
-docker cp $backupPath ($Container + ":" + $containerBackup)
-if ($LASTEXITCODE -ne 0) { throw "Could not stage backup for validation. Source tables were NOT removed." }
-
 docker exec $Container pg_restore -l $containerBackup | Set-Content -Encoding UTF8 $containerList
 if ($LASTEXITCODE -ne 0 -or !(Test-Path $containerList)) {
     throw "Backup archive validation failed. Source tables were NOT removed."
