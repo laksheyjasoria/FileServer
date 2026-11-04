@@ -19,6 +19,7 @@ function saveUploadSession(item) {
     uploadId: item.uploadId,
     fileName: item.file.name,
     totalSize: item.file.size,
+    fileFingerprint: item.fileFingerprint,
     chunkSize: item.chunkSize,
     totalChunks: item.totalChunks,
     savedAt: Date.now(),
@@ -26,8 +27,30 @@ function saveUploadSession(item) {
   try { localStorage.setItem(UPLOAD_SESSION_STORAGE_KEY, JSON.stringify(sessions.slice(-30))); }
   catch (error) { console.warn('Could not persist resumable upload metadata:', error); }
 }
-function findSavedUploadSession(file) {
-  return readSavedUploadSessions().find(s => s.fileName === file.name && Number(s.totalSize) === file.size) || null;
+function findSavedUploadSession(file, fingerprint) {
+  return readSavedUploadSessions().find(s =>
+    s.fileName === file.name &&
+    Number(s.totalSize) === file.size &&
+    s.fileFingerprint === fingerprint
+  ) || null;
+}
+
+async function createFileFingerprint(file) {
+  if (!window.crypto?.subtle) {
+    throw new Error("Secure browser cryptography is unavailable. Open FileServer over HTTPS or localhost.");
+  }
+  const sampleSize = 64 * 1024;
+  const first = new Uint8Array(await file.slice(0, sampleSize).arrayBuffer());
+  const last = new Uint8Array(await file.slice(Math.max(0, file.size - sampleSize)).arrayBuffer());
+  const metadata = new TextEncoder().encode(
+    [file.name, file.size, file.lastModified, file.type || "application/octet-stream"].join("\\0")
+  );
+  const combined = new Uint8Array(metadata.length + first.length + last.length);
+  combined.set(metadata, 0);
+  combined.set(first, metadata.length);
+  combined.set(last, metadata.length + first.length);
+  const digest = await crypto.subtle.digest("SHA-256", combined);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 function removeSavedUploadSession(uploadId) {
   if (!uploadId) return;
@@ -46,7 +69,7 @@ function hideUploadModal() {
   if (modal) { modal.classList.remove('active'); modal.style.display = 'none'; }
 }
 
-function addToUploadQueue(files) {
+async function addToUploadQueue(files) {
   if (!files || !files.length) return;
   showUploadModal();
   const list = document.getElementById('uploadList');
@@ -54,10 +77,17 @@ function addToUploadQueue(files) {
 
   for (const file of files) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const prior = findSavedUploadSession(file);
+    let fileFingerprint;
+    try {
+      fileFingerprint = await createFileFingerprint(file);
+    } catch (error) {
+      safeToast(`Cannot prepare ${file.name}: ${error.message}`, "error");
+      continue;
+    }
+    const prior = findSavedUploadSession(file, fileFingerprint);
     const resumePrior = prior && confirm(`A previous upload session exists for "${file.name}" (${formatUploadBytes(file.size)}). Resume it?`);
     const item = {
-      id, file, uploadId: resumePrior ? prior.uploadId : null,
+      id, file, fileFingerprint, uploadId: resumePrior ? prior.uploadId : null,
       chunkSize: resumePrior ? Number(prior.chunkSize) : 0,
       totalChunks: resumePrior ? Number(prior.totalChunks) : 0,
       completed: new Set(), failed: new Set(), inFlight: new Map(),
@@ -131,6 +161,7 @@ async function startUpload(id) {
           fileName: item.file.name,
           totalSize: item.file.size,
           contentType: item.file.type || 'application/octet-stream',
+          fileFingerprint: item.fileFingerprint,
           parentId: currentFolderId || null,
         }),
       });
@@ -154,7 +185,10 @@ async function startUpload(id) {
         return;
       }
     } else {
-      await apiRequest(`/chunk-upload/${encodeURIComponent(item.uploadId)}/resume`, { method: 'POST' });
+      await apiRequest(`/chunk-upload/${encodeURIComponent(item.uploadId)}/resume`, {
+        method: 'POST',
+        headers: { 'X-File-Fingerprint': item.fileFingerprint },
+      });
     }
     await runUpload(item);
   } catch (error) {
@@ -174,7 +208,9 @@ async function runUpload(item) {
   setUploadButtons(item);
   item.runner = (async () => {
     try {
-      const completed = await apiRequest(`/chunk-upload/${encodeURIComponent(item.uploadId)}/resume`);
+      const completed = await apiRequest(`/chunk-upload/${encodeURIComponent(item.uploadId)}/resume`, {
+        headers: { 'X-File-Fingerprint': item.fileFingerprint },
+      });
       item.completed = new Set((Array.isArray(completed) ? completed : completed?.uploadedChunks || [])
         .map(Number).filter(n => Number.isInteger(n) && n >= 0 && n < item.totalChunks));
       item.failed.clear();
