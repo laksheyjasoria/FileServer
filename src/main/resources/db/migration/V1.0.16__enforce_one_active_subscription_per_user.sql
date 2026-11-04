@@ -3,14 +3,13 @@
 UPDATE subscriptions
 SET active = FALSE
 WHERE active = TRUE
-  AND expiry_date IS NOT NULL
-  AND expiry_date <= CURRENT_TIMESTAMP;
+  AND (expiry_date IS NULL OR expiry_date <= CURRENT_TIMESTAMP);
 
 WITH ranked_active AS (
     SELECT id,
            ROW_NUMBER() OVER (
                PARTITION BY user_id
-               ORDER BY expiry_date DESC NULLS FIRST,
+               ORDER BY expiry_date DESC NULLS LAST,
                         start_date DESC NULLS LAST,
                         id DESC
            ) AS row_number
