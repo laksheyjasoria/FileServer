@@ -289,7 +289,7 @@ public class ShareService {
                 if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
                     throw new RuntimeException("The shared item is not a folder.");
                 }
-                return files.findByParentIdAndActiveTrue(folder.getId());
+                return files.findByUserIdAndParentIdAndActiveTrue(share.getCreatedBy(), folder.getId());
             }
         } else {
             if (!isUnderSharedRoot(folderId, share)) {
@@ -300,7 +300,7 @@ public class ShareService {
             if (!"FOLDER".equalsIgnoreCase(folder.getDriveType())) {
                 throw new RuntimeException("The requested item is not a folder.");
             }
-            return files.findByParentIdAndActiveTrue(folder.getId());
+            return files.findByUserIdAndParentIdAndActiveTrue(share.getCreatedBy(), folder.getId());
         }
     }
 
