@@ -379,15 +379,9 @@ public class TelegramClient {
     }
 
     private String safeExceptionMessage(Exception ex) {
-        if (ex instanceof RestClientResponseException responseException) {
-            return "HTTP " + responseException.getStatusCode().value();
-        }
-        String message = ex.getMessage();
-        if (message == null) {
-            return ex.getClass().getSimpleName();
-        }
-        // Defensive redaction in case an HTTP client embeds the request URL in its message.
-        return message.replaceAll("(?i)(https?://api\\\\.telegram\\\\.org/(?:file/)?bot)[^/\\\\s]+", "$1[REDACTED]");
+        // Exception messages from HTTP clients may contain the request URL, which
+        // includes the bot token. Log only the exception type during validation.
+        return ex.getClass().getSimpleName();
     }
 
     public static final class TelegramApiException extends RuntimeException {
