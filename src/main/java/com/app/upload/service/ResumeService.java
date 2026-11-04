@@ -25,7 +25,7 @@ public class ResumeService {
 //    @Transactional
 //    public List<Integer> resume(String uploadId, String userId) {
 //
-//        UploadJob job = jobRepo.findByIdAndUserId(uploadId, userId)
+//        UploadJob job = jobRepo.findByIdAndUserIdForUpdate(uploadId, userId)
 //                .orElseThrow(UploadNotFoundException::new);
 //
 //        if (job.getStatus() == UploadStatus.CANCELLED) {
