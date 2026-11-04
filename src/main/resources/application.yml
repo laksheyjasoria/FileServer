@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fileserver}
     username: ${SPRING_DATASOURCE_USERNAME:fileserver}
-    password: ${SPRING_DATASOURCE_PASSWORD:fileserver123}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
       maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
       minimum-idle: ${DB_POOL_MIN_IDLE:5}
@@ -26,8 +26,8 @@ spring:
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME:moviezon99@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:jjgc pnnm uxoq xkgi}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -47,8 +47,8 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID:1087228327999-3cbvn3ljm9qd67l9jk5hjfqccgl6v9g3.apps.googleusercontent.com}
-            client-secret: ${GOOGLE_CLIENT_SECRET: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}
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope:
               - email
               - profile
@@ -82,20 +82,20 @@ app:
       debug: ${APP_LOGGER_DEBUG:false}
   security:
     master:
-      key: ${APP_SECURITY_MASTER_KEY:dsklgjldfsgjbdjlzdrghaergk}
+      key: ${APP_SECURITY_MASTER_KEY}
     jwt:
-      secret: ${APP_SECURITY_JWT_SECRET:VERY_LONG_SECRET_KEY_123456789012345678901234567890}
+      secret: ${APP_SECURITY_JWT_SECRET}
       access-token-validity: ${APP_SECURITY_JWT_ACCESS_VALIDITY_MS:43200000}
       remember-me-validity: ${APP_SECURITY_JWT_REMEMBER_ME_VALIDITY_MS:604800000}
       reset-token-validity: ${APP_SECURITY_JWT_RESET_VALIDITY_MS:900000}
       redis-enabled: ${APP_SECURITY_JWT_REDIS_ENABLED:true}
   telegram:
     storage:
-      bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN:8700206876:AAFuMcdfMzQufISHQouEuDObjBQWnF9HqMM}
+      bot-token: ${TELEGRAM_STORAGE_BOT_TOKEN}
       chat-id: ${TELEGRAM_STORAGE_CHAT_ID:1379405363}
   admin:
     email: ${APP_ADMIN_EMAIL:admin@example.com}
-    password: ${APP_ADMIN_PASSWORD:change-me}
+    password: ${APP_ADMIN_PASSWORD}
     name: ${APP_ADMIN_NAME:Admin}
   upload:
     max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE_BYTES:2147483648}
@@ -147,8 +147,8 @@ app:
 
 telegram:
   logger:
-    enabled: ${TELEGRAM_LOGGER_ENABLED:true}
-    bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN:8199363389:AAHwJxIGiq4eY2TW2Rw1_h4g0oTomETjPCE}
+    enabled: ${TELEGRAM_LOGGER_ENABLED:false}
+    bot-token: ${TELEGRAM_LOGGER_BOT_TOKEN:}
     chat-id: ${TELEGRAM_LOGGER_CHAT_ID:1379405363}
 
 logging:
