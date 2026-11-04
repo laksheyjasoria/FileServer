@@ -181,7 +181,7 @@ public class TelegramFileReader {
         return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
     }
 
-    private static final class ClientDisconnectedException extends IOException {
+    private static final class ClientDisconnectedException extends RuntimeException {
         private ClientDisconnectedException(IOException cause) {
             super("HTTP client disconnected while streaming.", cause);
         }
