@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -62,8 +63,11 @@ public class ChunkUploadController {
 	}
 
 	@GetMapping("/{uploadId}/resume")
-	public List<Integer> resume(@PathVariable String uploadId, Authentication auth) {
-		return resumeService.resume(uploadId, auth.getName());
+	public List<Integer> resume(
+			@PathVariable String uploadId,
+			@RequestHeader("X-File-Fingerprint") String fileFingerprint,
+			Authentication auth) {
+		return resumeService.resume(uploadId, auth.getName(), fileFingerprint);
 	}
 
 	@GetMapping("/{uploadId}/status")
@@ -79,8 +83,11 @@ public class ChunkUploadController {
 	}
 
 	@PostMapping("/{uploadId}/resume")
-	public List<Integer> resumePost(@PathVariable String uploadId, Authentication auth) {
-		return resumeService.resume(uploadId, auth.getName());
+	public List<Integer> resumePost(
+			@PathVariable String uploadId,
+			@RequestHeader("X-File-Fingerprint") String fileFingerprint,
+			Authentication auth) {
+		return resumeService.resume(uploadId, auth.getName(), fileFingerprint);
 	}
 
 	@DeleteMapping("/{uploadId}")
