@@ -1,5 +1,10 @@
 package com.app.upload.service;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -44,7 +49,8 @@ public class ChunkService {
             String uploadId,
             Integer chunkIndex,
             MultipartFile file,
-            String userId) {
+            String userId,
+            String expectedSha256) {
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Chunk file cannot be empty.");
@@ -59,10 +65,35 @@ public class ChunkService {
 
         try {
             synchronized (lock) {
+                verifyChecksum(file, expectedSha256);
                 uploadChunkInternal(uploadId, chunkIndex, file, userId);
             }
         } finally {
             localChunkLocks.remove(lockKey, lock);
+        }
+    }
+
+    private void verifyChecksum(MultipartFile file, String expectedSha256) {
+        if (expectedSha256 == null || !expectedSha256.matches("(?i)^[a-f0-9]{64}$")) {
+            throw new IllegalArgumentException("A valid SHA-256 chunk checksum is required.");
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream input = file.getInputStream()) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    digest.update(buffer, 0, read);
+                }
+            }
+            String actual = HexFormat.of().formatHex(digest.digest());
+            if (!actual.equalsIgnoreCase(expectedSha256)) {
+                throw new IllegalArgumentException("Chunk checksum mismatch. Please retry this chunk.");
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("Unable to verify uploaded chunk checksum.", ex);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is unavailable in this runtime.", ex);
         }
     }
 
