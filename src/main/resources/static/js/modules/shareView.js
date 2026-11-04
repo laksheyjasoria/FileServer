@@ -721,7 +721,13 @@ async function downloadSelectedShared() {
       `${API_URL}/download/bulk/shared?token=${token}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(localStorage.getItem("jwtToken")
+            ? { Authorization: "Bearer " + localStorage.getItem("jwtToken") }
+            : {}),
+          ...(currentPassword ? { "X-Share-Password": currentPassword } : {}),
+        },
         body: JSON.stringify(ids),
       },
     );
