@@ -186,7 +186,10 @@ public class ShareController {
             throw new IllegalStateException("No items in this share.");
         }
 
-        return files.findAllById(share.getFileIds());
+        return share.getFileIds().stream()
+                .map(id -> files.findByIdAndUserIdAndActiveTrue(id, share.getCreatedBy())
+                        .orElseThrow(com.app.core.exception.FileNotFoundException::new))
+                .toList();
     }
 
     private MasterFile resolveSharedFile(
