@@ -27,7 +27,7 @@ $instagramTables = @(
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backupPath = Join-Path $BackupDirectory "instagram-migration-$timestamp.dump"
 $containerBackup = "/tmp/instagram-migration-$timestamp.dump"
-$containerList = "/tmp/instagram-migration-$timestamp.list"
+$containerList = Join-Path $env:TEMP "instagram-migration-$timestamp.list"
 
 Write-Host "Checking PostgreSQL container and required tables..."
 docker inspect $Container *> $null
