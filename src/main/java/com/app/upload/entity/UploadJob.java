@@ -16,6 +16,9 @@ public class UploadJob {
 
     private String fileName;
 
+    @Column(name = "file_fingerprint", length = 64)
+    private String fileFingerprint;
+
     private Long totalSize;
 
     private Integer totalChunks;
@@ -86,6 +89,14 @@ public class UploadJob {
 
     public void setFileName(String fileName) {
         this.fileName = fileName;
+    }
+
+    public String getFileFingerprint() {
+        return fileFingerprint;
+    }
+
+    public void setFileFingerprint(String fileFingerprint) {
+        this.fileFingerprint = fileFingerprint;
     }
 
     public Long getTotalSize() {
