@@ -69,9 +69,13 @@ public class TelegramStorageService implements StorageService {
         } catch (StorageException ex) {
             throw ex;
         } catch (Exception ex) {
-            // A failed chunk/API request does not prove that the shared bot connection
-            // is down. In particular, never disconnect it for a response parsing error:
-            // parallel chunk uploads share this connection.
+            // Only a confirmed invalid bot token is grounds to invalidate the shared
+            // connection. Rate limits, chat errors, parsing errors and transient network
+            // failures must not break other in-flight chunk uploads.
+            if (ex instanceof TelegramClient.TelegramApiException apiException
+                    && Integer.valueOf(401).equals(apiException.getHttpStatus())) {
+                connectionManager.markDisconnected(CONNECTION_NAME);
+            }
             log.error("Telegram upload failed for '{}' ({} bytes): {}",
                     safeFilename(file.getOriginalFilename()), file.getSize(), safeMessage(ex));
             throw new StorageException("Telegram upload failed. " + safeMessage(ex), ex);
@@ -132,6 +136,9 @@ public class TelegramStorageService implements StorageService {
 
     private String safeMessage(Exception ex) {
         String message = ex.getMessage();
-        return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
+        if (message == null || message.isBlank()) {
+            return ex.getClass().getSimpleName();
+        }
+        return message.replaceAll("(?i)(https?://api\\\\.telegram\\\\.org/(?:file/)?bot)[^/\\\\s]+", "$1[REDACTED]");
     }
 }
