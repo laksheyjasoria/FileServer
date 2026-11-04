@@ -79,6 +79,7 @@ public class UploadOrchestrator {
         UploadJob job = new UploadJob();
         job.setUserId(userId);
         job.setFileName(request.getFileName());
+        job.setFileFingerprint(request.getFileFingerprint().toLowerCase(java.util.Locale.ROOT));
         job.setTotalSize(totalSize);
         job.setChunkSize((int) chunkSize);
         job.setTotalChunks(totalChunks);
@@ -123,6 +124,10 @@ public class UploadOrchestrator {
 
         if (request.getTotalSize() == null || request.getTotalSize() < 0) {
             throw new IllegalArgumentException("File size must be zero or greater.");
+        }
+        if (request.getFileFingerprint() == null
+                || !request.getFileFingerprint().matches("(?i)^[a-f0-9]{64}$")) {
+            throw new IllegalArgumentException("A valid SHA-256 file fingerprint is required.");
         }
     }
 }
