@@ -12,6 +12,7 @@ import com.app.email.service.EmailService;
 import com.app.identity.repository.UserRepository;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression("${app.scheduler.enabled:true} && ${app.scheduler.plan-reminder.enabled:true}")
 public class PlanReminderJob {
 
 	private final SubscriptionRepository subRepo;
@@ -24,7 +25,7 @@ public class PlanReminderJob {
 		this.emailService = emailService;
 	}
 
-	@Scheduled(cron = "0 0 9 * * *")
+	@Scheduled(cron = "${app.scheduler.plan-reminder.cron:0 0 9 * * *}")
 	public void remind() {
 
 		List<Subscription> list = subRepo.findAll();
