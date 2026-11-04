@@ -538,7 +538,7 @@ public class DownloadController {
 		if (value == null || value.isBlank()) {
 			return "unnamed";
 		}
-		String sanitized = value.replace('\\\\', '_').replace('/', '_')
+		String sanitized = value.replace('\\', '_').replace('/', '_')
 				.replaceAll("[\\p{Cntrl}]", "_").trim();
 		if (sanitized.isBlank() || ".".equals(sanitized) || "..".equals(sanitized)) {
 			return "unnamed";
