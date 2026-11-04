@@ -2,6 +2,8 @@ package com.app.core.config;
 
 import java.util.List;
 
+import jakarta.servlet.DispatcherType;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -56,6 +58,9 @@ public class SecurityConfig {
 		return http.csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.cors(cors -> cors.configurationSource(corsConfigurationSource())).authorizeHttpRequests(auth -> auth
+                        // StreamingResponseBody runs on a separate async dispatch thread.
+                        // Permit only the redispatch; the original request remains authenticated.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
 						// Public endpoints (no auth)
 						.requestMatchers("/error", "/actuator/health", "/", "/index.html", "/login.html", "/signup.html", "/profile.html",
 								"/viewer.html", "/share.html", "/shared.html", "/shared-by-me.html", "/share2.html",
