@@ -139,6 +139,9 @@ public class TelegramStorageService implements StorageService {
         if (message == null || message.isBlank()) {
             return ex.getClass().getSimpleName();
         }
-        return message.replaceAll("(?i)(https?://api\\\\.telegram\\\\.org/(?:file/)?bot)[^/\\\\s]+", "$1[REDACTED]");
+        if (message.toLowerCase().contains("api.telegram.org/")) {
+            return ex.getClass().getSimpleName();
+        }
+        return message;
     }
 }
