@@ -11,6 +11,7 @@ import com.app.upload.entity.UploadStatus;
 import com.app.upload.repository.UploadJobRepository;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression("${app.scheduler.enabled:true} && ${app.scheduler.upload-cleanup.enabled:true}")
 public class UploadCleanupJob {
 
     private final UploadJobRepository repo;
@@ -19,7 +20,7 @@ public class UploadCleanupJob {
         this.repo = repo;
     }
 
-    @Scheduled(cron = "0 */30 * * * *")
+    @Scheduled(cron = "${app.scheduler.upload-cleanup.cron:0 */30 * * * *}")
     public void cleanup() {
 
         List<UploadJob> uploads =
