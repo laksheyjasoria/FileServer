@@ -103,7 +103,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         addRule("/*.ttf", AccessLevel.PUBLIC);
 
         // ---- ADMIN (strictly Admin JWT only, no Master Key) ----
-        addRule("/api/admin/**", AccessLevel.ADMIN);
+//        addRule("/api/admin/**", AccessLevel.ADMIN);
 
         // ---- MASTER DRIVE UPLOAD + STATUS (global Master Key OR Admin JWT) ----
         // Keep the Master Drive UI, file operations, streaming and deletion Admin-JWT-only.
@@ -111,9 +111,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         addRule("/master-drive/*/files/upload", AccessLevel.MASTER_OR_ADMIN);
         addRule("/master-drive/uploads/*/status", AccessLevel.MASTER_OR_ADMIN);
         addRule("/master-drive/upload/*/status", AccessLevel.MASTER_OR_ADMIN);
-        addRule("/master-drive/**", AccessLevel.ADMIN);
-        // Existing Master Drive folder APIs are Admin JWT only as well.
-        addRule("/admin/drives/**", AccessLevel.ADMIN);
+        addRule("/master-drive/**", AccessLevel.MASTER_OR_ADMIN);
+        addRule("/admin/drives/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/admin/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/logger/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/master/**", AccessLevel.MASTER_OR_ADMIN);
@@ -143,8 +142,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
+       
         AccessLevel level = getAccessLevel(path);
-
+      
         switch (level) {
             case PUBLIC:
                 chain.doFilter(request, response);
