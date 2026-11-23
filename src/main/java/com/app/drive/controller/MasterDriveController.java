@@ -1,13 +1,12 @@
 package com.app.drive.controller;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -141,8 +140,8 @@ public class MasterDriveController {
 
 
     /**
-     * Accepts one multipart file, stages it temporarily, and returns an upload ID
-     * while Telegram chunk transfer continues on the background executor.
+     * Accepts one multipart file, transfers ownership of its temporary file to the
+     * background worker, and returns an upload ID while Telegram chunk transfer continues.
      * The temporary staging file is deleted by the worker after completion/failure.
      */
     @PostMapping(value = "/{driveId}/files/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -176,12 +175,14 @@ public class MasterDriveController {
             Path stagingDirectory = Path.of(
                     System.getProperty("java.io.tmpdir"), "fileserver-master-drive-uploads");
             Files.createDirectories(stagingDirectory);
-            stagedFile = Files.createTempFile(
-                    stagingDirectory, "master-drive-" + job.getId() + "-", ".upload");
-
-            try (InputStream input = file.getInputStream()) {
-                Files.copy(input, stagedFile, StandardCopyOption.REPLACE_EXISTING);
-            }
+            // Keep the servlet multipart temp file on the same filesystem as
+            // this staging directory. StandardServletMultipartFile.transferTo()
+            // delegates to Part.write(), which can move/rename the already
+            // received multipart temp file instead of copying all bytes again.
+            // The worker now owns this path after the request returns.
+            stagedFile = stagingDirectory.resolve(
+                    "master-drive-" + job.getId() + "-" + UUID.randomUUID() + ".upload");
+            file.transferTo(stagedFile.toFile());
 
             asyncUploadService.processUpload(
                     job.getId(),
