@@ -97,7 +97,7 @@ app:
       chat-id: ${TELEGRAM_STORAGE_CHAT_ID}
   admin:
     email: ${APP_ADMIN_EMAIL:admin@example.com}
-    password: ${APP_ADMIN_PASSWORD:change-me}
+    password: ${APP_ADMIN_PASSWORD}
     name: ${APP_ADMIN_NAME:Admin}
   upload:
     max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE_BYTES:2147483648}
