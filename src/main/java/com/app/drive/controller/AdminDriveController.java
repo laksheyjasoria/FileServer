@@ -51,7 +51,11 @@ public class AdminDriveController {
 	public List<MasterFile> getContents(@PathVariable String id) {
 		repo.findByIdAndDriveTypeAndUserIdIn(id, "FOLDER", ALLOWED_USER_IDS)
 				.orElseThrow(() -> new FileNotFoundException("Folder not found or not accessible"));
-		return repo.findByParentId(id);
+		return repo.findByParentIdAndActiveTrue(id).stream()
+				.filter(item -> "FOLDER".equalsIgnoreCase(item.getDriveType())
+						|| ("FILE".equalsIgnoreCase(item.getDriveType())
+								&& item.getUploadJobId() != null && !item.getUploadJobId().isBlank()))
+				.toList();
 	}
 
 	// -------------------- CREATE --------------------
