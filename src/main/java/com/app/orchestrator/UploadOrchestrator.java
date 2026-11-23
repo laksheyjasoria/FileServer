@@ -111,6 +111,47 @@ public class UploadOrchestrator {
         return savedJob;
     }
 
+
+    /**
+     * Creates a chunked upload into the shared Master Drive namespace.
+     * UploadJob ownership remains the authenticated principal so chunk/status
+     * endpoints can enforce ownership. MasterFile ownership remains the root
+     * drive owner, independent of whether the caller used a key or Admin JWT.
+     */
+    @Transactional
+    public UploadJob createForMasterDrive(CreateUploadRequest request, String principal, String driveOwnerId) {
+        validateRequest(request);
+        long totalSize = request.getTotalSize();
+        long chunkSize = chunkSizeCalculator.calculateChunkSize(totalSize);
+        int totalChunks = chunkSizeCalculator.calculateTotalChunks(totalSize, chunkSize);
+
+        UploadJob job = new UploadJob();
+        job.setUserId(principal);
+        job.setFileName(request.getFileName());
+        job.setTotalSize(totalSize);
+        job.setChunkSize((int) chunkSize);
+        job.setTotalChunks(totalChunks);
+        job.setUploadedChunks(0);
+        job.setUploadedBytes(0L);
+        if (totalSize == 0) {
+            job.setStatus(UploadStatus.COMPLETED);
+        }
+
+        UploadJob savedJob = jobRepo.save(job);
+        MasterFile masterFile = new MasterFile();
+        masterFile.setUserId(driveOwnerId);
+        masterFile.setName(request.getFileName());
+        masterFile.setUploadJobId(savedJob.getId());
+        masterFile.setSize(totalSize);
+        masterFile.setContentType(request.getContentType());
+        masterFile.setParentId(request.getParentId());
+        masterFile.setDriveType("FILE");
+        masterFile.setAccessType("PUBLIC");
+        masterFile.setActive(totalSize == 0);
+        masterFileRepo.save(masterFile);
+        return savedJob;
+    }
+
     private void validateRequest(CreateUploadRequest request) {
 
         if (request == null) {
