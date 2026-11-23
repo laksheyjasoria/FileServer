@@ -105,8 +105,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // ---- ADMIN (strictly Admin JWT only, no Master Key) ----
         addRule("/api/admin/**", AccessLevel.ADMIN);
 
-        // ---- MASTER DRIVE (Admin JWT only) ----
-        addRule("/master-drive/**", AccessLevel.ADMIN);
+        // ---- MASTER DRIVE (global Master Key OR Admin JWT) ----
+        // X-Master-Key is the existing global FileServer master key.
+        addRule("/master-drive/**", AccessLevel.MASTER_OR_ADMIN);
         // Existing Master Drive folder APIs are Admin JWT only as well.
         addRule("/admin/drives/**", AccessLevel.ADMIN);
         addRule("/admin/**", AccessLevel.MASTER_OR_ADMIN);
