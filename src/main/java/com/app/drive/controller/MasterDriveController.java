@@ -2,6 +2,9 @@ package com.app.drive.controller;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +32,7 @@ import com.app.upload.dto.CreateUploadRequest;
 import com.app.upload.entity.UploadJob;
 import com.app.upload.service.ChunkService;
 import com.app.upload.service.ChunkUploadStateService;
-import com.app.upload.util.ByteArrayMultipartFile;
+import com.app.drive.service.MasterDriveAsyncUploadService;
 import com.app.upload.service.PauseService;
 import com.app.upload.service.ResumeService;
 import com.app.upload.service.CancelService;
@@ -48,6 +51,7 @@ public class MasterDriveController {
     private final UploadOrchestrator uploadOrchestrator;
     private final ChunkService chunkService;
     private final ChunkUploadStateService chunkStateService;
+    private final MasterDriveAsyncUploadService asyncUploadService;
     private final ResumeService resumeService;
     private final PauseService pauseService;
     private final CancelService cancelService;
@@ -60,6 +64,7 @@ public class MasterDriveController {
             UploadOrchestrator uploadOrchestrator,
             ChunkService chunkService,
             ChunkUploadStateService chunkStateService,
+            MasterDriveAsyncUploadService asyncUploadService,
             ResumeService resumeService,
             PauseService pauseService,
             CancelService cancelService,
@@ -70,6 +75,7 @@ public class MasterDriveController {
         this.uploadOrchestrator = uploadOrchestrator;
         this.chunkService = chunkService;
         this.chunkStateService = chunkStateService;
+        this.asyncUploadService = asyncUploadService;
         this.resumeService = resumeService;
         this.pauseService = pauseService;
         this.cancelService = cancelService;
@@ -135,9 +141,9 @@ public class MasterDriveController {
 
 
     /**
-     * Uploads a complete file in one HTTP request while retaining the existing
-     * Telegram chunk-storage pipeline. The request remains open until every
-     * chunk has been stored successfully or the upload fails.
+     * Accepts one multipart file, stages it temporarily, and returns an upload ID
+     * while Telegram chunk transfer continues on the background executor.
+     * The temporary staging file is deleted by the worker after completion/failure.
      */
     @PostMapping(value = "/{driveId}/files/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFile(@PathVariable String driveId,
@@ -165,46 +171,53 @@ public class MasterDriveController {
             return ResponseEntity.ok(statusService.getStatus(job.getId(), auth.getName()));
         }
 
-        try (InputStream input = file.getInputStream()) {
-            long remaining = job.getTotalSize();
-            int chunkIndex = 0;
-            while (remaining > 0) {
-                int expectedSize = (int) Math.min((long) job.getChunkSize(), remaining);
-                byte[] chunkBytes = input.readNBytes(expectedSize);
-                if (chunkBytes.length != expectedSize) {
-                    throw new IOException("Multipart file ended before the declared file size.");
-                }
+        Path stagedFile = null;
+        try {
+            Path stagingDirectory = Path.of(
+                    System.getProperty("java.io.tmpdir"), "fileserver-master-drive-uploads");
+            Files.createDirectories(stagingDirectory);
+            stagedFile = Files.createTempFile(
+                    stagingDirectory, "master-drive-" + job.getId() + "-", ".upload");
 
-                ByteArrayMultipartFile chunk = new ByteArrayMultipartFile(
-                        "file", fileName, file.getContentType(), chunkBytes);
-                chunkService.uploadChunk(job.getId(), chunkIndex, chunk, auth.getName());
-
-                remaining -= expectedSize;
-                chunkIndex++;
+            try (InputStream input = file.getInputStream()) {
+                Files.copy(input, stagedFile, StandardCopyOption.REPLACE_EXISTING);
             }
 
-            if (input.read() != -1) {
-                throw new IOException("Multipart file contains more bytes than its declared size.");
-            }
+            asyncUploadService.processUpload(
+                    job.getId(),
+                    auth.getName(),
+                    fileName,
+                    file.getContentType(),
+                    job.getTotalSize(),
+                    job.getChunkSize(),
+                    stagedFile);
 
-            ChunkUploadResponse result = statusService.getStatus(job.getId(), auth.getName());
-            if (!"COMPLETED".equalsIgnoreCase(result.getStatus())) {
-                throw new IllegalStateException("Upload did not reach COMPLETED status.");
-            }
-            return ResponseEntity.ok(result);
+            return ResponseEntity.accepted().body(Map.of(
+                    "success", true,
+                    "uploadId", job.getId(),
+                    "fileName", fileName,
+                    "totalSize", job.getTotalSize(),
+                    "status", "IN_PROGRESS",
+                    "message", "Upload accepted. Check the upload status using the uploadId."));
         } catch (IOException | RuntimeException ex) {
+            if (stagedFile != null) {
+                try {
+                    Files.deleteIfExists(stagedFile);
+                } catch (IOException cleanupError) {
+                    ex.addSuppressed(cleanupError);
+                }
+            }
             try {
                 chunkStateService.markUploadFailed(job.getId(), auth.getName());
             } catch (RuntimeException stateError) {
                 ex.addSuppressed(stateError);
             }
-
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
                     "success", false,
                     "uploadId", job.getId(),
                     "fileName", fileName,
                     "status", "FAILED",
-                    "message", ex.getMessage() == null ? "File upload failed." : ex.getMessage()));
+                    "message", ex.getMessage() == null ? "Could not start file upload." : ex.getMessage()));
         }
     }
 
@@ -227,7 +240,7 @@ public class MasterDriveController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/upload/{uploadId}/status")
+    @GetMapping({"/upload/{uploadId}/status", "/uploads/{uploadId}/status"})
     public ChunkUploadResponse uploadStatus(@PathVariable String uploadId, Authentication auth) {
         return statusService.getStatus(uploadId, auth.getName());
     }
