@@ -105,10 +105,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // ---- ADMIN (strictly Admin JWT only, no Master Key) ----
         addRule("/api/admin/**", AccessLevel.ADMIN);
 
-        // ---- MASTER_OR_ADMIN (Master Key OR Admin JWT) ----
-        // Dedicated Master Drive APIs allow both credentials; deletion performs
-        // an additional Admin-JWT-only check in the controller.
-        addRule("/master-drive/**", AccessLevel.MASTER_OR_ADMIN);
+        // ---- MASTER DRIVE (Admin JWT only) ----
+        addRule("/master-drive/**", AccessLevel.ADMIN);
         addRule("/admin/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/logger/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/master/**", AccessLevel.MASTER_OR_ADMIN);
