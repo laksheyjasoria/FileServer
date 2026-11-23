@@ -4,6 +4,8 @@ public class ChunkUploadResponse {
 
 	private String uploadId;
 
+	private String fileId;
+
 	private String fileName;
 
 	private Long totalSize;
@@ -23,10 +25,11 @@ public class ChunkUploadResponse {
 	public ChunkUploadResponse() {
 	}
 
-	public ChunkUploadResponse(String uploadId, String fileName, Long totalSize, Integer chunkSize,
+	public ChunkUploadResponse(String uploadId, String fileId, String fileName, Long totalSize, Integer chunkSize,
 			Integer uploadedChunks, Integer totalChunks, Long uploadedBytes, Double progress, String status) {
 
 		this.uploadId = uploadId;
+		this.fileId = fileId;
 		this.fileName = fileName;
 		this.totalSize = totalSize;
 		this.chunkSize = chunkSize;
@@ -39,6 +42,10 @@ public class ChunkUploadResponse {
 
 	public String getUploadId() {
 		return uploadId;
+	}
+
+	public String getFileId() {
+		return fileId;
 	}
 
 	public String getFileName() {
