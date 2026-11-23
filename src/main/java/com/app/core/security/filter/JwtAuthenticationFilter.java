@@ -107,6 +107,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // ---- MASTER DRIVE (Admin JWT only) ----
         addRule("/master-drive/**", AccessLevel.ADMIN);
+        // Existing Master Drive folder APIs are Admin JWT only as well.
+        addRule("/admin/drives/**", AccessLevel.ADMIN);
         addRule("/admin/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/logger/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/master/**", AccessLevel.MASTER_OR_ADMIN);
