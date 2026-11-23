@@ -442,7 +442,7 @@ function updateUploadProgress(item) {
     const etaText = item.status === 'completed'
       ? 'Completed'
       : (item.status === 'paused' ? 'Paused' : (etaSeconds == null ? 'ETA calculating…' : `ETA ${formatUploadDuration(etaSeconds)}`));
-    metrics.textContent = `${formatUploadBytes(done)} / ${formatUploadBytes(total)} · ${speedText} · ${etaText}`;
+    metrics.textContent = `${formatUploadBytes(done)} / ${formatUploadBytes(total)} · ${percent.toFixed(1)}% · ${speedText} · ${etaText}`;
   }
 }
 function formatUploadBytes(value) {
