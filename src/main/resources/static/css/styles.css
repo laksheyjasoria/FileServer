@@ -1532,3 +1532,131 @@ a {
     max-width: calc(100% - 16px);
   }
 }
+
+/* ---------- UPLOAD QUEUE: accessible controls and readable progress ---------- */
+.upload-modal .modal-content {
+  width: min(680px, calc(100vw - 32px));
+  max-width: 680px;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.upload-modal .upload-item {
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.upload-modal .upload-filename {
+  color: #202124;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.upload-modal .progress-bar {
+  height: 9px;
+  margin: 10px 0 8px;
+  border-radius: 999px;
+  background: #e9edf3;
+}
+.upload-modal .progress-fill {
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1a73e8, #4285f4);
+  transition: width 180ms linear;
+}
+.upload-modal .upload-metrics {
+  color: #475467;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.upload-modal .upload-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.upload-modal .upload-status .status-text {
+  grid-column: 1 / -1;
+  min-width: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.upload-modal .upload-status button {
+  min-width: 76px;
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease,
+              color 140ms ease, box-shadow 140ms ease, transform 100ms ease;
+}
+.upload-modal .upload-status button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.upload-modal .upload-status button:focus-visible {
+  outline: 3px solid rgba(26, 115, 232, 0.22);
+  outline-offset: 2px;
+}
+.upload-modal .pause-upload,
+.upload-modal .resume-upload {
+  color: #175cd3;
+  background: #eff6ff;
+  border-color: #bfdbfe !important;
+}
+.upload-modal .pause-upload:hover:not(:disabled),
+.upload-modal .resume-upload:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #93c5fd !important;
+}
+.upload-modal .cancel-upload {
+  color: #b42318;
+  background: #fff1f0;
+  border-color: #fecdca !important;
+}
+.upload-modal .cancel-upload:hover:not(:disabled) {
+  color: #fff;
+  background: #d92d20;
+  border-color: #d92d20 !important;
+}
+.upload-modal .upload-status button:disabled {
+  color: #98a2b3;
+  background: #f2f4f7;
+  border-color: #eaecf0 !important;
+  cursor: not-allowed;
+  opacity: 1;
+}
+.upload-modal .remove-upload {
+  color: #344054;
+  background: #f2f4f7;
+  border-color: #e4e7ec !important;
+}
+.upload-modal .remove-upload:hover {
+  background: #e4e7ec;
+}
+.upload-modal .upload-status .completed-status {
+  color: #027a48;
+}
+.upload-modal .upload-status .failed-status {
+  color: #b42318;
+}
+@media (max-width: 520px) {
+  .upload-modal .upload-status {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .upload-modal .upload-status button {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
