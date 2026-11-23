@@ -140,6 +140,27 @@ public class ChunkUploadStateService {
         }
     }
 
+    /**
+     * Marks a complete single-request transfer as failed while keeping its
+     * MasterFile metadata inactive and therefore unavailable for streaming.
+     */
+    @Transactional
+    public void markUploadFailed(String uploadId, String userId) {
+        UploadJob job = getJob(uploadId, userId);
+        if (job.getStatus() == UploadStatus.COMPLETED
+                || job.getStatus() == UploadStatus.CANCELLED) {
+            return;
+        }
+
+        job.setStatus(UploadStatus.FAILED);
+        jobRepository.save(job);
+
+        masterFileRepository.findByUploadJobId(uploadId).ifPresent(masterFile -> {
+            masterFile.setActive(false);
+            masterFileRepository.save(masterFile);
+        });
+    }
+
     @Transactional
     public void completeChunk(
             String uploadId,
