@@ -20,7 +20,6 @@ public class MasterDriveUploadAsyncConfiguration {
         executor.setThreadNamePrefix("master-drive-upload-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
-        executor.initialize();
         return executor;
     }
 }
