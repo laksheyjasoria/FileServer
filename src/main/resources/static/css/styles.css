@@ -1534,7 +1534,7 @@ a {
 }
 
 /* ---------- UPLOAD QUEUE: accessible controls and readable progress ---------- */
-.upload-modal .modal-content {
+.modal-content.upload-modal {
   width: min(680px, calc(100vw - 32px));
   max-width: 680px;
   border-radius: 14px;
