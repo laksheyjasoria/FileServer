@@ -1,7 +1,10 @@
 package com.app.drive.controller;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +28,8 @@ import com.app.upload.dto.ChunkUploadResponse;
 import com.app.upload.dto.CreateUploadRequest;
 import com.app.upload.entity.UploadJob;
 import com.app.upload.service.ChunkService;
+import com.app.upload.service.ChunkUploadStateService;
+import com.app.upload.util.ByteArrayMultipartFile;
 import com.app.upload.service.PauseService;
 import com.app.upload.service.ResumeService;
 import com.app.upload.service.CancelService;
@@ -42,6 +47,7 @@ public class MasterDriveController {
     private final MasterFileRepository files;
     private final UploadOrchestrator uploadOrchestrator;
     private final ChunkService chunkService;
+    private final ChunkUploadStateService chunkStateService;
     private final ResumeService resumeService;
     private final PauseService pauseService;
     private final CancelService cancelService;
@@ -53,6 +59,7 @@ public class MasterDriveController {
             MasterFileRepository files,
             UploadOrchestrator uploadOrchestrator,
             ChunkService chunkService,
+            ChunkUploadStateService chunkStateService,
             ResumeService resumeService,
             PauseService pauseService,
             CancelService cancelService,
@@ -62,6 +69,7 @@ public class MasterDriveController {
         this.files = files;
         this.uploadOrchestrator = uploadOrchestrator;
         this.chunkService = chunkService;
+        this.chunkStateService = chunkStateService;
         this.resumeService = resumeService;
         this.pauseService = pauseService;
         this.cancelService = cancelService;
@@ -123,6 +131,81 @@ public class MasterDriveController {
         folder.setSize(0L);
         folder.setAccessType("PUBLIC");
         return ResponseEntity.status(HttpStatus.CREATED).body(files.save(folder));
+    }
+
+
+    /**
+     * Uploads a complete file in one HTTP request while retaining the existing
+     * Telegram chunk-storage pipeline. The request remains open until every
+     * chunk has been stored successfully or the upload fails.
+     */
+    @PostMapping(value = "/{driveId}/files/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadFile(@PathVariable String driveId,
+            @RequestParam("file") MultipartFile file, Authentication auth) {
+        if (file == null) {
+            throw new IllegalArgumentException("File is required.");
+        }
+
+        MasterFile drive = requireDrive(driveId);
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || fileName.isBlank()) {
+            throw new IllegalArgumentException("File name is required.");
+        }
+
+        CreateUploadRequest request = new CreateUploadRequest();
+        request.setFileName(fileName);
+        request.setTotalSize(file.getSize());
+        request.setContentType(file.getContentType());
+        request.setParentId(drive.getId());
+
+        UploadJob job = uploadOrchestrator.createForMasterDrive(
+                request, auth.getName(), drive.getUserId());
+
+        if (job.getStatus() == com.app.upload.entity.UploadStatus.COMPLETED) {
+            return ResponseEntity.ok(statusService.getStatus(job.getId(), auth.getName()));
+        }
+
+        try (InputStream input = file.getInputStream()) {
+            long remaining = job.getTotalSize();
+            int chunkIndex = 0;
+            while (remaining > 0) {
+                int expectedSize = (int) Math.min((long) job.getChunkSize(), remaining);
+                byte[] chunkBytes = input.readNBytes(expectedSize);
+                if (chunkBytes.length != expectedSize) {
+                    throw new IOException("Multipart file ended before the declared file size.");
+                }
+
+                ByteArrayMultipartFile chunk = new ByteArrayMultipartFile(
+                        "file", fileName, file.getContentType(), chunkBytes);
+                chunkService.uploadChunk(job.getId(), chunkIndex, chunk, auth.getName());
+
+                remaining -= expectedSize;
+                chunkIndex++;
+            }
+
+            if (input.read() != -1) {
+                throw new IOException("Multipart file contains more bytes than its declared size.");
+            }
+
+            ChunkUploadResponse result = statusService.getStatus(job.getId(), auth.getName());
+            if (!"COMPLETED".equalsIgnoreCase(result.getStatus())) {
+                throw new IllegalStateException("Upload did not reach COMPLETED status.");
+            }
+            return ResponseEntity.ok(result);
+        } catch (IOException | RuntimeException ex) {
+            try {
+                chunkStateService.markUploadFailed(job.getId(), auth.getName());
+            } catch (RuntimeException stateError) {
+                ex.addSuppressed(stateError);
+            }
+
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                    "success", false,
+                    "uploadId", job.getId(),
+                    "fileName", fileName,
+                    "status", "FAILED",
+                    "message", ex.getMessage() == null ? "File upload failed." : ex.getMessage()));
+        }
     }
 
     @PostMapping("/{driveId}/upload/create")
