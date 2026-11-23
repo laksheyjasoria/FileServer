@@ -63,7 +63,7 @@ function addToUploadQueue(files) {
       completed: new Set(), failed: new Set(), inFlight: new Map(),
       status: 'pending', pauseRequested: false, cancelRequested: false,
       runner: null, uploadedBytes: 0, lastError: null, startedAt: Date.now(),
-      lastSampleAt: Date.now(), lastSampleBytes: 0, speedBps: 0,
+      lastSampleAt: Date.now(), lastSampleBytes: 0, speedBps: 0, speedSamples: [],
     };
     uploadQueue.push(item);
     activeUploads.set(id, item);
@@ -156,6 +156,7 @@ async function startUpload(id) {
     } else {
       await apiRequest(`/chunk-upload/${encodeURIComponent(item.uploadId)}/resume`, { method: 'POST' });
     }
+    setUploadStatus(id, `Uploading · up to ${UPLOAD_PARALLELISM} parallel workers`);
     await runUpload(item);
   } catch (error) {
     if (item.cancelRequested) return;
@@ -179,6 +180,10 @@ async function runUpload(item) {
         .map(Number).filter(n => Number.isInteger(n) && n >= 0 && n < item.totalChunks));
       item.failed.clear();
       item.uploadedBytes = [...item.completed].reduce((sum, index) => sum + chunkLength(item, index), 0);
+      item.speedBps = 0;
+      item.speedSamples = [];
+      item.lastSampleAt = Date.now();
+      item.lastSampleBytes = item.uploadedBytes;
       updateUploadProgress(item);
 
       let cursor = 0;
@@ -276,10 +281,21 @@ function sendChunk(item, index, blob) {
       updateUploadProgress(item);
     };
     xhr.onload = () => {
-      item.inFlight.delete(index);
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
-      updateUploadProgress(item);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        // Commit this chunk to confirmed bytes before removing its in-flight
+        // progress, avoiding a visible progress-bar dip between workers.
+        item.completed.add(index);
+        item.failed.delete(index);
+        item.uploadedBytes = [...item.completed].reduce((sum, chunkIndex) =>
+          sum + chunkLength(item, chunkIndex), 0);
+        item.inFlight.delete(index);
+        updateUploadProgress(item);
+        resolve();
+      } else {
+        item.inFlight.delete(index);
+        updateUploadProgress(item);
+        reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
+      }
     };
     xhr.onerror = () => { item.inFlight.delete(index); reject(new Error('Network error')); updateUploadProgress(item); };
     xhr.onabort = () => { item.inFlight.delete(index); reject(new Error('Request aborted')); updateUploadProgress(item); };
@@ -379,27 +395,53 @@ function removeUploadItem(id) {
   checkAllUploadsComplete();
 }
 function updateUploadProgress(item) {
-  const inFlightBytes = [...item.inFlight.values()].reduce((sum, x) => sum + Math.min(x.loaded, x.total), 0);
+  // Confirmed chunks + live bytes from every active worker = aggregate file progress.
+  const inFlightBytes = [...item.inFlight.values()].reduce(
+    (sum, chunk) => sum + Math.min(chunk.loaded, chunk.total), 0
+  );
   const total = item.file.size || 0;
-  const done = Math.min(total, item.uploadedBytes + inFlightBytes);
-  const percent = total === 0 ? (item.status === 'completed' ? 100 : 0) : Math.min(100, Math.floor(done * 100 / total));
+  const done = total === 0 ? 0 : Math.min(total, item.uploadedBytes + inFlightBytes);
+  const percent = total === 0
+    ? (item.status === 'completed' ? 100 : 0)
+    : Math.min(100, (done / total) * 100);
+
+  // Estimate throughput from a short rolling window. Reset the sample window
+  // if a failed/retried request makes in-flight bytes move backwards.
   const now = Date.now();
-  const sampleMs = now - item.lastSampleAt;
-  if (sampleMs >= 500) {
-    const sampleSpeed = Math.max(0, (done - item.lastSampleBytes) * 1000 / sampleMs);
-    item.speedBps = item.speedBps ? item.speedBps * 0.65 + sampleSpeed * 0.35 : sampleSpeed;
-    item.lastSampleAt = now;
-    item.lastSampleBytes = done;
+  if (!Array.isArray(item.speedSamples)) item.speedSamples = [];
+  const last = item.speedSamples[item.speedSamples.length - 1];
+  if (!last || done < last.bytes) {
+    item.speedSamples = [{ at: now, bytes: done }];
+    item.speedBps = 0;
+  } else if (now - last.at >= 300) {
+    item.speedSamples.push({ at: now, bytes: done });
+    while (item.speedSamples.length > 2 &&
+           now - item.speedSamples[0].at > 4000) {
+      item.speedSamples.shift();
+    }
+    const first = item.speedSamples[0];
+    const elapsedMs = now - first.at;
+    if (elapsedMs >= 700) {
+      const measured = Math.max(0, (done - first.bytes) * 1000 / elapsedMs);
+      item.speedBps = item.speedBps > 0
+        ? item.speedBps * 0.35 + measured * 0.65
+        : measured;
+    }
   }
+
   const remaining = Math.max(0, total - done);
   const etaSeconds = item.speedBps > 0 ? Math.ceil(remaining / item.speedBps) : null;
   const row = document.getElementById(`upload-${item.id}`);
   const fill = row?.querySelector('.progress-fill');
   const metrics = row?.querySelector('.upload-metrics');
-  if (fill) fill.style.width = `${percent}%`;
+  if (fill) fill.style.width = `${percent.toFixed(2)}%`;
   if (metrics) {
-    const speedText = item.speedBps > 0 ? `${formatUploadBytes(item.speedBps)}/s` : 'calculating speed…';
-    const etaText = item.status === 'completed' ? 'complete' : (etaSeconds == null ? 'ETA —' : `ETA ${formatUploadDuration(etaSeconds)}`);
+    const speedText = item.status === 'completed'
+      ? '—'
+      : (item.speedBps > 0 ? `${formatUploadBytes(item.speedBps)}/s` : 'Calculating speed…');
+    const etaText = item.status === 'completed'
+      ? 'Completed'
+      : (item.status === 'paused' ? 'Paused' : (etaSeconds == null ? 'ETA calculating…' : `ETA ${formatUploadDuration(etaSeconds)}`));
     metrics.textContent = `${formatUploadBytes(done)} / ${formatUploadBytes(total)} · ${speedText} · ${etaText}`;
   }
 }
