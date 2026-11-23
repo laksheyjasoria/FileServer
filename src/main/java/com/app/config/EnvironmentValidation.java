@@ -11,14 +11,19 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.PropertySource;
 
 /**
- * Validates essential configuration after Spring Boot has loaded ConfigData
- * (including .env), but before the application context is created.
+ * Validates resolved Spring configuration after ConfigData has been loaded
+ * (including the imported .env file), but before the application context is
+ * created. Values are read through their application property keys so that
+ * application.yml remains the single configuration mapping layer.
+ *
  * Secret values are never logged.
  */
 public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered {
 
     @Override
     public int getOrder() {
+        // Run after Spring Boot's ConfigData processing has loaded application.yml
+        // and its imported .env property source.
         return Ordered.LOWEST_PRECEDENCE;
     }
 
@@ -37,22 +42,26 @@ public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered 
             }
         }
         report(".env property source", envLoaded);
-        if (!envLoaded) failures.add(".env file was not loaded");
+        if (!envLoaded) {
+            failures.add(".env file was not loaded");
+        }
 
         requireValue(environment, failures, "spring.application.name", "APP_NAME");
         requireValue(environment, failures, "spring.datasource.url", "SPRING_DATASOURCE_URL");
         requireValue(environment, failures, "spring.datasource.username", "SPRING_DATASOURCE_USERNAME");
-        requireSecret(environment, failures, "SPRING_DATASOURCE_PASSWORD", "SPRING_DATASOURCE_PASSWORD");
+        requireSecret(environment, failures, "spring.datasource.password", "SPRING_DATASOURCE_PASSWORD");
 
-        String jwt = environment.getProperty("APP_SECURITY_JWT_SECRET");
-        boolean jwtValid = jwt != null
+        String jwt = environment.getProperty("app.security.jwt.secret");
+        boolean jwtValid = hasText(jwt)
                 && jwt.getBytes(StandardCharsets.UTF_8).length >= 32
                 && !isPlaceholder(jwt);
-        report("JWT secret (minimum 256 bits)", jwtValid);
-        if (!jwtValid) failures.add("APP_SECURITY_JWT_SECRET must be a real secret of at least 32 UTF-8 bytes");
+        report("APP_SECURITY_JWT_SECRET (minimum 256 bits)", jwtValid);
+        if (!jwtValid) {
+            failures.add("APP_SECURITY_JWT_SECRET must resolve to a real secret of at least 32 UTF-8 bytes");
+        }
 
-        requireSecret(environment, failures, "APP_SECURITY_MASTER_KEY", "APP_SECURITY_MASTER_KEY");
-        requireSecret(environment, failures, "APP_ADMIN_PASSWORD", "APP_ADMIN_PASSWORD");
+        requireSecret(environment, failures, "app.security.master.key", "APP_SECURITY_MASTER_KEY");
+        requireSecret(environment, failures, "app.admin.password", "APP_ADMIN_PASSWORD");
 
         if ("telegram".equalsIgnoreCase(
                 environment.getProperty("app.storage.provider", "telegram"))) {
@@ -63,16 +72,18 @@ public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered 
         }
 
         if (environment.getProperty("telegram.logger.enabled", Boolean.class, false)) {
-            requireSecret(environment, failures, "TELEGRAM_LOGGER_BOT_TOKEN", "TELEGRAM_LOGGER_BOT_TOKEN");
-            requireSecret(environment, failures, "TELEGRAM_LOGGER_CHAT_ID", "TELEGRAM_LOGGER_CHAT_ID");
+            requireSecret(environment, failures, "telegram.logger.bot-token",
+                    "TELEGRAM_LOGGER_BOT_TOKEN");
+            requireSecret(environment, failures, "telegram.logger.chat-id",
+                    "TELEGRAM_LOGGER_CHAT_ID");
         } else {
             report("Telegram logger credentials (feature disabled)", true);
         }
 
         if (environment.getProperty("app.email.enabled", Boolean.class, false)) {
             requireValue(environment, failures, "spring.mail.host", "SPRING_MAIL_HOST");
-            requireValue(environment, failures, "SPRING_MAIL_USERNAME", "SPRING_MAIL_USERNAME");
-            requireSecret(environment, failures, "SPRING_MAIL_PASSWORD", "SPRING_MAIL_PASSWORD");
+            requireValue(environment, failures, "spring.mail.username", "SPRING_MAIL_USERNAME");
+            requireSecret(environment, failures, "spring.mail.password", "SPRING_MAIL_PASSWORD");
         } else {
             report("SMTP credentials (email disabled)", true);
         }
@@ -99,19 +110,31 @@ public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered 
         System.out.println("========================================================");
     }
 
+    /**
+     * Reads a resolved application property. Spring resolves any ${ENV_NAME}
+     * placeholder declared in application.yml before returning this value.
+     */
     private void requireValue(ConfigurableEnvironment env, List<String> failures,
                               String property, String variable) {
         boolean configured = hasText(env.getProperty(property));
         report(variable, configured);
-        if (!configured) failures.add(variable + " is missing or blank");
+        if (!configured) {
+            failures.add(variable + " is missing or blank");
+        }
     }
 
+    /**
+     * Reads and validates the resolved application property, never the raw
+     * environment variable. The variable name is used only for safe diagnostics.
+     */
     private void requireSecret(ConfigurableEnvironment env, List<String> failures,
                                String property, String variable) {
         String value = env.getProperty(property);
         boolean configured = hasText(value) && !isPlaceholder(value);
         report(variable, configured);
-        if (!configured) failures.add(variable + " is missing, blank, or still contains a placeholder");
+        if (!configured) {
+            failures.add(variable + " is missing, blank, or still contains a placeholder");
+        }
     }
 
     private boolean isPlaceholder(String value) {
