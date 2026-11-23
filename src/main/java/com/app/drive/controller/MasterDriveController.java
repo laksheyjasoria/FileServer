@@ -17,6 +17,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.app.core.exception.FileNotFoundException;
 import com.app.master.entity.MasterFile;
@@ -58,6 +60,11 @@ public class MasterDriveController {
     private final FileTransferService transferService;
     private final HttpRangeParser rangeParser;
 
+    @Value("${app.master-drive.stream-token.expiration-seconds:3600}")
+    private long streamTokenExpirationSeconds;
+
+    private final com.app.core.security.jwt.JwtService jwtService;
+
     public MasterDriveController(
             MasterFileRepository files,
             UploadOrchestrator uploadOrchestrator,
@@ -69,7 +76,8 @@ public class MasterDriveController {
             CancelService cancelService,
             UploadStatusService statusService,
             FileTransferService transferService,
-            HttpRangeParser rangeParser) {
+            HttpRangeParser rangeParser,
+            com.app.core.security.jwt.JwtService jwtService) {
         this.files = files;
         this.uploadOrchestrator = uploadOrchestrator;
         this.chunkService = chunkService;
@@ -81,6 +89,7 @@ public class MasterDriveController {
         this.statusService = statusService;
         this.transferService = transferService;
         this.rangeParser = rangeParser;
+        this.jwtService = jwtService;
     }
 
     @GetMapping
@@ -266,6 +275,31 @@ public class MasterDriveController {
     @GetMapping("/files/{fileId}/metadata")
     public MasterFile metadata(@PathVariable String fileId) {
         return requireFile(fileId);
+    }
+
+    /**
+     * Creates a short-lived, file-scoped URL that can be opened directly by a browser
+     * media element, which cannot attach the Admin JWT or Master Key headers.
+     */
+    @GetMapping("/files/{fileId}/stream-url")
+    public Map<String, Object> createStreamUrl(@PathVariable String fileId) {
+        MasterFile file = requireFile(fileId);
+        if (!transferService.isChunked(file)) {
+            throw new IllegalStateException("Master Drive file has no valid chunked storage reference.");
+        }
+        long validitySeconds = Math.max(1L, streamTokenExpirationSeconds);
+        String token = jwtService.generateFileAccessToken(file.getId(), validitySeconds);
+        String streamUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/master-drive/files/{fileId}/stream")
+                .queryParam("token", token)
+                .buildAndExpand(file.getId())
+                .toUriString();
+
+        return Map.of(
+                "success", true,
+                "fileId", file.getId(),
+                "streamUrl", streamUrl,
+                "expiresIn", validitySeconds);
     }
 
     @GetMapping("/files/{fileId}/stream")
