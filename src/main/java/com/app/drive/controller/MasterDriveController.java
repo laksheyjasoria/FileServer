@@ -8,7 +8,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -180,8 +179,7 @@ public class MasterDriveController {
     }
 
     @DeleteMapping("/files/{fileId}")
-    public ResponseEntity<Void> deleteFile(@PathVariable String fileId, Authentication auth) {
-        requireAdminJwt(auth);
+    public ResponseEntity<Void> deleteFile(@PathVariable String fileId) {
         MasterFile file = requireFile(fileId);
         file.setActive(false);
         file.setDeletedAt(LocalDateTime.now());
@@ -190,8 +188,7 @@ public class MasterDriveController {
     }
 
     @DeleteMapping("/folders/{folderId}")
-    public ResponseEntity<Void> deleteFolder(@PathVariable String folderId, Authentication auth) {
-        requireAdminJwt(auth);
+    public ResponseEntity<Void> deleteFolder(@PathVariable String folderId) {
         MasterFile folder = requireFolder(folderId);
         List<String> descendants = files.findAllDescendantIds(folderId);
         if (!descendants.isEmpty()) {
@@ -209,8 +206,8 @@ public class MasterDriveController {
             throw new IllegalArgumentException("Only files can be transferred.");
         }
         long size = file.getSize() == null ? -1L : file.getSize();
-        if (size < 0 || (!transferService.isChunked(file) && !transferService.isLegacy(file))) {
-            throw new IllegalStateException("File metadata or storage reference is invalid.");
+        if (size < 0 || !transferService.isChunked(file)) {
+            throw new IllegalStateException("Master Drive file must have a valid chunked storage reference.");
         }
         MediaType type = resolveContentType(file.getContentType());
         HttpHeaders headers = new HttpHeaders();
@@ -309,13 +306,6 @@ public class MasterDriveController {
         catch (IllegalArgumentException ex) { return MediaType.APPLICATION_OCTET_STREAM; }
     }
 
-    private void requireAdminJwt(Authentication auth) {
-        boolean admin = auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
-        if (!admin || auth == null || "master".equalsIgnoreCase(auth.getName())) {
-            throw new AccessDeniedException("Admin JWT is required for deletion.");
-        }
-    }
 
     public static class CreateFolderRequest {
         private String name;
