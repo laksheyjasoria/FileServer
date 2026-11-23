@@ -1,86 +1,107 @@
 package com.app.config;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.PropertySource;
-import org.springframework.stereotype.Component;
 
 /**
- * Reports whether the external .env property source was loaded and whether
- * the application's essential configuration values are present.
- *
- * This class deliberately logs only presence/absence, never secret values.
+ * Validates essential configuration after ConfigData imports (including .env)
+ * and before Spring creates the application context. Secret values are never logged.
  */
-@Component
-public class EnvironmentValidation implements ApplicationRunner {
+public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(EnvironmentValidation.class);
-
-    private final ConfigurableEnvironment environment;
-
-    public EnvironmentValidation(ConfigurableEnvironment environment) {
-        this.environment = environment;
+    @Override
+    public int getOrder() {
+        return Ordered.LOWEST_PRECEDENCE;
     }
 
     @Override
-    public void run(ApplicationArguments args) {
-        log.info("========== ENVIRONMENT VALIDATION ==========");
+    public void postProcessEnvironment(
+            ConfigurableEnvironment environment, SpringApplication application) {
 
-        boolean envFileLoaded = false;
-        for (PropertySource<?> propertySource : environment.getPropertySources()) {
-            if (propertySource.getName().toLowerCase().contains(".env")) {
-                envFileLoaded = true;
-                break;
-            }
+        System.out.println("========== FILESERVER ENVIRONMENT VALIDATION ==========");
+        List<String> failures = new ArrayList<>();
+
+        boolean envLoaded = environment.getPropertySources().stream()
+                .anyMatch(source -> source.getName().toLowerCase().contains(".env"));
+        report(".env property source", envLoaded);
+        if (!envLoaded) failures.add(".env file was not loaded");
+
+        require(environment, failures, "spring.application.name", "APP_NAME");
+        require(environment, failures, "spring.datasource.url", "SPRING_DATASOURCE_URL");
+        require(environment, failures, "spring.datasource.username", "SPRING_DATASOURCE_USERNAME");
+        require(environment, failures, "spring.datasource.password", "SPRING_DATASOURCE_PASSWORD");
+
+        String jwt = environment.getProperty("app.security.jwt.secret");
+        boolean jwtValid = jwt != null
+                && jwt.getBytes(StandardCharsets.UTF_8).length >= 32;
+        report("JWT secret (minimum 256 bits)", jwtValid);
+        if (!jwtValid) failures.add("APP_SECURITY_JWT_SECRET must contain at least 32 UTF-8 bytes");
+
+        require(environment, failures, "app.security.master.key", "APP_SECURITY_MASTER_KEY");
+        require(environment, failures, "app.admin.password", "APP_ADMIN_PASSWORD");
+
+        if ("telegram".equalsIgnoreCase(
+                environment.getProperty("app.storage.provider", "telegram"))) {
+            require(environment, failures, "app.telegram.storage.bot-token",
+                    "TELEGRAM_STORAGE_BOT_TOKEN");
+            require(environment, failures, "app.telegram.storage.chat-id",
+                    "TELEGRAM_STORAGE_CHAT_ID");
         }
 
-        log.info(".env property source: {}",
-                envFileLoaded ? "LOADED" : "NOT DETECTED");
-
-        logPresence("APP_NAME", "APP_NAME");
-        logPresence("SPRING_DATASOURCE_URL", "spring.datasource.url");
-        logPresence("SPRING_DATASOURCE_USERNAME", "spring.datasource.username");
-        logPresence("SPRING_DATASOURCE_PASSWORD", "spring.datasource.password");
-        logPresence("APP_SECURITY_JWT_SECRET", "app.security.jwt.secret");
-        logPresence("APP_SECURITY_MASTER_KEY", "app.security.master.key");
-
-        // Support both the current application.yml nesting and the alternate
-        // top-level telegram.storage layout used in some local configurations.
-        logPresence("TELEGRAM_STORAGE_BOT_TOKEN",
-                firstConfigured("app.telegram.storage.bot-token",
-                        "telegram.storage.bot-token"));
-        logPresence("TELEGRAM_STORAGE_CHAT_ID",
-                firstConfigured("app.telegram.storage.chat-id",
-                        "telegram.storage.chat-id"));
-
-        String jwtSecret = environment.getProperty("app.security.jwt.secret", "");
-        log.info("JWT secret length: {} bytes",
-                jwtSecret.getBytes(StandardCharsets.UTF_8).length);
-
-        log.info("Active profiles: {}", Arrays.toString(environment.getActiveProfiles()));
-        log.info("========== ENVIRONMENT VALIDATION COMPLETE ==========");
-    }
-
-    private void logPresence(String label, String propertyName) {
-        String value = environment.getProperty(propertyName);
-        log.info("{}: {}", label,
-                value != null && !value.isBlank() ? "CONFIGURED" : "MISSING");
-    }
-
-    private String firstConfigured(String... propertyNames) {
-        for (String propertyName : propertyNames) {
-            String value = environment.getProperty(propertyName);
-            if (value != null && !value.isBlank()) {
-                return propertyName;
-            }
+        if (environment.getProperty("telegram.logger.enabled", Boolean.class, false)) {
+            require(environment, failures, "telegram.logger.bot-token", "TELEGRAM_LOGGER_BOT_TOKEN");
+            require(environment, failures, "telegram.logger.chat-id", "TELEGRAM_LOGGER_CHAT_ID");
+        } else {
+            report("Telegram logger credentials (feature disabled)", true);
         }
-        return propertyNames[0];
+
+        if (environment.getProperty("app.email.enabled", Boolean.class, false)) {
+            require(environment, failures, "spring.mail.username", "SPRING_MAIL_USERNAME");
+            require(environment, failures, "spring.mail.password", "SPRING_MAIL_PASSWORD");
+        } else {
+            report("SMTP credentials (email disabled)", true);
+        }
+
+        String googleId = environment.getProperty(
+                "spring.security.oauth2.client.registration.google.client-id");
+        String googleSecret = environment.getProperty(
+                "spring.security.oauth2.client.registration.google.client-secret");
+        boolean googleComplete = hasText(googleId) && hasText(googleSecret);
+        report("Google OAuth credentials", googleComplete);
+        if ((hasText(googleId) || hasText(googleSecret)) && !googleComplete) {
+            failures.add("Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or leave both blank");
+        }
+
+        if (failures.isEmpty()) {
+            System.out.println("RESULT: PASS - required configuration is present.");
+        } else {
+            System.err.println("RESULT: FAIL - " + failures.size() + " configuration check(s) failed:");
+            failures.forEach(failure -> System.err.println("  - " + failure));
+            throw new IllegalStateException(
+                    "FileServer configuration validation failed. Secret values were not logged.");
+        }
+        System.out.println("========================================================");
+    }
+
+    private void require(ConfigurableEnvironment env, List<String> failures,
+                         String property, String variable) {
+        boolean configured = hasText(env.getProperty(property));
+        report(variable, configured);
+        if (!configured) failures.add(variable + " is missing or blank");
+    }
+
+    private void report(String label, boolean passed) {
+        System.out.println("[" + (passed ? "PASS" : "FAIL") + "] " + label);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }
