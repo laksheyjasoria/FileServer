@@ -94,7 +94,11 @@ public class MasterDriveController {
         MasterFile drive = requireDrive(driveId);
         String parentId = folderId == null || folderId.isBlank() ? drive.getId() : folderId;
         MasterFile folder = requireFolderInDrive(drive, parentId);
-        return files.findByParentIdAndActiveTrue(folder.getId());
+        return files.findByParentIdAndActiveTrue(folder.getId()).stream()
+                .filter(item -> "FOLDER".equalsIgnoreCase(item.getDriveType())
+                        || ("FILE".equalsIgnoreCase(item.getDriveType())
+                                && item.getUploadJobId() != null && !item.getUploadJobId().isBlank()))
+                .toList();
     }
 
     @PostMapping("/{driveId}/folders")
@@ -102,6 +106,9 @@ public class MasterDriveController {
             @RequestBody CreateFolderRequest request) {
         if (request == null || request.getName() == null || request.getName().isBlank()) {
             throw new IllegalArgumentException("Folder name is required.");
+        }
+        if (request == null) {
+            throw new IllegalArgumentException("Upload request cannot be null.");
         }
         MasterFile drive = requireDrive(driveId);
         String parentId = request.getParentId() == null || request.getParentId().isBlank()
