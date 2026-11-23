@@ -42,17 +42,17 @@ public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered 
         requireValue(environment, failures, "spring.application.name", "APP_NAME");
         requireValue(environment, failures, "spring.datasource.url", "SPRING_DATASOURCE_URL");
         requireValue(environment, failures, "spring.datasource.username", "SPRING_DATASOURCE_USERNAME");
-        requireSecret(environment, failures, "spring.datasource.password", "SPRING_DATASOURCE_PASSWORD");
+        requireSecret(environment, failures, "SPRING_DATASOURCE_PASSWORD", "SPRING_DATASOURCE_PASSWORD");
 
-        String jwt = environment.getProperty("app.security.jwt.secret");
+        String jwt = environment.getProperty("APP_SECURITY_JWT_SECRET");
         boolean jwtValid = jwt != null
                 && jwt.getBytes(StandardCharsets.UTF_8).length >= 32
                 && !isPlaceholder(jwt);
         report("JWT secret (minimum 256 bits)", jwtValid);
         if (!jwtValid) failures.add("APP_SECURITY_JWT_SECRET must be a real secret of at least 32 UTF-8 bytes");
 
-        requireSecret(environment, failures, "app.security.master.key", "APP_SECURITY_MASTER_KEY");
-        requireSecret(environment, failures, "app.admin.password", "APP_ADMIN_PASSWORD");
+        requireSecret(environment, failures, "APP_SECURITY_MASTER_KEY", "APP_SECURITY_MASTER_KEY");
+        requireSecret(environment, failures, "APP_ADMIN_PASSWORD", "APP_ADMIN_PASSWORD");
 
         if ("telegram".equalsIgnoreCase(
                 environment.getProperty("app.storage.provider", "telegram"))) {
@@ -63,16 +63,16 @@ public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered 
         }
 
         if (environment.getProperty("telegram.logger.enabled", Boolean.class, false)) {
-            requireSecret(environment, failures, "telegram.logger.bot-token", "TELEGRAM_LOGGER_BOT_TOKEN");
-            requireSecret(environment, failures, "telegram.logger.chat-id", "TELEGRAM_LOGGER_CHAT_ID");
+            requireSecret(environment, failures, "TELEGRAM_LOGGER_BOT_TOKEN", "TELEGRAM_LOGGER_BOT_TOKEN");
+            requireSecret(environment, failures, "TELEGRAM_LOGGER_CHAT_ID", "TELEGRAM_LOGGER_CHAT_ID");
         } else {
             report("Telegram logger credentials (feature disabled)", true);
         }
 
         if (environment.getProperty("app.email.enabled", Boolean.class, false)) {
             requireValue(environment, failures, "spring.mail.host", "SPRING_MAIL_HOST");
-            requireValue(environment, failures, "spring.mail.username", "SPRING_MAIL_USERNAME");
-            requireSecret(environment, failures, "spring.mail.password", "SPRING_MAIL_PASSWORD");
+            requireValue(environment, failures, "SPRING_MAIL_USERNAME", "SPRING_MAIL_USERNAME");
+            requireSecret(environment, failures, "SPRING_MAIL_PASSWORD", "SPRING_MAIL_PASSWORD");
         } else {
             report("SMTP credentials (email disabled)", true);
         }
