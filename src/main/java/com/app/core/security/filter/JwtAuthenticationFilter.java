@@ -35,7 +35,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         USER,            // Any valid JWT (active account)
         ADMIN,           // Admin JWT only (NO Master Key)
         MASTER_KEY,      // Master Key only
-        MASTER_OR_ADMIN  // Master Key OR Admin JWT
+        MASTER_OR_ADMIN, // Master Key OR Admin JWT
+        STREAM_TOKEN     // File-scoped token for browser media requests
     }
 
     // ================================
@@ -109,6 +110,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // Keep the Master Drive UI, file operations, streaming and deletion Admin-JWT-only.
         // X-Master-Key is the existing global FileServer master key.
         addRule("/master-drive/*/files/upload", AccessLevel.MASTER_OR_ADMIN);
+        addRule("/master-drive/files/*/stream-url", AccessLevel.MASTER_OR_ADMIN);
+        addRule("/master-drive/files/*/stream", AccessLevel.STREAM_TOKEN);
         addRule("/master-drive/uploads/*/status", AccessLevel.MASTER_OR_ADMIN);
         addRule("/master-drive/upload/*/status", AccessLevel.MASTER_OR_ADMIN);
         addRule("/master-drive/**", AccessLevel.MASTER_OR_ADMIN);
@@ -160,6 +163,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 sendUnauthorized(response, "Invalid or missing Master Key");
                 return;
 
+            case STREAM_TOKEN:
+                if (handleMasterKey(request, response, chain)) return;
+                if (handleAdminJwt(request, response, chain)) return;
+                if (handleStreamToken(request, response, chain)) return;
+                sendUnauthorized(response, "Invalid or expired streaming token");
+                return;
+
             case MASTER_OR_ADMIN:
                 if (handleMasterKey(request, response, chain)) return;
                 if (handleAdminJwt(request, response, chain)) return;
@@ -178,6 +188,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     // ================================
     // 6. HANDLER METHODS
     // ================================
+
+    private boolean handleStreamToken(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        String token = request.getParameter("token");
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+
+        String path = request.getRequestURI();
+        String prefix = "/master-drive/files/";
+        String suffix = "/stream";
+        if (path == null || !path.startsWith(prefix) || !path.endsWith(suffix)) {
+            return false;
+        }
+
+        String requestedFileId = path.substring(prefix.length(), path.length() - suffix.length());
+        if (requestedFileId.isBlank() || requestedFileId.contains("/")) {
+            return false;
+        }
+
+        try {
+            String tokenFileId = jwt.validateFileAccessToken(token.trim());
+            if (!requestedFileId.equals(tokenFileId)) {
+                return false;
+            }
+            setAuthentication("stream-token:" + requestedFileId, "ROLE_ADMIN");
+            chain.doFilter(request, response);
+            return true;
+        } catch (Exception ex) {
+            logger.debug("Invalid or expired Master Drive stream token", ex);
+            return false;
+        }
+    }
 
     private boolean handleMasterKey(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
