@@ -395,38 +395,25 @@ function removeUploadItem(id) {
   checkAllUploadsComplete();
 }
 function updateUploadProgress(item) {
-  // Confirmed chunks + live bytes from every active worker = aggregate file progress.
-  const inFlightBytes = [...item.inFlight.values()].reduce(
-    (sum, chunk) => sum + Math.min(chunk.loaded, chunk.total), 0
-  );
+  // Only count chunks acknowledged by the server. XHR upload.onprogress measures
+  // browser -> Spring bytes, not bytes already persisted by Telegram.
   const total = item.file.size || 0;
-  const done = total === 0 ? 0 : Math.min(total, item.uploadedBytes + inFlightBytes);
+  const done = total === 0 ? (item.status === 'completed' ? 0 : 0)
+    : Math.min(total, Math.max(0, item.uploadedBytes));
   const percent = total === 0
     ? (item.status === 'completed' ? 100 : 0)
     : Math.min(100, (done / total) * 100);
 
-  // Estimate throughput from a short rolling window. Reset the sample window
-  // if a failed/retried request makes in-flight bytes move backwards.
+  // End-to-end effective rate: server-confirmed bytes / elapsed upload time.
+  // This is intentionally updated from confirmed storage progress, not the
+  // browser's request-body progress, which can finish before Telegram does.
   const now = Date.now();
-  if (!Array.isArray(item.speedSamples)) item.speedSamples = [];
-  const last = item.speedSamples[item.speedSamples.length - 1];
-  if (!last || done < last.bytes) {
-    item.speedSamples = [{ at: now, bytes: done }];
+  const startedAt = item.startedAt || now;
+  const elapsedSeconds = Math.max(0.5, (now - startedAt) / 1000);
+  if (item.status === 'completed') {
     item.speedBps = 0;
-  } else if (now - last.at >= 300) {
-    item.speedSamples.push({ at: now, bytes: done });
-    while (item.speedSamples.length > 2 &&
-           now - item.speedSamples[0].at > 4000) {
-      item.speedSamples.shift();
-    }
-    const first = item.speedSamples[0];
-    const elapsedMs = now - first.at;
-    if (elapsedMs >= 700) {
-      const measured = Math.max(0, (done - first.bytes) * 1000 / elapsedMs);
-      item.speedBps = item.speedBps > 0
-        ? item.speedBps * 0.35 + measured * 0.65
-        : measured;
-    }
+  } else {
+    item.speedBps = done > 0 ? done / elapsedSeconds : 0;
   }
 
   const remaining = Math.max(0, total - done);
@@ -434,15 +421,28 @@ function updateUploadProgress(item) {
   const row = document.getElementById(`upload-${item.id}`);
   const fill = row?.querySelector('.progress-fill');
   const metrics = row?.querySelector('.upload-metrics');
-  if (fill) fill.style.width = `${percent.toFixed(2)}%`;
+  if (fill) fill.style.width = `${percent.toFixed(1)}%`;
   if (metrics) {
     const speedText = item.status === 'completed'
       ? '—'
-      : (item.speedBps > 0 ? `${formatUploadBytes(item.speedBps)}/s` : 'Calculating speed…');
+      : (item.speedBps > 0 ? `${formatUploadBytes(item.speedBps)}/s` : 'Calculating…');
     const etaText = item.status === 'completed'
       ? 'Completed'
       : (item.status === 'paused' ? 'Paused' : (etaSeconds == null ? 'ETA calculating…' : `ETA ${formatUploadDuration(etaSeconds)}`));
-    metrics.textContent = `${formatUploadBytes(done)} / ${formatUploadBytes(total)} · ${percent.toFixed(1)}% · ${speedText} · ${etaText}`;
+    const chunkText = item.totalChunks > 0
+      ? `${item.completed.size}/${item.totalChunks} chunks stored`
+      : 'Preparing storage…';
+    metrics.textContent = `${formatUploadBytes(done)} / ${formatUploadBytes(total)} · ${percent.toFixed(1)}% · ${speedText} · ${etaText} · ${chunkText}`;
+  }
+
+  // Make concurrent activity explicit without pretending request-body bytes
+  // have already been stored by Telegram.
+  const status = row?.querySelector('.status-text');
+  if (status && item.status === 'uploading' && item.totalChunks > 0) {
+    const active = item.inFlight.size;
+    status.textContent = active > 0
+      ? `Storing chunks: ${item.completed.size}/${item.totalChunks} confirmed · ${active} in progress`
+      : `Stored ${item.completed.size}/${item.totalChunks} chunks`;
   }
 }
 function formatUploadBytes(value) {
