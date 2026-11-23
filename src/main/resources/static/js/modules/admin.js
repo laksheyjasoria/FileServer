@@ -309,7 +309,7 @@ async function uploadSelectedMasterFiles(event) {
       });
       if (!createResponse.ok) throw new Error(await readApiError(createResponse));
       const job = await createResponse.json();
-      if (!job.id || !job.chunkSize || !Number.isInteger(job.totalChunks)) {
+      if (!job.id || (job.totalChunks > 0 && (!job.chunkSize || job.chunkSize < 1)) || !Number.isInteger(job.totalChunks)) {
         throw new Error("Server returned incomplete chunk upload details.");
       }
 
