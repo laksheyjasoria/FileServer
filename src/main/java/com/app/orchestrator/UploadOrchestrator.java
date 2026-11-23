@@ -114,9 +114,9 @@ public class UploadOrchestrator {
 
     /**
      * Creates a chunked upload into the shared Master Drive namespace.
-     * UploadJob ownership remains the authenticated principal so chunk/status
-     * endpoints can enforce ownership. MasterFile ownership remains the root
-     * drive owner, independent of whether the caller used a key or Admin JWT.
+     * UploadJob ownership remains the authenticated Admin principal so the
+     * existing chunk/status services can enforce ownership. MasterFile ownership
+     * remains the root Master Drive owner.
      */
     @Transactional
     public UploadJob createForMasterDrive(CreateUploadRequest request, String principal, String driveOwnerId) {
