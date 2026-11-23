@@ -27,8 +27,14 @@
               <button class="btn btn-secondary" id="newFolderBtn">
                 📁 New Folder
               </button>
+              <button class="btn btn-primary" id="masterUploadBtn" style="display:none">
+                ⬆ Upload Files
+              </button>
+              <input id="masterUploadInput" type="file" multiple hidden />
+
             </div>
           </div>
+          <div id="masterUploadProgress" class="upload-list" style="display:none"></div>
           <div id="fileContainer">
             <div class="loading">Loading master drives...</div>
           </div>
