@@ -146,6 +146,9 @@ app:
   file:
     token:
       validity-seconds: ${APP_FILE_TOKEN_VALIDITY_SECONDS:1800}
+  master-drive:
+    stream-token:
+      expiration-seconds: ${MASTER_DRIVE_STREAM_TOKEN_EXPIRATION:3600}
 
 telegram:
   logger:
