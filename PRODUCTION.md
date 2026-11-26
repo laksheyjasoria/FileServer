@@ -58,6 +58,7 @@ Notes:
 - The included `Dockerfile` is multi-stage and produces a small runtime image.
 - Application reads Spring properties as usual; prefer environment variables in production.
 - Ensure DB migrations are applied (add Flyway or run SQL migrations) before starting against an existing DB schema. Columns added recently: `parent_id`, `drive_type`, `access_type`, `photo_url` in `master_files`/`users` tables.
+- **Database bootstrap limitation:** this repository's committed Flyway scripts are incremental migrations and assume the legacy core schema (including `users`, `master_files`, and upload tables) already exists. They are not a complete empty-database bootstrap. Provision/restore the compatible base schema before first startup; do not point a new empty PostgreSQL database at this branch and assume Flyway will create every core table. A versioned baseline/bootstrap migration is still required before supporting clean-database installations.
 - For secrets, use your orchestrator's secret store (Kubernetes Secrets, Docker Secrets, AWS SSM, etc.) rather than baking into `application-prod.yml`.
 
 Quick health check endpoint: `GET /actuator/health` (enabled in production profile if actuator is configured).
