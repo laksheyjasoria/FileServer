@@ -148,7 +148,15 @@ public class ShareService {
     // ================= DETAILS =================
 
     public PublicShareResponse details(String token, String password) {
-        SharedResource share = validate(token, password);
+        return buildDetails(validate(token, password));
+    }
+
+    /**
+     * Builds the display DTO for a selected share without validating its link
+     * password. Management lists must show metadata for protected shares;
+     * actual shared-link access must continue to go through validate().
+     */
+    private PublicShareResponse buildDetails(SharedResource share) {
         boolean isMulti = share.getFileIds() != null && !share.getFileIds().isEmpty();
 
         String driveName;
@@ -289,7 +297,7 @@ public class ShareService {
                 })
                 .map(share -> {
                     try {
-                        return details(share.getToken(), null);
+                        return buildDetails(share);
                     } catch (FileNotFoundException | ShareFileRemovedException e) {
                         // Skip shares where files are completely missing
                         return null;
@@ -314,7 +322,7 @@ public class ShareService {
                 })
                 .map(share -> {
                     try {
-                        return details(share.getToken(), null);
+                        return buildDetails(share);
                     } catch (FileNotFoundException | ShareFileRemovedException e) {
                         // Skip shares where files are completely missing
                         return null;

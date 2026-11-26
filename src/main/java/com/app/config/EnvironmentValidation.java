@@ -1,0 +1,150 @@
+package com.app.config;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.core.Ordered;
+import org.springframework.core.env.ConfigurableEnvironment;
+
+/**
+ * Validates resolved Spring configuration after ConfigData has been loaded
+ * (including the imported .env file), but before the application context is
+ * created. Values are read through their application property keys so that
+ * application.yml remains the single configuration mapping layer.
+ *
+ * Secret values are never logged.
+ */
+public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered {
+
+    @Override
+    public int getOrder() {
+        // Run after Spring Boot's ConfigData processing has loaded application.yml
+        // and its imported .env property source.
+        return Ordered.LOWEST_PRECEDENCE;
+    }
+
+    @Override
+    public void postProcessEnvironment(
+            ConfigurableEnvironment environment, SpringApplication application) {
+
+        System.out.println("========== FILESERVER ENVIRONMENT VALIDATION ==========");
+        List<String> failures = new ArrayList<>();
+
+        // A local .env file is a convenience for development, not a deployment
+        // requirement. CI and production may provide all settings through the
+        // process environment, container secrets or an orchestrator.
+        report("Local .env file (optional)", true);
+
+        requireValue(environment, failures, "spring.application.name", "APP_NAME");
+        requireValue(environment, failures, "spring.datasource.url", "SPRING_DATASOURCE_URL");
+        requireValue(environment, failures, "spring.datasource.username", "SPRING_DATASOURCE_USERNAME");
+        requireSecret(environment, failures, "spring.datasource.password", "SPRING_DATASOURCE_PASSWORD");
+
+        String jwt = environment.getProperty("app.security.jwt.secret");
+        boolean jwtValid = hasText(jwt)
+                && jwt.getBytes(StandardCharsets.UTF_8).length >= 32
+                && !isPlaceholder(jwt);
+        report("APP_SECURITY_JWT_SECRET (minimum 256 bits)", jwtValid);
+        if (!jwtValid) {
+            failures.add("APP_SECURITY_JWT_SECRET must resolve to a real secret of at least 32 UTF-8 bytes");
+        }
+
+        requireSecret(environment, failures, "app.security.master.key", "APP_SECURITY_MASTER_KEY");
+        requireSecret(environment, failures, "app.admin.password", "APP_ADMIN_PASSWORD");
+
+        if ("telegram".equalsIgnoreCase(
+                environment.getProperty("app.storage.provider", "telegram"))) {
+            requireSecret(environment, failures, "app.telegram.storage.bot-token",
+                    "TELEGRAM_STORAGE_BOT_TOKEN");
+            requireSecret(environment, failures, "app.telegram.storage.chat-id",
+                    "TELEGRAM_STORAGE_CHAT_ID");
+        }
+
+        if (environment.getProperty("telegram.logger.enabled", Boolean.class, false)) {
+            requireSecret(environment, failures, "telegram.logger.bot-token",
+                    "TELEGRAM_LOGGER_BOT_TOKEN");
+            requireSecret(environment, failures, "telegram.logger.chat-id",
+                    "TELEGRAM_LOGGER_CHAT_ID");
+        } else {
+            report("Telegram logger credentials (feature disabled)", true);
+        }
+
+        if (environment.getProperty("app.email.enabled", Boolean.class, false)) {
+            requireValue(environment, failures, "spring.mail.host", "SPRING_MAIL_HOST");
+            requireValue(environment, failures, "spring.mail.username", "SPRING_MAIL_USERNAME");
+            requireSecret(environment, failures, "spring.mail.password", "SPRING_MAIL_PASSWORD");
+        } else {
+            report("SMTP credentials (email disabled)", true);
+        }
+
+        String googleId = environment.getProperty(
+                "spring.security.oauth2.client.registration.google.client-id");
+        String googleSecret = environment.getProperty(
+                "spring.security.oauth2.client.registration.google.client-secret");
+        boolean googleComplete = hasText(googleId) && hasText(googleSecret);
+        boolean googleAbsent = !hasText(googleId) && !hasText(googleSecret);
+        report("Google OAuth credentials", googleComplete || googleAbsent);
+        if (!googleComplete && !googleAbsent) {
+            failures.add("Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or leave both blank");
+        }
+
+        if (failures.isEmpty()) {
+            System.out.println("RESULT: PASS - required configuration is present.");
+        } else {
+            System.err.println("RESULT: FAIL - " + failures.size() + " configuration check(s) failed:");
+            failures.forEach(failure -> System.err.println("  - " + failure));
+            throw new IllegalStateException(
+                    "FileServer configuration validation failed. Secret values were intentionally hidden.");
+        }
+        System.out.println("========================================================");
+    }
+
+    /**
+     * Reads a resolved application property. Spring resolves any ${ENV_NAME}
+     * placeholder declared in application.yml before returning this value.
+     */
+    private void requireValue(ConfigurableEnvironment env, List<String> failures,
+                              String property, String variable) {
+        boolean configured = hasText(env.getProperty(property));
+        report(variable, configured);
+        if (!configured) {
+            failures.add(variable + " is missing or blank");
+        }
+    }
+
+    /**
+     * Reads and validates the resolved application property, never the raw
+     * environment variable. The variable name is used only for safe diagnostics.
+     */
+    private void requireSecret(ConfigurableEnvironment env, List<String> failures,
+                               String property, String variable) {
+        String value = env.getProperty(property);
+        boolean configured = hasText(value) && !isPlaceholder(value);
+        report(variable, configured);
+        if (!configured) {
+            failures.add(variable + " is missing, blank, or still contains a placeholder");
+        }
+    }
+
+    private boolean isPlaceholder(String value) {
+        String normalized = value.trim().toLowerCase();
+        return normalized.equals("change_me")
+                || normalized.equals("change-me")
+                || normalized.equals("changeme")
+                || normalized.equals("your_secret")
+                || normalized.equals("your-secret")
+                || normalized.startsWith("your_")
+                || normalized.startsWith("replace_me");
+    }
+
+    private void report(String label, boolean passed) {
+        System.out.println("[" + (passed ? "PASS" : "FAIL") + "] " + label);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+}

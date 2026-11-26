@@ -35,7 +35,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         USER,            // Any valid JWT (active account)
         ADMIN,           // Admin JWT only (NO Master Key)
         MASTER_KEY,      // Master Key only
-        MASTER_OR_ADMIN  // Master Key OR Admin JWT
+        MASTER_OR_ADMIN, // Master Key OR Admin JWT
+        STREAM_TOKEN     // File-scoped token for browser media requests
     }
 
     // ================================
@@ -103,9 +104,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         addRule("/*.ttf", AccessLevel.PUBLIC);
 
         // ---- ADMIN (strictly Admin JWT only, no Master Key) ----
-        addRule("/api/admin/**", AccessLevel.ADMIN);
+//        addRule("/api/admin/**", AccessLevel.ADMIN);
 
-        // ---- MASTER_OR_ADMIN (Master Key OR Admin JWT) ----
+        // ---- MASTER DRIVE UPLOAD + STATUS (global Master Key OR Admin JWT) ----
+        // Keep the Master Drive UI, file operations, streaming and deletion Admin-JWT-only.
+        // X-Master-Key is the existing global FileServer master key.
+        addRule("/master-drive/*/files/upload", AccessLevel.MASTER_OR_ADMIN);
+        addRule("/master-drive/files/*/stream-url", AccessLevel.MASTER_OR_ADMIN);
+        addRule("/master-drive/files/*/stream", AccessLevel.STREAM_TOKEN);
+        addRule("/master-drive/uploads/*/status", AccessLevel.MASTER_OR_ADMIN);
+        addRule("/master-drive/upload/*/status", AccessLevel.MASTER_OR_ADMIN);
+        addRule("/master-drive/**", AccessLevel.MASTER_OR_ADMIN);
+        addRule("/admin/drives/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/admin/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/logger/**", AccessLevel.MASTER_OR_ADMIN);
         addRule("/master/**", AccessLevel.MASTER_OR_ADMIN);
@@ -135,8 +145,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
+       
         AccessLevel level = getAccessLevel(path);
-
+      
         switch (level) {
             case PUBLIC:
                 chain.doFilter(request, response);
@@ -150,6 +161,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             case MASTER_KEY:
                 if (handleMasterKey(request, response, chain)) return;
                 sendUnauthorized(response, "Invalid or missing Master Key");
+                return;
+
+            case STREAM_TOKEN:
+                if (handleMasterKey(request, response, chain)) return;
+                if (handleAdminJwt(request, response, chain)) return;
+                if (handleStreamToken(request, response, chain)) return;
+                sendUnauthorized(response, "Invalid or expired streaming token");
                 return;
 
             case MASTER_OR_ADMIN:
@@ -170,6 +188,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     // ================================
     // 6. HANDLER METHODS
     // ================================
+
+    private boolean handleStreamToken(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        String token = request.getParameter("token");
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+
+        String path = request.getRequestURI();
+        String prefix = "/master-drive/files/";
+        String suffix = "/stream";
+        if (path == null || !path.startsWith(prefix) || !path.endsWith(suffix)) {
+            return false;
+        }
+
+        String requestedFileId = path.substring(prefix.length(), path.length() - suffix.length());
+        if (requestedFileId.isBlank() || requestedFileId.contains("/")) {
+            return false;
+        }
+
+        try {
+            String tokenFileId = jwt.validateFileAccessToken(token.trim());
+            if (!requestedFileId.equals(tokenFileId)) {
+                return false;
+            }
+            setAuthentication("stream-token:" + requestedFileId, "ROLE_ADMIN");
+            chain.doFilter(request, response);
+            return true;
+        } catch (Exception ex) {
+            logger.debug("Invalid or expired Master Drive stream token", ex);
+            return false;
+        }
+    }
 
     private boolean handleMasterKey(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
@@ -204,23 +255,44 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private boolean handleRegularJwt(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         String header = request.getHeader("Authorization");
+        String token = null;
+
         if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
-            try {
-                if (jwt.isAccessTokenValid(token)) {
-                    String email = jwt.extractEmail(token);
-                    if (!isUserActive(email, response)) return false;
-                    String role = jwt.extractRole(token);
-                    setAuthentication(email, "ROLE_" + role);
-                    return true;
-                }
-            } catch (io.jsonwebtoken.ExpiredJwtException e) {
-                logger.debug("Expired JWT token: {}", e.getMessage());
-            } catch (Exception e) {
-                logger.debug("Invalid JWT token: {}", e.getMessage());
-            }
+            token = header.substring(7).trim();
+        } else if (request.getRequestURI() != null
+                && request.getRequestURI().startsWith("/stream/")) {
+            // Native <video>/<audio> elements cannot attach Authorization headers
+            // to their HTTP Range requests. Permit a query token only for the
+            // authenticated streaming endpoint; all other routes remain header-only.
+            token = request.getParameter("mediaToken");
         }
-        return true;
+
+        if (token == null) return true;
+        token = token.trim();
+        if (token.isBlank()) {
+            sendUnauthorized(response, "Invalid or missing token");
+            return false;
+        }
+
+        try {
+            if (!jwt.isAccessTokenValid(token)) {
+                sendUnauthorized(response, "Unauthorized or token expired");
+                return false;
+            }
+            String email = jwt.extractEmail(token);
+            if (!isUserActive(email, response)) return false;
+            String role = jwt.extractRole(token);
+            setAuthentication(email, "ROLE_" + role);
+            return true;
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            logger.debug("Expired JWT token");
+            sendUnauthorized(response, "Unauthorized or token expired");
+            return false;
+        } catch (Exception e) {
+            logger.debug("Invalid JWT token", e);
+            sendUnauthorized(response, "Unauthorized or token expired");
+            return false;
+        }
     }
 
     // ================================

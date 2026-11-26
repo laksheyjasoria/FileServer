@@ -1,0 +1,137 @@
+package com.app.transfer;
+
+import java.io.IOException;
+import java.io.OutputStream;
+
+import org.springframework.stereotype.Service;
+
+import com.app.master.entity.MasterFile;
+import com.app.storage.factory.StorageFactory;
+import com.app.upload.service.UploadChunkReader;
+
+@Service
+public class FileTransferService {
+
+	private final ChunkRangeService chunkRangeService;
+	private final UploadChunkReader uploadChunkReader;
+	private final StorageFactory storageFactory;
+
+	public FileTransferService(ChunkRangeService chunkRangeService, UploadChunkReader uploadChunkReader,
+			StorageFactory storageFactory) {
+
+		this.chunkRangeService = chunkRangeService;
+		this.uploadChunkReader = uploadChunkReader;
+		this.storageFactory = storageFactory;
+	}
+
+	public boolean isChunked(MasterFile file) {
+
+		return file != null && file.getUploadJobId() != null && !file.getUploadJobId().isBlank();
+	}
+
+	public boolean isLegacy(MasterFile file) {
+
+		return file != null && !isChunked(file) && file.getFileId() != null && !file.getFileId().isBlank();
+	}
+
+	/**
+	 * Streams the requested logical byte range.
+	 *
+	 * For chunked files, only the required Telegram chunks are loaded.
+	 *
+	 * For legacy files, the existing storage abstraction is used and the required
+	 * range is copied from the returned byte array.
+	 */
+	public void streamRange(MasterFile file, ByteRange range, OutputStream outputStream) throws IOException {
+
+		if (file == null) {
+			throw new IllegalArgumentException("File cannot be null");
+		}
+
+		if (range == null) {
+			throw new IllegalArgumentException("Range cannot be null");
+		}
+
+		if (outputStream == null) {
+			throw new IllegalArgumentException("Output stream cannot be null");
+		}
+
+		if (isChunked(file)) {
+			streamChunkedRange(file, range, outputStream);
+			return;
+		}
+
+		if (isLegacy(file)) {
+			streamLegacyRange(file, range, outputStream);
+			return;
+		}
+
+		throw new IllegalArgumentException("File has no valid storage reference: " + file.getId());
+	}
+
+	/**
+	 * Streams a logical range from chunked storage.
+	 */
+	private void streamChunkedRange(MasterFile file, ByteRange range, OutputStream outputStream) throws IOException {
+
+		ChunkRangeService.ResolvedChunkRange resolved = chunkRangeService.resolve(file,
+				RangeRequest.startEnd(range.getStart(), range.getEnd()));
+
+		long totalWritten = 0L;
+
+		for (ChunkRangeService.ChunkRange chunk : resolved.getChunks()) {
+
+			long localStart = chunk.getLocalStart();
+			long localEnd = chunk.getLocalEnd();
+			if (localStart < 0 || localEnd < localStart) {
+				throw new IOException("Invalid local chunk range for chunk " + chunk.getChunkIndex());
+			}
+			long length = localEnd - localStart + 1L;
+			long written = uploadChunkReader.stream(file.getUploadJobId(), chunk.getChunkIndex(),
+					localStart, length, outputStream);
+			if (written != length) {
+				throw new IOException("Telegram chunk stream ended early for chunk " + chunk.getChunkIndex());
+			}
+			totalWritten += written;
+		}
+
+		if (totalWritten != range.getLength()) {
+			throw new IOException(
+					"Transferred byte count mismatch. Expected " + range.getLength() + " but wrote " + totalWritten);
+		}
+
+		outputStream.flush();
+	}
+
+	/**
+	 * Streams a legacy Telegram file range.
+	 *
+	 * Legacy storage still exposes byte[] through the existing storage abstraction.
+	 * We preserve that behavior for backward compatibility.
+	 */
+	private void streamLegacyRange(MasterFile file, ByteRange range, OutputStream outputStream) throws IOException {
+		long fileSize = file.getSize() == null ? -1L : file.getSize();
+		if (fileSize < 0 || range.getStart() < 0 || range.getEnd() < range.getStart()
+				|| range.getEnd() >= fileSize) {
+			throw new IOException("Requested range is outside legacy file metadata.");
+		}
+		long expected = range.getLength();
+		long written = storageFactory.get().stream(file.getFileId(), range.getStart(), expected, outputStream);
+		if (written != expected) {
+			throw new IOException("Legacy stream ended early. Expected " + expected + " bytes but wrote " + written);
+		}
+		outputStream.flush();
+	}
+
+	/**
+	 * Legacy full-file download compatibility method.
+	 */
+	public byte[] downloadLegacy(String fileId) {
+
+		if (fileId == null || fileId.isBlank()) {
+			throw new IllegalArgumentException("File ID cannot be empty");
+		}
+
+		return storageFactory.get().download(fileId);
+	}
+}

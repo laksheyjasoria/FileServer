@@ -1,30 +1,169 @@
 package com.app.orchestrator;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.app.billing.entity.Subscription;
+import com.app.billing.service.BillingService;
+import com.app.billing.service.UsageService;
+import com.app.core.exception.StorageLimitExceededException;
+import com.app.core.exception.UploadLimitExceededException;
+import com.app.master.entity.MasterFile;
+import com.app.master.repository.MasterFileRepository;
 import com.app.upload.dto.CreateUploadRequest;
 import com.app.upload.entity.UploadJob;
+import com.app.upload.entity.UploadStatus;
 import com.app.upload.repository.UploadJobRepository;
+import com.app.upload.service.ChunkSizeCalculator;
 
 @Component
 public class UploadOrchestrator {
 
-    private final UploadJobRepository repo;
+    private final UploadJobRepository jobRepo;
+    private final MasterFileRepository masterFileRepo;
+    private final ChunkSizeCalculator chunkSizeCalculator;
+    private final BillingService billingService;
+    private final UsageService usageService;
 
-    public UploadOrchestrator(UploadJobRepository repo) {
-        this.repo = repo;
+    public UploadOrchestrator(
+            UploadJobRepository jobRepo,
+            MasterFileRepository masterFileRepo,
+            ChunkSizeCalculator chunkSizeCalculator,
+            BillingService billingService,
+            UsageService usageService) {
+
+        this.jobRepo = jobRepo;
+        this.masterFileRepo = masterFileRepo;
+        this.chunkSizeCalculator = chunkSizeCalculator;
+        this.billingService = billingService;
+        this.usageService = usageService;
     }
 
-    public UploadJob create(CreateUploadRequest request,
-                            String userId) {
+    @Transactional
+    public UploadJob create(CreateUploadRequest request, String userId,boolean admin) {
+
+    	validateRequest(request);
+
+    	long totalSize = request.getTotalSize();
+
+    	if (!admin) {
+    	    Subscription subscription =
+    	            billingService.getOrCreateActiveSubscription(userId);
+
+    	    if (totalSize > subscription.getPlan().getMaxUploadSizeBytes()) {
+    	        throw new UploadLimitExceededException();
+    	    }
+
+    	    long usedStorage = usageService.calculateUsedStorage(userId);
+
+    	    if (usedStorage + totalSize > subscription.getPlan().getStorageLimitBytes()) {
+    	        throw new StorageLimitExceededException();
+    	    }
+    	}
+
+    	System.out.println("UPLOAD totalSize = " + totalSize);
+    	System.out.println("UPLOAD totalSize MB = "
+    	        + (totalSize / (1024.0 * 1024.0)));
+
+    	long chunkSize =
+    	        chunkSizeCalculator.calculateChunkSize(totalSize);
+
+    	System.out.println("CALCULATED chunkSize MB = "
+    	        + (chunkSize / (1024.0 * 1024.0)));
+
+    	int totalChunks =
+    	        chunkSizeCalculator.calculateTotalChunks(totalSize, chunkSize);
+
+    	System.out.println("CALCULATED totalChunks = " + totalChunks);
 
         UploadJob job = new UploadJob();
-
-        job.setFileName(request.getFileName());
-        job.setTotalSize(request.getTotalSize());
-        job.setTotalChunks(request.getTotalChunks());
         job.setUserId(userId);
+        job.setFileName(request.getFileName());
+        job.setTotalSize(totalSize);
+        job.setChunkSize((int) chunkSize);
+        job.setTotalChunks(totalChunks);
+        job.setUploadedChunks(0);
+        job.setUploadedBytes(0L);
 
-        return repo.save(job);
+        /*
+         * A zero-byte file has no physical chunk to send to Telegram.
+         * Complete it immediately.
+         */
+        if (totalSize == 0) {
+            job.setStatus(UploadStatus.COMPLETED);
+        }
+
+        UploadJob savedJob = jobRepo.save(job);
+
+        MasterFile masterFile = new MasterFile();
+        masterFile.setUserId(userId);
+        masterFile.setName(request.getFileName());
+        masterFile.setUploadJobId(savedJob.getId());
+        masterFile.setSize(totalSize);
+        masterFile.setContentType(request.getContentType());
+        masterFile.setParentId(request.getParentId());
+        masterFile.setDriveType("FILE");
+        masterFile.setAccessType("PUBLIC");
+        masterFile.setActive(totalSize == 0);
+
+        masterFileRepo.save(masterFile);
+
+        return savedJob;
+    }
+
+
+    /**
+     * Creates a chunked upload into the shared Master Drive namespace.
+     * UploadJob ownership remains the authenticated Admin principal so the
+     * existing chunk/status services can enforce ownership. MasterFile ownership
+     * remains the root Master Drive owner.
+     */
+    @Transactional
+    public UploadJob createForMasterDrive(CreateUploadRequest request, String principal, String driveOwnerId) {
+        validateRequest(request);
+        long totalSize = request.getTotalSize();
+        long chunkSize = chunkSizeCalculator.calculateChunkSize(totalSize);
+        int totalChunks = chunkSizeCalculator.calculateTotalChunks(totalSize, chunkSize);
+
+        UploadJob job = new UploadJob();
+        job.setUserId(principal);
+        job.setFileName(request.getFileName());
+        job.setTotalSize(totalSize);
+        job.setChunkSize((int) chunkSize);
+        job.setTotalChunks(totalChunks);
+        job.setUploadedChunks(0);
+        job.setUploadedBytes(0L);
+        if (totalSize == 0) {
+            job.setStatus(UploadStatus.COMPLETED);
+        }
+
+        UploadJob savedJob = jobRepo.save(job);
+        MasterFile masterFile = new MasterFile();
+        masterFile.setUserId(driveOwnerId);
+        masterFile.setName(request.getFileName());
+        masterFile.setUploadJobId(savedJob.getId());
+        masterFile.setSize(totalSize);
+        masterFile.setContentType(request.getContentType());
+        masterFile.setParentId(request.getParentId());
+        masterFile.setDriveType("FILE");
+        masterFile.setAccessType("PUBLIC");
+        masterFile.setActive(totalSize == 0);
+        masterFileRepo.save(masterFile);
+        return savedJob;
+    }
+
+    private void validateRequest(CreateUploadRequest request) {
+
+        if (request == null) {
+            throw new IllegalArgumentException("Upload request cannot be null.");
+        }
+
+        if (request.getFileName() == null || request.getFileName().isBlank()) {
+            throw new IllegalArgumentException("File name is required.");
+        }
+
+        if (request.getTotalSize() == null || request.getTotalSize() < 0) {
+            throw new IllegalArgumentException("File size must be zero or greater.");
+        }
     }
 }

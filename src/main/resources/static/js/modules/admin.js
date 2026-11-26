@@ -1,6 +1,7 @@
 // admin.js – Master Drive Management (Admin only)
 
 let adminCurrentFolderId = null;
+let adminCurrentDriveId = null;
 let adminAllDrives = [];
 let adminContextMenuItem = null;
 
@@ -51,13 +52,17 @@ async function adminFetch(endpoint, options = {}) {
     throw new Error("Unauthorized");
   }
   const url = `${API_URL}${endpoint}`;
+  const requestHeaders = {
+    Authorization: `Bearer ${token}`,
+    ...(options.headers || {}),
+  };
+  if (!(options.body instanceof FormData) && options.body !== undefined &&
+      !Object.keys(requestHeaders).some((key) => key.toLowerCase() === "content-type")) {
+    requestHeaders["Content-Type"] = "application/json";
+  }
   const response = await fetch(url, {
     ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers: requestHeaders,
   });
   if (response.status === 401) {
     localStorage.removeItem("jwtToken");
@@ -103,11 +108,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 function attachListeners() {
   const newFolderBtn = document.getElementById("newFolderBtn");
   const createFolderBtn = document.getElementById("createFolderBtn");
+  const uploadBtn = document.getElementById("masterUploadBtn");
+  const uploadInput = document.getElementById("masterUploadInput");
   if (newFolderBtn) {
     newFolderBtn.addEventListener("click", showCreateFolderModal);
   }
   if (createFolderBtn) {
     createFolderBtn.addEventListener("click", createFolder);
+  }
+  if (uploadBtn && uploadInput) {
+    uploadBtn.addEventListener("click", () => uploadInput.click());
+    uploadInput.addEventListener("change", uploadSelectedMasterFiles);
   }
 }
 
@@ -169,14 +180,18 @@ function renderDrives(drives) {
 
 // ===== NAVIGATION =====
 function navigateToFolder(folderId) {
+  if (!adminCurrentFolderId) adminCurrentDriveId = folderId;
   adminCurrentFolderId = folderId;
   loadMasterDrives();
 }
 function navigateToParent() {
   adminCurrentFolderId = null;
+  adminCurrentDriveId = null;
   loadMasterDrives();
 }
 function updateBreadcrumb() {
+  const uploadBtn = document.getElementById("masterUploadBtn");
+  if (uploadBtn) uploadBtn.style.display = adminCurrentDriveId ? "inline-flex" : "none";
   const breadcrumb = document.getElementById("breadcrumb");
   if (!adminCurrentFolderId) {
     breadcrumb.innerHTML =
@@ -249,6 +264,111 @@ async function deleteDrive(id, name) {
   } catch (error) {
     if (error.message === "Unauthorized") return;
     safeToast("Failed to delete: " + error.message, "error");
+  }
+}
+
+
+
+// ===== CHUNKED MASTER DRIVE UPLOAD =====
+async function uploadSelectedMasterFiles(event) {
+  const input = event.target;
+  const selectedFiles = Array.from(input.files || []);
+  input.value = "";
+  if (!selectedFiles.length) return;
+  if (!adminCurrentDriveId || !adminCurrentFolderId) {
+    safeToast("Open a Master Drive folder before uploading.", "warning");
+    return;
+  }
+
+  const progressContainer = document.getElementById("masterUploadProgress");
+  progressContainer.style.display = "block";
+  progressContainer.innerHTML = "";
+
+  for (const file of selectedFiles) {
+    const row = document.createElement("div");
+    row.className = "upload-item";
+    row.innerHTML = `
+      <div class="upload-filename">${escapeHtml(file.name)}</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+      <div class="upload-status"><span class="status-text">Preparing chunked upload…</span><strong>0%</strong></div>
+    `;
+    progressContainer.appendChild(row);
+    const fill = row.querySelector(".progress-fill");
+    const status = row.querySelector(".status-text");
+    const percentLabel = row.querySelector(".upload-status strong");
+
+    try {
+      const createResponse = await adminFetch(`/master-drive/${encodeURIComponent(adminCurrentDriveId)}/upload/create`, {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: file.name,
+          totalSize: file.size,
+          contentType: file.type || "application/octet-stream",
+          parentId: adminCurrentFolderId
+        })
+      });
+      if (!createResponse.ok) throw new Error(await readApiError(createResponse));
+      const job = await createResponse.json();
+      if (!job.id || (job.totalChunks > 0 && (!job.chunkSize || job.chunkSize < 1)) || !Number.isInteger(job.totalChunks)) {
+        throw new Error("Server returned incomplete chunk upload details.");
+      }
+
+      let nextIndex = 0;
+      let completed = 0;
+      const workerCount = Math.min(3, job.totalChunks);
+      status.textContent = `Uploading 0 of ${job.totalChunks} chunks`;
+
+      const worker = async () => {
+        while (true) {
+          const index = nextIndex++;
+          if (index >= job.totalChunks) return;
+          const start = index * job.chunkSize;
+          const end = Math.min(file.size, start + job.chunkSize);
+          const chunk = file.slice(start, end);
+          const form = new FormData();
+          form.append("file", chunk, file.name);
+          const response = await adminFetch(`/master-drive/upload/${encodeURIComponent(job.id)}/${index}`, {
+            method: "POST",
+            body: form
+          });
+          if (!response.ok) throw new Error(await readApiError(response));
+          completed++;
+          const percent = Math.round((completed / job.totalChunks) * 100);
+          fill.style.width = percent + "%";
+          percentLabel.textContent = percent + "%";
+          status.textContent = `Stored ${completed} of ${job.totalChunks} chunks`;
+        }
+      };
+
+      await Promise.all(Array.from({ length: workerCount }, () => worker()));
+      const statusResponse = await adminFetch(`/master-drive/upload/${encodeURIComponent(job.id)}/status`);
+      if (!statusResponse.ok) throw new Error(await readApiError(statusResponse));
+      const finalStatus = await statusResponse.json();
+      if (finalStatus.status !== "COMPLETED") {
+        throw new Error(`Upload ended with status ${finalStatus.status}`);
+      }
+      fill.style.width = "100%";
+      percentLabel.textContent = "100%";
+      status.textContent = "Uploaded and verified in Master Drive";
+      status.classList.add("completed-status");
+    } catch (error) {
+      status.textContent = "Upload failed: " + error.message;
+      status.classList.add("failed-status");
+      safeToast(`Failed to upload ${file.name}: ${error.message}`, "error");
+    }
+  }
+
+  await loadMasterDrives();
+}
+
+async function readApiError(response) {
+  const text = await response.text();
+  if (!text) return `Request failed (${response.status})`;
+  try {
+    const body = JSON.parse(text);
+    return body.message || body.error || text;
+  } catch (_) {
+    return text;
   }
 }
 

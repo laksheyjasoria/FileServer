@@ -4,6 +4,9 @@ const urlParams = new URLSearchParams(window.location.search);
 const fileId = urlParams.get("id");
 const token = urlParams.get("token");
 let fileInfo = null;
+let fileBlob = null;
+let fileObjectUrl = null;
+let mediaStreamUrl = null;
 
 if (!fileId || !token) {
   showError("Invalid file link. Missing file ID or authentication token.");
@@ -14,7 +17,7 @@ if (!fileId || !token) {
 async function loadFile() {
   try {
     const infoResponse = await fetch(
-      `${API_URL}/download/${fileId}?metadata=true`,
+      `${API_URL}/download/${fileId}/metadata`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -40,19 +43,41 @@ async function loadFile() {
 
     document.getElementById("downloadBtn").onclick = () => downloadFile();
 
-    const fileResponse = await fetch(`${API_URL}/download/${fileId}`, {
+    const contentType = fileInfo.contentType || "application/octet-stream";
+
+    // Do not fetch large videos/audio into a single browser Blob. Native media
+    // elements request only the byte ranges they need, allowing playback to
+    // start before the entire file has transferred and avoiding huge memory use.
+    if (contentType.startsWith("video/") || contentType.startsWith("audio/")) {
+      mediaStreamUrl = `${API_URL}/stream/${encodeURIComponent(fileId)}?mediaToken=${encodeURIComponent(token)}`;
+      displayFile(mediaStreamUrl, contentType, fileInfo.name);
+      return;
+    }
+
+    const fileResponse = await fetch(`${API_URL}/download/${encodeURIComponent(fileId)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!fileResponse.ok)
       throw new Error(
         `Failed to load file content (Status: ${fileResponse.status})`,
       );
-    const blob = await fileResponse.blob();
-    if (blob.size === 0) throw new Error("File is empty");
-    const url = URL.createObjectURL(blob);
-    const contentType = fileInfo.contentType || blob.type;
-    displayFile(url, contentType, fileInfo.name);
-    window.addEventListener("beforeunload", () => URL.revokeObjectURL(url));
+    // Keep the downloaded bytes so the Download button does not fetch the
+    // entire file a second time. Also detect truncated server streams explicitly.
+    fileBlob = await fileResponse.blob();
+    if (fileBlob.size === 0 && Number(fileInfo.size) > 0) {
+      throw new Error("The server returned an empty file.");
+    }
+    const expectedSize = Number(fileInfo.size);
+    if (Number.isFinite(expectedSize) && expectedSize >= 0 && fileBlob.size !== expectedSize) {
+      throw new Error(
+        `Incomplete file transfer: received ${formatFileSize(fileBlob.size)} of ${formatFileSize(expectedSize)}. Please retry the download.`,
+      );
+    }
+    fileObjectUrl = URL.createObjectURL(fileBlob);
+    displayFile(fileObjectUrl, contentType, fileInfo.name);
+    window.addEventListener("beforeunload", () => {
+      if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
+    });
   } catch (error) {
     console.error("Error loading file:", error);
     showError(error.message);
@@ -70,6 +95,82 @@ function displayFile(url, contentType, filename) {
     container.innerHTML = `<iframe src="${url}" class="pdf-viewer" title="${filename}"></iframe>`;
   } else if (contentType.startsWith("video/")) {
     container.innerHTML = `<video controls class="video-viewer" autoplay><source src="${url}" type="${contentType}">Your browser does not support video playback.</video>`;
+
+    // Some browsers can play the AAC audio track of an HEVC MP4 but cannot
+    // decode its video track. If metadata arrives without video dimensions,
+    // retry through the server's temporary H.264/AAC compatibility preview.
+    const video = container.querySelector("video");
+    const source = video?.querySelector("source");
+    let compatiblePreviewAttempted = false;
+
+    const tryCompatiblePreview = () => {
+      if (!video || !source || compatiblePreviewAttempted || video.videoWidth > 0) {
+        return;
+      }
+
+      compatiblePreviewAttempted = true;
+      safeToast(
+        "Preparing a browser-compatible video preview. Larger videos may take a while.",
+        "info",
+        5000,
+      );
+      // Fetch the preview explicitly instead of pointing the media element at the
+      // endpoint directly. If the server returns JSON/HTML for an error, browsers
+      // must not interpret it as a downloadable preview.json file.
+      const previewUrl = `${API_URL}/stream/${encodeURIComponent(fileId)}/preview`;
+      // Keep the original stream URL in place until the preview has been
+      // downloaded and validated. If conversion fails, the native source remains
+      // available instead of leaving the <video> element with an empty <source>.
+      video.pause();
+      fetch(previewUrl, { headers: { Authorization: `Bearer ${token}` } })
+        .then(async (response) => {
+          const responseType = (response.headers.get("content-type") || "").toLowerCase();
+          if (!response.ok || !responseType.includes("video/mp4")) {
+            const detail = await response.text().catch(() => "");
+            let message = detail;
+            try {
+              const parsed = JSON.parse(detail);
+              message = parsed.message || parsed.error || detail;
+            } catch (_) {
+              // Keep a plain-text server error as-is.
+            }
+            throw new Error(message || `Preview failed (HTTP ${response.status})`);
+          }
+          return response.blob();
+        })
+        .then((previewBlob) => {
+          if (!previewBlob.size) throw new Error("The server returned an empty video preview.");
+          if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
+          fileObjectUrl = URL.createObjectURL(previewBlob);
+          source.src = fileObjectUrl;
+          source.type = "video/mp4";
+          video.load();
+          video.play().catch(() => {});
+        })
+        .catch((error) => {
+          console.error("Compatible video preview failed:", error);
+          safeToast(`Video preview failed: ${error.message}`, "error", 8000);
+        });
+    };
+
+    video.addEventListener("loadedmetadata", () => {
+      window.setTimeout(() => {
+        if (video.videoWidth === 0) {
+          tryCompatiblePreview();
+        }
+      }, 500);
+    }, { once: true });
+
+    video.addEventListener("error", () => {
+      if (!compatiblePreviewAttempted) {
+        tryCompatiblePreview();
+      } else {
+        safeToast(
+          "Compatible preview failed. Check that FFmpeg is installed and the video is within the preview size limit.",
+          "error",
+        );
+      }
+    });
   } else if (contentType.startsWith("audio/")) {
     container.innerHTML = `<audio controls class="audio-viewer" autoplay><source src="${url}" type="${contentType}">Your browser does not support audio playback.</audio>`;
   } else if (
@@ -137,25 +238,62 @@ function handleLoadError(element) {
 }
 
 function downloadFile() {
+  // Use the browser's native download pipeline for large media instead of
+  // fetching the entire video/audio into JavaScript memory.
+  if (mediaStreamUrl) {
+    const link = document.createElement("a");
+    link.href = mediaStreamUrl;
+    link.download = fileInfo ? fileInfo.name : "download";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    safeToast("Download started!", "success", 2000);
+    return;
+  }
+
+  if (fileBlob) {
+    triggerBlobDownload(fileBlob);
+    return;
+  }
+
   safeToast("Preparing download...", "info", 2000);
-  fetch(`${API_URL}/download/${fileId}`, {
+  fetch(`${API_URL}/download/${encodeURIComponent(fileId)}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-    .then((response) => {
-      if (!response.ok) throw new Error("Download failed");
+    .then(async (response) => {
+      if (!response.ok) {
+        const details = await response.text().catch(() => "");
+        throw new Error(details || `Download failed (HTTP ${response.status})`);
+      }
       return response.blob();
     })
     .then((blob) => {
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = fileInfo ? fileInfo.name : "download";
-      link.click();
-      URL.revokeObjectURL(link.href);
-      safeToast("Download started!", "success", 2000);
+      if (Number(fileInfo?.size) > 0 && blob.size !== Number(fileInfo.size)) {
+        throw new Error(
+          `Incomplete download: received ${formatFileSize(blob.size)} of ${formatFileSize(Number(fileInfo.size))}.`,
+        );
+      }
+      triggerBlobDownload(blob);
     })
     .catch((error) => {
+      console.error("File download failed:", error);
       safeToast("Download failed: " + error.message, "error");
     });
+}
+
+function triggerBlobDownload(blob) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileInfo ? fileInfo.name : "download";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoke only after the browser has had time to start consuming the blob URL.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  safeToast("Download started!", "success", 2000);
 }
 
 function closeViewer() {

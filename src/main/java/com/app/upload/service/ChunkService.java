@@ -1,59 +1,125 @@
 package com.app.upload.service;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.app.core.exception.UploadNotFoundException;
 import com.app.storage.factory.StorageFactory;
 import com.app.upload.entity.UploadChunk;
-import com.app.upload.entity.UploadJob;
-import com.app.upload.entity.UploadStatus;
 import com.app.upload.repository.UploadChunkRepository;
-import com.app.upload.repository.UploadJobRepository;
 
+/**
+ * Coordinates browser chunk validation with Telegram storage.
+ *
+ * Database state is committed before and after Telegram I/O so a slow Telegram
+ * request does not hold an application transaction open for the entire transfer.
+ */
 @Service
 public class ChunkService {
 
-    private final UploadJobRepository jobRepo;
-    private final UploadChunkRepository chunkRepo;
+    private final ChunkUploadStateService stateService;
+    private final UploadChunkRepository chunkRepository;
     private final StorageFactory storageFactory;
 
-    public ChunkService(UploadJobRepository jobRepo,
-                        UploadChunkRepository chunkRepo,
-                        StorageFactory storageFactory) {
-        this.jobRepo = jobRepo;
-        this.chunkRepo = chunkRepo;
+    /*
+     * Protects duplicate requests inside a single application instance.
+     * The database unique constraint remains the cross-instance authority.
+     */
+    private final ConcurrentMap<String, Object> localChunkLocks = new ConcurrentHashMap<>();
+
+    public ChunkService(
+            ChunkUploadStateService stateService,
+            UploadChunkRepository chunkRepository,
+            StorageFactory storageFactory) {
+        this.stateService = stateService;
+        this.chunkRepository = chunkRepository;
         this.storageFactory = storageFactory;
     }
 
-    public void uploadChunk(String uploadId,
-                            Integer chunkIndex,
-                            MultipartFile file) {
+    public void uploadChunk(
+            String uploadId,
+            Integer chunkIndex,
+            MultipartFile file,
+            String userId) {
 
-        UploadJob job = jobRepo.findById(uploadId)
-                .orElseThrow(UploadNotFoundException::new);
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Chunk file cannot be empty.");
+        }
 
-        if (chunkRepo.existsByUploadJobIdAndChunkIndex(uploadId, chunkIndex)) {
+        if (chunkIndex == null || chunkIndex < 0) {
+            throw new IllegalArgumentException("Chunk index must be zero or greater.");
+        }
+
+        String lockKey = uploadId + ":" + chunkIndex;
+        Object lock = localChunkLocks.computeIfAbsent(lockKey, ignored -> new Object());
+
+        try {
+            synchronized (lock) {
+                uploadChunkInternal(uploadId, chunkIndex, file, userId);
+            }
+        } finally {
+            localChunkLocks.remove(lockKey, lock);
+        }
+    }
+
+    private void uploadChunkInternal(
+            String uploadId,
+            int chunkIndex,
+            MultipartFile file,
+            String userId) {
+
+        boolean claimed;
+
+        try {
+            claimed = stateService.claimChunk(
+                    uploadId,
+                    chunkIndex,
+                    file.getSize(),
+                    userId);
+        } catch (DataIntegrityViolationException ex) {
+            /*
+             * Another instance inserted the same logical chunk first.
+             */
+            UploadChunk existing = chunkRepository
+                    .findByUploadJobIdAndChunkIndex(uploadId, chunkIndex)
+                    .orElseThrow(UploadNotFoundException::new);
+
+            if (existing.getStatus() == com.app.upload.entity.UploadChunkStatus.COMPLETED) {
+                return;
+            }
+
+            throw new IllegalStateException(
+                    "Chunk " + chunkIndex + " is already being uploaded.");
+        }
+
+        if (!claimed) {
             return;
         }
 
-        String telegramFileId =
-                storageFactory.get().upload(file);
+        String telegramFileId = null;
 
-        UploadChunk chunk = new UploadChunk();
-        chunk.setUploadJobId(uploadId);
-        chunk.setChunkIndex(chunkIndex);
-        chunk.setTelegramFileId(telegramFileId);
-        chunk.setSize(file.getSize());
+        try {
+            telegramFileId = storageFactory.get().upload(file);
 
-        chunkRepo.save(chunk);
+            stateService.completeChunk(
+                    uploadId,
+                    chunkIndex,
+                    file.getSize(),
+                    telegramFileId,
+                    userId);
 
-        job.setUploadedChunks(job.getUploadedChunks() + 1);
+        } catch (RuntimeException ex) {
+            try {
+                stateService.markFailed(uploadId, chunkIndex, userId);
+            } catch (RuntimeException stateError) {
+                ex.addSuppressed(stateError);
+            }
 
-        if (job.getUploadedChunks().equals(job.getTotalChunks())) {
-            job.setStatus(UploadStatus.COMPLETED);
+            throw ex;
         }
-
-        jobRepo.save(job);
     }
 }
