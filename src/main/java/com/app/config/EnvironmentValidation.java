@@ -8,7 +8,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.env.PropertySource;
 
 /**
  * Validates resolved Spring configuration after ConfigData has been loaded
@@ -34,17 +33,10 @@ public class EnvironmentValidation implements EnvironmentPostProcessor, Ordered 
         System.out.println("========== FILESERVER ENVIRONMENT VALIDATION ==========");
         List<String> failures = new ArrayList<>();
 
-        boolean envLoaded = false;
-        for (PropertySource<?> source : environment.getPropertySources()) {
-            if (source.getName().toLowerCase().contains(".env")) {
-                envLoaded = true;
-                break;
-            }
-        }
-        report(".env property source", envLoaded);
-        if (!envLoaded) {
-            failures.add(".env file was not loaded");
-        }
+        // A local .env file is a convenience for development, not a deployment
+        // requirement. CI and production may provide all settings through the
+        // process environment, container secrets or an orchestrator.
+        report("Local .env file (optional)", true);
 
         requireValue(environment, failures, "spring.application.name", "APP_NAME");
         requireValue(environment, failures, "spring.datasource.url", "SPRING_DATASOURCE_URL");
